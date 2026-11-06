@@ -403,7 +403,23 @@ for Safe owner 2 and the MM (gitignored .env only); contracts first, then app wi
 - **Indexer RPC:** `mainnet.base.org` refuses every `eth_getLogs` (-32011); the Tenderly public gateway serves logs up
   to ~1000-block ranges (2000 hangs). `.env` uses it with 15 s polling, concurrency 1, 500-block ranges.
 
-## 16. Infra
+## 16. Self-serve onboarding (Segment 11, in progress)
+
+Decisions (user): launcher creates pool + anchor only (no liquidity custody); in-app Safe creation; canonical
+quote list (Base USDC/WETH) + custom with impersonation warnings; demo-only mock-token helper.
+
+- **AnchorLauncher** (`src/anchor/AnchorLauncher.sol`, Base `0x5551b2f6a48f86328981EEFD78138dec340C29fB`, block 53953674):
+  permissionless, immutable, bound to one PoolManager and a hook whose `poolManager()` matches. Per (base, quote):
+  initialize the pool (fee 3000, spacing 60, our hook) only if absent, grow cardinality to 300, CREATE2-deploy the
+  anchor (salt = keccak(base, quote)). Idempotent; reverse orientation shares the pool.
+- **Cost:** a launch is ~7.5M gas, almost all of it the 300 observation slots (~22k gas each); ~0.00008 ETH on Base.
+- **Pool squatting:** anyone may initialize the pool first at any price; the launcher keeps it (`poolCreated=false`).
+  The UI must show the pool's current price and liquidity before an issuer relies on it.
+- **Token check:** `code.length > 0` is not enough. A fork test hit an address with code that is not a token
+  (EIP-7702 delegation). Tokens must answer `totalSupply()` with one word.
+- **History:** the init observation counts, so the anchor prices 30 minutes after launch even with no swaps.
+
+## 17. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.

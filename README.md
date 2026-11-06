@@ -85,6 +85,7 @@ PoolManager and Safe 1.4.1. Source of truth: [`deployments/8453.json`](deploymen
 | MandateQuoter | [`0xBb259F8DB3A9d3A48989cfb9B970D0B481aEd6D8`](https://basescan.org/address/0xBb259F8DB3A9d3A48989cfb9B970D0B481aEd6D8) |
 | MandateOracleHook | [`0x30Ff096F8582363807a9b5Cb15b84E7d98371080`](https://basescan.org/address/0x30Ff096F8582363807a9b5Cb15b84E7d98371080) |
 | UniswapV4TwapAnchor | [`0x9B78f6553A921D1bea0722CAd111CDAE4299522B`](https://basescan.org/address/0x9B78f6553A921D1bea0722CAd111CDAE4299522B) |
+| AnchorLauncher | [`0x5551b2f6a48f86328981EEFD78138dec340C29fB`](https://basescan.org/address/0x5551b2f6a48f86328981EEFD78138dec340C29fB) |
 | Issuer Safe (2-of-2) | [`0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d`](https://basescan.org/address/0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d) |
 | mLAUNCH / mUSD | [`0x66e185Dd1a99B36E955b8966fd8BbC430Cc64e8a`](https://basescan.org/token/0x66e185Dd1a99B36E955b8966fd8BbC430Cc64e8a) / [`0x6f0f1764A727E1e160D4735cc656ddaeBE2879C9`](https://basescan.org/token/0x6f0f1764A727E1e160D4735cc656ddaeBE2879C9) |
 | Active mandate | `0xb699954439ee4a37cde5dc2b21f8bcfe8458d78977cc7d4e99a2b16886a2bde8` |
@@ -114,5 +115,10 @@ the [current mandate created](https://basescan.org/tx/0x9aa05ccc1455fd40a4913337
 for the Market Maker above, and Safe Owner 2 [swapped](https://basescan.org/tx/0x5e45689c1f616f3a134cf295f2b2b0809e171667e185602e17c97057d06775d8)
 to the testing wallet, all as 2-of-2 Safe transactions.
 
-Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`, `RotateRoles`). Run the Base stack with
+**Self-serve anchors.** `AnchorLauncher.launch(base, quote, initialPriceX36)` creates the v4 pool for any ERC20
+pair with the oracle hook (if missing), grows its observation buffer and deploys a TWAP anchor at a predictable
+address; quotes work once the pool has 30 minutes of history. Liquidity is added with Uniswap's own tools. The demo
+pair's pool above predates the launcher, so `anchorOf(mLAUNCH, mUSD)` is unset.
+
+Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`, `RotateRoles`, `DeployLauncher`). Run the Base stack with
 `pnpm base:worker`, `pnpm base:server` and `pnpm base:web`.

@@ -1,5 +1,6 @@
 {
   "anchor": "0x9B78f6553A921D1bea0722CAd111CDAE4299522B",
+  "anchorLauncher": "0x5551b2f6a48f86328981EEFD78138dec340C29fB",
   "base": "0x66e185Dd1a99B36E955b8966fd8BbC430Cc64e8a",
   "chainId": 8453,
   "deployBlock": 53927227,
