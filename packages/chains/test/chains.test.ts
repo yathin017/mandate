@@ -71,4 +71,5 @@ test("live Base deployment is registered with explorer links and disclosed mock 
   assert.throws(() => parseDeployment({ ...live, sourceChainId: 1 }), /own chain/);
   assert.throws(() => parseDeployment({ ...live, syntheticTokens: false }), /mock tokens/);
   assert.throws(() => parseDeployment({ ...live, environment: "staging" }), /Unknown deployment environment/);
+  assert.throws(() => parseDeployment({ ...live, anchorLauncher: "0x1234" }), /anchorLauncher|address/i);
 });

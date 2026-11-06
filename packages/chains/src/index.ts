@@ -77,6 +77,8 @@ export interface LiveDeployment extends MandateDeployment {
   readonly swapRouter: Address;
   readonly liquidityRouter: Address;
   readonly mandate: Hash;
+  /** AnchorLauncher for self-serve anchors, when deployed on this chain. */
+  readonly anchorLauncher?: Address;
   readonly syntheticTokens: true;
 }
 
@@ -160,7 +162,9 @@ export function parseLiveDeployment(value: unknown): LiveDeployment {
     environment: "live", chainId, sourceChainId: chainId, deployBlock: integer(d.deployBlock, "deployBlock"),
     ...addresses(d, ["module", "quoter", "anchor", "hook", "base", "quote", "deployer", "owner2", "mm", "safe",
       "swapRouter", "liquidityRouter"] as const),
-    mandate: hash(d.mandate, "mandate"), syntheticTokens: true,
+    mandate: hash(d.mandate, "mandate"),
+    ...(d.anchorLauncher === undefined ? {} : { anchorLauncher: address(d.anchorLauncher, "anchorLauncher") }),
+    syntheticTokens: true,
   });
 }
 
