@@ -37,7 +37,7 @@ async function command(program: string, args: string[], cwd = root, env: NodeJS.
   const [code] = await once(child, "close");
   if (code !== 0) throw new Error(`${program} failed (${code}):\n${output.slice(-18_000)}`);
   if (args.includes("--test")) process.stdout.write(output);
-  for (const line of output.split("\n")) if (/Act [123]:|Created 3 mandates/.test(line)) console.log(line.trim());
+  for (const line of output.split("\n")) if (/Act [123]:|Created 3 policies/.test(line)) console.log(line.trim());
   return output.trim();
 }
 
@@ -66,7 +66,8 @@ async function buildReplay(manifest: any, initial: any, initialBlock: any, setup
   for (const [name, signature] of Object.entries(ERROR_SIGNATURES)) selectors[await command("cast", ["sig", signature])] = name;
   const logs = await rpc("eth_getLogs", [{ address: [manifest.mm, manifest.traditionalMm],
     fromBlock: `0x${(cfg.forkBlock + 1).toString(16)}`, toBlock: "latest", topics: [attemptTopic] }]);
-  const acts = SCENARIOS.map((scenario) => ({ ...scenario, mandateId: manifest.mandates[`act${scenario.act}`],
+  const acts = SCENARIOS.map((scenario) => ({ ...scenario, policyId: manifest.policies[`act${scenario.act}`],
+    strategyId: manifest.strategies[`act${scenario.act}`],
     safe: manifest[`safe${scenario.act}`], initialState: initial[scenario.act],
     initialSource: { contract: manifest.stateReader, method: "DemoState.snapshot(bytes32)",
       blockNumber: Number(BigInt(initialBlock.number)), blockHash: initialBlock.hash }, steps: [] as any[] }));
@@ -80,7 +81,7 @@ async function buildReplay(manifest: any, initial: any, initialBlock: any, setup
     const [receipt, block, rawState] = await Promise.all([
       rpc("eth_getTransactionReceipt", [log.transactionHash]),
       rpc("eth_getBlockByNumber", [log.blockNumber, false]),
-      rpc("eth_call", [{ to: manifest.stateReader, data: snapshotSig + act.mandateId.slice(2) }, log.blockNumber]),
+      rpc("eth_call", [{ to: manifest.stateReader, data: snapshotSig + act.strategyId.slice(2) }, log.blockNumber]),
     ]);
     if (receipt.status !== "0x1" || receipt.blockHash !== log.blockHash || block.hash !== log.blockHash) {
       throw new Error(`Unconfirmed or inconsistent receipt ${log.transactionHash}`);
@@ -100,7 +101,7 @@ async function buildReplay(manifest: any, initial: any, initialBlock: any, setup
     });
     receipts.push(receipt);
   }
-  const replay = { schemaVersion: 1, environment: "local-mainnet-fork", chainId: 31337, sourceChainId: 1,
+  const replay = { schemaVersion: 2, environment: "local-mainnet-fork", chainId: 31337, sourceChainId: 1,
     forkBlock: cfg.forkBlock, forkBlockHash: manifest.forkBlockHash, syntheticTokens: true, syntheticOracleHistory: true,
     transactionScope: "local-fork", blockedAttemptSemantics: "Successful outer ScenarioActor transaction containing a caught, reverted inner call.",
     setupTransactions: setupReceipts.map((receipt: any) => ({ transactionHash: receipt.transactionHash,
@@ -166,7 +167,7 @@ async function main() {
     }
     const initial: Record<number, any> = {};
     for (const scenario of SCENARIOS) {
-      const id = manifest.mandates[`act${scenario.act}`];
+      const id = manifest.strategies[`act${scenario.act}`];
       initial[scenario.act] = decodeSnapshot(await rpc("eth_call", [{ to: manifest.stateReader, data: snapshotSig + id.slice(2) }, initialBlock.number]));
     }
     for (const field of ["module", "quoter", "hook", "anchor", "traditionalAnchor", "safe1", "safe2", "safe3", "traditionalSafe", "base", "quote", "stateReader"]) {

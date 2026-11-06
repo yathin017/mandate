@@ -15,9 +15,9 @@ test("mutating replay RPCs accept only explicit loopback ports", () => {
 
 test("snapshot decoding rejects truncated or malformed evidence", () => {
   assert.throws(() => decodeSnapshot("0x01"));
-  assert.throws(() => decodeSnapshot(`0x${"00".repeat(32 * 16)}`));
-  assert.throws(() => decodeSnapshot(`0x${"gg".repeat(32 * 17)}`));
-  assert.equal(decodeSnapshot(`0x${"00".repeat(32 * 17)}`).safeBase, "0");
+  assert.throws(() => decodeSnapshot(`0x${"00".repeat(32 * 21)}`));
+  assert.throws(() => decodeSnapshot(`0x${"gg".repeat(32 * 22)}`));
+  assert.equal(decodeSnapshot(`0x${"00".repeat(32 * 22)}`).safeBase, "0");
 });
 
 test("attempt decoder rejects invalid flags and unsafe offsets", () => {
@@ -31,10 +31,12 @@ test("scenario descriptions reject unmapped acts and steps", () => {
   assert.throws(() => stepDescription(4, 0));
   assert.throws(() => stepDescription(2, 151));
   assert.match(stepDescription(2, 211).label, /stale-price/);
+  assert.match(stepDescription(3, 2).label, /no longer holds/);
+  assert.throws(() => stepDescription(3, 13));
 });
 
 test("every expected scenario revert signature exists in compiled contract ABIs", async () => {
-  const names = ["MandateModule.sol/MandateModule", "MandateQuoter.sol/MandateQuoter", "UniswapV4TwapAnchor.sol/UniswapV4TwapAnchor"];
+  const names = ["MandateModule.sol/MandateModule", "MandateQuoter.sol/MandateQuoter"];
   const signatures = new Set<string>();
   for (const name of names) {
     const artifact = JSON.parse(await readFile(new URL(`../contracts/out/${name}.json`, import.meta.url), "utf8"));
@@ -52,10 +54,10 @@ test("exported replay is complete and verified, with actual token-transfer recei
   const replay = JSON.parse(await readFile(new URL("./data/acts.json", import.meta.url), "utf8"));
   const receipts = JSON.parse(await readFile(new URL("./data/receipts.json", import.meta.url), "utf8"));
   const summary = verifyReplay(replay);
-  assert.deepEqual(summary, { steps: 178, blocked: 156 });
+  assert.deepEqual(summary, { steps: 179, blocked: 157 });
   const transferTopic = execFileSync("cast", ["keccak", "Transfer(address,address,uint256)"], { encoding: "utf8" }).trim();
   const attemptTopic = execFileSync("cast", ["keccak", "Attempted(uint256,uint256,address,bool,bytes)"], { encoding: "utf8" }).trim();
-  const filledTopic = execFileSync("cast", ["keccak", "Filled(bytes32,bytes32,address,bool,uint256,uint256,uint256,uint256,uint256)"], { encoding: "utf8" }).trim();
+  const filledTopic = execFileSync("cast", ["keccak", "Filled(bytes32,bytes32,address,bytes32,bool,uint256,uint256,uint256,uint8)"], { encoding: "utf8" }).trim();
   const byHash = new Map(receipts.map((receipt: any) => [receipt.transactionHash, receipt]));
   for (const act of replay.acts) {
     let previous = act.initialState;
@@ -89,10 +91,11 @@ test("exported replay is complete and verified, with actual token-transfer recei
       }
       if (step.outcome === "executed" && ["treasury-sell", "treasury-buyback"].includes(step.kind)) {
         const filled = receipt.logs.find((log: any) => log.topics[0] === filledTopic);
-        assert.equal(filled.topics[1], act.mandateId);
+        assert.equal(filled.topics[1], act.policyId);
+        assert.equal(filled.topics[2], act.strategyId);
         const values = words(filled.data);
-        assert.equal(values[4].toString(), step.state.epochNetSold);
-        assert.equal(values[5].toString(), step.state.totalNetSold);
+        assert.equal(values[1], step.kind === "treasury-sell" ? 1n : 0n, "isSell matches the step");
+        assert.equal(values[5].toString(), step.state.riskMode, "the fill ran in the recorded risk mode");
       }
       previous = step.state;
     }

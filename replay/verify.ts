@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
-// Draft export contract for Segment 5. SDK types are defined at the next segment gate.
+// Draft export contract (schema 2: policies and strategies). Field names follow replay/codec.ts.
 export function verifyReplay(replay: any) {
-  assert.equal(replay.schemaVersion, 1);
+  assert.equal(replay.schemaVersion, 2);
   assert.equal(replay.environment, "local-mainnet-fork");
   assert.equal(replay.chainId, 31337);
   assert.equal(replay.sourceChainId, 1);
@@ -30,14 +30,16 @@ export function verifyReplay(replay: any) {
       assert.equal(step.source.blockHash, step.blockHash);
       assert.equal(step.source.method, "DemoState.snapshot(bytes32)");
       assert.ok(BigInt(step.state.totalNetSold) <= BigInt(step.state.released), `Release exceeded at ${key}`);
-      assert.ok(BigInt(step.state.epochNetSold) <= BigInt(act.epochCap), `Epoch cap exceeded at ${key}`);
-      assert.ok(BigInt(step.state.epochCap) <= BigInt(act.epochCap), `Live cap exceeds issuer bounds at ${key}`);
-      assert.ok(BigInt(step.state.epochNetSold) <= BigInt(step.state.epochCap), `Live cap exceeded at ${key}`);
+      assert.ok(BigInt(step.state.netSold) <= BigInt(act.netSellCap), `Net sell cap exceeded at ${key}`);
+      assert.ok(BigInt(step.state.grossSold) <= BigInt(act.grossSellCap), `Gross sell cap exceeded at ${key}`);
+      assert.ok(BigInt(step.state.netSold) <= BigInt(step.state.grossSold), `Net exceeds gross at ${key}`);
       if (step.outcome === "blocked") {
         assert.ok(step.error?.message && step.returnData.startsWith(step.error.selector));
         assert.equal(step.transfers.length, 0, `Blocked attempt moved tokens at ${key}`);
         assert.equal(step.state.totalNetSold, previous.totalNetSold);
-        assert.equal(step.state.epochNetSold, previous.epochNetSold);
+        assert.equal(step.state.netSold, previous.netSold);
+        assert.equal(step.state.grossSold, previous.grossSold);
+        assert.equal(step.state.quoteSpent, previous.quoteSpent);
         assert.equal(step.state.safeBase, previous.safeBase);
         assert.equal(step.state.safeQuote, previous.safeQuote);
       } else {
@@ -58,26 +60,32 @@ export function verifyReplay(replay: any) {
   }
   const [loan, burst, work] = replay.acts;
   assert.equal(loan.steps.length, 8);
-  assert.equal(loan.steps.at(-1).error.name, "EpochCapReached");
+  assert.equal(loan.steps.at(-1).error.name, "NetSellCapReached");
   assert.equal(loan.steps.at(-1).state.safeBase, "9950000000000000000000000");
   assert.equal(loan.steps.find((s: any) => s.kind === "traditional-sell").state.traditionalBase, "0");
   const intents = burst.steps.filter((s: any) => s.step >= 1 && s.step <= 150);
   assert.equal(intents.length, 150);
   assert.equal(intents.reduce((sum: bigint, s: any) => sum + BigInt(s.requestedBase), 0n), 134_100_000n * 10n ** 18n);
   assert.equal(intents.filter((s: any) => s.outcome === "executed").length, 1);
-  assert.equal(intents.filter((s: any) => s.error?.name === "EpochCapReached").length, 149);
-  assert.equal(burst.steps.find((s: any) => s.step === 201).error.name, "SpotTwapDivergence");
-  assert.equal(burst.steps.find((s: any) => s.step === 211).error.name, "AnchorDeviation");
+  assert.equal(intents.filter((s: any) => s.error?.name === "NetSellCapReached").length, 149);
+  const pumped = burst.steps.find((s: any) => s.step === 201);
+  assert.equal(pumped.error.name, "RiskPaused");
+  assert.equal(pumped.state.riskMode, "2", "the pump put the policy in Paused mode");
+  assert.equal(burst.steps.find((s: any) => s.step === 211).error.name, "QuoteOffMarket");
+  assert.equal(burst.steps.find((s: any) => s.step === 213).state.riskMode, "0", "calm again after recovery");
   for (const step of [203, 213]) assert.equal(burst.steps.find((s: any) => s.step === step).outcome, "executed");
-  assert.equal(work.steps.length, 12);
+  assert.equal(work.steps.length, 13);
   assert.equal(work.initialState.spreadBps, "80");
   assert.equal(work.steps[0].state.spreadBps, "30");
   assert.equal(work.steps[0].state.strategyNonce, "2");
-  assert.equal(work.steps.find((s: any) => s.step === 9).state.status, "3");
-  assert.equal(work.steps.find((s: any) => s.step === 2).error.name, "ParamsOutOfBounds");
-  assert.deepEqual(work.steps.find((s: any) => s.step === 3).error.args, ["GS104"]);
-  assert.ok(BigInt(work.steps.find((s: any) => s.step === 10).state.claimedQuote) > BigInt(work.steps.find((s: any) => s.step === 4).state.claimedQuote));
-  assert.equal(work.steps.at(-1).error.name, "MandateIsRevoked");
+  const revoked = work.steps.find((s: any) => s.step === 10).state;
+  assert.equal(revoked.strategyStatus, "3");
+  assert.equal(revoked.policyStatus, "3");
+  assert.equal(work.steps.find((s: any) => s.step === 2).error.name, "InsufficientBacking");
+  assert.equal(work.steps.find((s: any) => s.step === 3).error.name, "ParamsOutOfBounds");
+  assert.deepEqual(work.steps.find((s: any) => s.step === 4).error.args, ["GS104"]);
+  assert.ok(BigInt(work.steps.find((s: any) => s.step === 11).state.claimedQuote) > BigInt(work.steps.find((s: any) => s.step === 5).state.claimedQuote));
+  assert.equal(work.steps.at(-1).error.name, "IsRevoked");
   return { steps: seen.size, blocked: replay.acts.flatMap((a: any) => a.steps).filter((s: any) => s.outcome === "blocked").length };
 }
 

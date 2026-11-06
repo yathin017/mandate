@@ -26,7 +26,7 @@ mined using CREATE2. Safe proxies come from the canonical factory and require bo
 |---|---|
 | `contracts/script/DeployFork.s.sol` | Deploy tokens, the shared module/quoter, oracle hook, adapters, demo helpers and four 2-of-2 Safes |
 | `contracts/script/SeedV4Pool.s.sol` | Seed separate anchor and traditional-loan pools on the canonical v4 PoolManager |
-| `contracts/script/RunActs.s.sol` | Initialize mandates and broadcast the numbered scenario phases |
+| `contracts/script/RunActs.s.sol` | Create each act's policy and strategy, and broadcast the numbered scenario phases |
 | `deployments/1.json` | Generated manifest for a **local fork of chain 1**; `chainId` is 31337 and `sourceChainId` is 1 |
 | `replay/data/acts.json` | Versioned replay steps, block-specific snapshots, plain-language errors and token-transfer evidence |
 | `replay/data/receipts.json` | Actual RPC receipts for setup and replay transactions, including the traditional Safe's token loan |
@@ -39,16 +39,22 @@ export; the receipts remain available offline. There is no live web application 
 
 ## Acts
 
+Each act's Safe has one treasury policy with one market-making strategy. The policy values are synthetic demo
+inputs (`contracts/script/lib/DemoConfig.sol`); on the platform every value is the issuer's choice.
+
 1. **Token-loan counterfactual.** The traditional Safe transfers 10M synthetic LAUNCH to its MM; that MM sells
-   all of it into a separate v4 pool. A separate mandate fills five 10,000-LAUNCH treasury sales, then blocks
-   the next sale at its 50,000-per-epoch cap. The two pools do not share reserves. This is not a MOVE replay.
+   all of it into a separate, thin v4 pool. A separate strategy fills five 10,000-LAUNCH treasury sales, then
+   blocks the next sale at the policy's 50,000-per-period net sell cap (`NetSellCapReached`). The two pools do not
+   share reserves. This is not a MOVE replay.
 2. **Repeated sells and market manipulation.** A separate Safe holds 134.1M LAUNCH. There are 150 equal intents
-   of 894,000 LAUNCH, totaling 134.1M. One fills; 149 hit the 1.341M cap because another full intent would exceed
-   the remaining 447,000. The pump trips `SpotTwapDivergence`, then recovery permits a fill. A sustained crash
-   brings the TWAP to $0.30; the quoter blocks a stale-price buyback with `AnchorDeviation`, then permits the
-   buyback when the average recovers. This is a **SYNTHETIC** sequence, not historical FUN orders or ETH proceeds.
-3. **MM operations.** Tighten 80 → 30 bps; fill; reject a cap increase and a Safe transfer; claim fees; pause;
-   block a paused fill; resume with both owners' signatures; fill again; revoke with both signatures; claim
+   of 894,000 LAUNCH, totaling 134.1M. One fills; 149 hit the 1.341M net cap because another full intent would
+   exceed the remaining 447,000. The pump moves spot 50% from the TWAP: the policy enters Paused mode and the fill
+   is refused with `RiskPaused`; recovery permits a fill. A sustained crash brings the TWAP to $0.30; the strategy's
+   stale $0.40 quote is refused with `QuoteOffMarket`, then the buyback fills when the average recovers. This is a
+   **SYNTHETIC** sequence, not historical FUN orders or ETH proceeds.
+3. **MM operations.** Tighten 80 → 30 bps; fill; reject a reship that would promise tokens the Safe no longer
+   holds (`InsufficientBacking`), a spread below the issuer's minimum and a Safe transfer; claim fees; pause; block a
+   paused fill; resume with both owners' signatures; fill again; revoke the policy with both signatures; claim
    already-earned fees; reject further reshipping.
 
 Supply, liquidity and oracle history are synthetic. Time advancement mines local blocks and verifies that
@@ -62,10 +68,11 @@ outcome differs, the outer transaction fails and the export stops. Expected bloc
 receipt with a reverted inner call. The event retains the complete revert bytes; the exporter decodes them and
 rejects unknown selectors. Rejected attempts are not invented quote results or successful token movements.
 
-For each step, the exporter reads `DemoState.snapshot(mandateId)` at that receipt's exact block, verifies its
+For each step, the exporter reads `DemoState.snapshot(strategyId)` at that receipt's exact block, verifies its
 receipt/block hashes, and exports ERC20 `Transfer` logs. Snapshot values are integer strings in raw token/X36
-units. The snapshot includes balances, sell counters, live spot/TWAP, claimed fees, release capacity, spread,
-epoch cap, strategy nonce and status. `source` identifies the reader contract, function, block and block hash.
+units. The snapshot includes balances, the policy's gross/net/quote-spend counters and release capacity, live
+spot, long and short TWAPs, trusted depth, risk mode and reason, claimed fees, spread, strategy nonce and the
+strategy's and policy's status. `source` identifies the reader contract, function, block and block hash.
 Initial states share the post-setup block before Act 1 and have their own `initialSource` provenance.
 
 The exporter now uses `@mandate/sdk` for error decoding and copy. `pnpm replay:run` and `pnpm replay:test` build

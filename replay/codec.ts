@@ -27,10 +27,12 @@ export function decodeAttempt(data: string) {
   };
 }
 
+/** Field order of DemoState.snapshot (contracts/script/demo/DemoState.sol). */
 export const SNAPSHOT_FIELDS = [
-  "safeBase", "safeQuote", "epochNetSold", "totalNetSold", "traditionalBase", "traditionalQuote",
-  "v4SpotX36", "twapX36", "claimedBase", "claimedQuote", "released", "remainingThisEpoch", "traditionalSpotX36",
-  "spreadBps", "epochCap", "strategyNonce", "status",
+  "safeBase", "safeQuote", "grossSold", "netSold", "totalNetSold", "quoteSpent", "released",
+  "traditionalBase", "traditionalQuote", "v4SpotX36", "twapX36", "shortTwapX36", "trustedDepthBase",
+  "riskMode", "riskReason", "claimedBase", "claimedQuote", "spreadBps", "strategyNonce", "strategyStatus",
+  "policyStatus", "traditionalSpotX36",
 ] as const;
 
 export function decodeSnapshot(data: string): Record<string, string> {
@@ -40,13 +42,14 @@ export function decodeSnapshot(data: string): Record<string, string> {
 }
 
 export const ERROR_SIGNATURES = {
-  EpochCapReached: "EpochCapReached(uint256,uint256,uint256)",
-  SpotTwapDivergence: "SpotTwapDivergence(uint256,uint256,uint256,uint256)",
-  AnchorDeviation: "AnchorDeviation(uint256,uint256,uint256,uint256)",
+  NetSellCapReached: "NetSellCapReached(uint256,uint256,uint256)",
+  RiskPaused: "RiskPaused(uint8)",
+  QuoteOffMarket: "QuoteOffMarket(uint256,uint256,uint256,uint256)",
+  InsufficientBacking: "InsufficientBacking(address,uint256,uint256)",
   ParamsOutOfBounds: "ParamsOutOfBounds(string)",
   SafeError: "Error(string)",
-  MandatePaused: "MandatePaused()",
-  MandateIsRevoked: "MandateIsRevoked()",
+  StrategyPaused: "StrategyPaused()",
+  IsRevoked: "IsRevoked()",
 } as const;
 
 export function decodeFailure(data: string, selectors: Record<string, string>) {
