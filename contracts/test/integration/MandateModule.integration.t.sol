@@ -11,27 +11,40 @@ import { AquaSwapVMRouter } from "@1inch/swap-vm/src/routers/AquaSwapVMRouter.so
 
 import { IMandateModule } from "../../src/interfaces/IMandateModule.sol";
 import { IMandateQuoter } from "../../src/interfaces/IMandateQuoter.sol";
-import { Mandate, MandateBounds, MandateParams, MandateStatus } from "../../src/libraries/MandateTypes.sol";
 import { ISafe } from "../../src/interfaces/ISafe.sol";
+import {
+    Policy,
+    PolicyConfig,
+    Status,
+    Strategy,
+    StrategyBounds,
+    StrategyKind,
+    StrategyParams
+} from "../../src/libraries/MandateTypes.sol";
 import { MandateModule } from "../../src/module/MandateModule.sol";
 import { MandateQuoter } from "../../src/quoter/MandateQuoter.sol";
+import { AquaTaker } from "../../src/mocks/AquaTaker.sol";
 import { MockERC20 } from "../../src/mocks/MockERC20.sol";
 
-import { AquaTaker } from "../../src/mocks/AquaTaker.sol";
 import { MandateFixture } from "../utils/MandateFixture.sol";
-import { MockPriceAnchor } from "../utils/MockPriceAnchor.sol";
+import { MockMarketOracle } from "../utils/MockMarketOracle.sol";
 import { MockSafe } from "../utils/MockSafe.sol";
 
 /// @title MandateModuleIntegrationTest
-/// @notice MandateModule + its quoter behind real Aqua/router bytecode (pinned v1.0.2 source), with a mock Safe.
-///         Every permission in spec §5 is tested, especially what the market maker must never be able to do.
+/// @notice MandateModule + its quoter behind real Aqua/router bytecode (pinned v1.0.2 source), with a mock Safe and a
+///         settable market oracle. Covers policy and strategy lifecycles, validation, backing, and every permission,
+///         especially what a market maker must never be able to do.
 contract MandateModuleIntegrationTest is Test {
-    uint256 internal constant SHIP_LAUNCH = 10_000_000e18;
-    uint256 internal constant SHIP_USDC = 4_000_000e6;
-    uint256 internal constant EPOCH_CAP = 50_000e18;
+    /// @dev The Safe holds exactly this much, so backing checks bind at known amounts.
+    uint256 internal constant HELD_LAUNCH = 10_000_000e18;
+    uint256 internal constant HELD_USDC = 4_000_000e6;
+    /// @dev The first strategy ships half of each, leaving room for a second.
+    uint256 internal constant SHIP_LAUNCH = 5_000_000e18;
+    uint256 internal constant SHIP_USDC = 2_000_000e6;
 
     address internal owner = makeAddr("safeOwner");
     address internal mm = makeAddr("marketMaker");
+    address internal mm2 = makeAddr("marketMaker2");
     address internal stranger = makeAddr("stranger");
 
     IAqua internal aqua;
@@ -41,9 +54,11 @@ contract MandateModuleIntegrationTest is Test {
     MockSafe internal safe;
     MockERC20 internal launch;
     MockERC20 internal usdc;
-    MockPriceAnchor internal anchor;
+    MockMarketOracle internal oracle;
     AquaTaker internal taker;
-    bytes32 internal id;
+
+    bytes32 internal policyId;
+    bytes32 internal strategyId;
 
     function setUp() public {
         vm.warp(1_800_000_000);
@@ -56,184 +71,407 @@ contract MandateModuleIntegrationTest is Test {
 
         launch = new MockERC20("Launch Token", "LAUNCH", 18);
         usdc = new MockERC20("USD Coin", "USDC", 6);
-        anchor = new MockPriceAnchor();
-        anchor.setPrice(MandateFixture.SPOT_X36);
+        oracle = new MockMarketOracle();
+        oracle.setFlat(MandateFixture.SPOT_X36, 100_000_000e18);
         taker = new AquaTaker(aqua, router);
 
         safe = new MockSafe(owner);
-        launch.mint(address(safe), SHIP_LAUNCH);
-        usdc.mint(address(safe), SHIP_USDC);
+        launch.mint(address(safe), HELD_LAUNCH);
+        usdc.mint(address(safe), HELD_USDC);
         _asSafe(address(safe), abi.encodeCall(MockSafe.enableModule, (address(module))));
 
-        id = _create(_bounds(), _params(30, SHIP_LAUNCH, SHIP_USDC));
+        policyId = _createPolicy(_config());
+        strategyId = _addStrategy(mm, StrategyKind.MarketMaking, _mmBounds(), _params(30, SHIP_LAUNCH, SHIP_USDC));
     }
 
-    // ================================================================ create
+    // ================================================================ policies
 
-    function test_create_shipsStrategyAndRegistersTerms() public view {
-        Mandate memory m = module.getMandate(id);
-        assertEq(m.safe, address(safe));
-        assertEq(m.mm, mm);
-        assertEq(uint8(m.status), uint8(MandateStatus.Active));
-        assertEq(m.bounds.quoter, address(quoter), "quoter forced to module's");
-        assertEq(m.activeStrategyHash, router.hash(module.activeOrder(id)), "active order hash");
+    function test_createPolicy_registersAndApprovesAqua() public view {
+        Policy memory p = module.getPolicy(policyId);
+        assertEq(p.safe, address(safe));
+        assertEq(p.base, address(launch));
+        assertEq(p.quote, address(usdc));
+        assertEq(uint8(p.status), uint8(Status.Active));
+        assertEq(p.config.period.grossSellCap, MandateFixture.GROSS_CAP);
+        assertEq(module.activePolicyOf(address(safe), address(launch)), policyId);
+        assertEq(module.policiesOf(address(safe)).length, 1);
         assertEq(IERC20(address(launch)).allowance(address(safe), address(aqua)), type(uint256).max);
-
-        (uint256 b, uint256 q) =
-            aqua.safeBalances(address(safe), address(router), m.activeStrategyHash, address(launch), address(usdc));
-        assertEq(b, SHIP_LAUNCH);
-        assertEq(q, SHIP_USDC);
-        assertEq(module.mandatesOf(address(safe)).length, 1);
+        assertEq(IERC20(address(usdc)).allowance(address(safe), address(aqua)), type(uint256).max);
         assertEq(address(quoter.REGISTRY()), address(module));
     }
 
-    function test_create_requiresModuleEnabled() public {
-        MockSafe other = new MockSafe(owner);
+    /// @notice Loophole 4: a second policy for the same base would double the treasury's risk budget.
+    function test_createPolicy_onePerBaseToken() public {
         vm.prank(owner);
-        vm.expectRevert(); // bubbled ModuleNotEnabled
-        other.execute(
-            address(module),
-            abi.encodeCall(
-                MandateModule.createMandate,
-                (mm, address(launch), address(usdc), _bounds(), _params(30, SHIP_LAUNCH, SHIP_USDC))
-            )
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.PolicyAlreadyActive.selector, policyId));
+        safe.execute(
+            address(module), abi.encodeCall(MandateModule.createPolicy, (address(launch), address(usdc), _config()))
         );
     }
 
-    function test_create_rejectsInvalidBounds() public {
-        MandateBounds memory b = _bounds();
-        b.spreadBpsMax = b.maxAnchorDeviationBps; // spread alone could leave the anchor band
+    function test_createPolicy_newOneAllowedAfterRevoke() public {
+        _asSafe(address(module), abi.encodeCall(MandateModule.revokePolicy, (policyId)));
+        assertEq(module.activePolicyOf(address(safe), address(launch)), bytes32(0));
+        bytes32 next = _createPolicy(_config());
+        assertTrue(next != policyId);
+        assertEq(module.activePolicyOf(address(safe), address(launch)), next);
+    }
+
+    function test_createPolicy_requiresModuleEnabled() public {
+        MockSafe other = new MockSafe(owner);
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IMandateModule.InvalidBounds.selector, "spreadBpsMax"));
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.ModuleNotEnabled.selector, address(other)));
+        other.execute(
+            address(module), abi.encodeCall(MandateModule.createPolicy, (address(launch), address(usdc), _config()))
+        );
+    }
+
+    function test_createPolicy_rejectsSameToken() public {
+        MockERC20 other = new MockERC20("Other", "OTH", 18);
+        vm.prank(owner);
+        vm.expectRevert(IMandateModule.InvalidParties.selector);
+        safe.execute(address(module), abi.encodeCall(MandateModule.createPolicy, (address(other), address(other), _config())));
+    }
+
+    function test_policyValidation_rejectsEachInvalidField() public {
+        PolicyConfig[] memory bad = new PolicyConfig[](16);
+        string[] memory fields = new string[](16);
+        uint256 n;
+
+        PolicyConfig memory c = _config();
+        c.release.allotment = 0;
+        (bad[n], fields[n++]) = (c, "allotment");
+        c = _config();
+        c.release.releaseDuration = 0;
+        (bad[n], fields[n++]) = (c, "releaseDuration");
+        c = _config();
+        c.period.periodLength = 0;
+        (bad[n], fields[n++]) = (c, "periodLength");
+        c = _config();
+        c.period.grossSellCap = 0;
+        (bad[n], fields[n++]) = (c, "grossSellCap");
+        c = _config();
+        c.period.netSellCap = c.period.grossSellCap + 1;
+        (bad[n], fields[n++]) = (c, "netSellCap");
+        c = _config();
+        c.price.maxImpactBps = 10_001;
+        (bad[n], fields[n++]) = (c, "maxImpactBps");
+        c = _config();
+        c.oracle.oracle = address(0);
+        (bad[n], fields[n++]) = (c, "oracle");
+        c = _config();
+        c.oracle.shortWindow = c.oracle.twapWindow + 1;
+        (bad[n], fields[n++]) = (c, "shortWindow");
+        c = _config();
+        c.oracle.depthBandBps = 0;
+        (bad[n], fields[n++]) = (c, "depthBandBps");
+        c = _config();
+        c.oracle.defensiveMoveBps = c.oracle.pauseMoveBps + 1;
+        (bad[n], fields[n++]) = (c, "defensiveMoveBps");
+        c = _config();
+        c.oracle.minTrustedDepth = c.oracle.defensiveDepth + 1;
+        (bad[n], fields[n++]) = (c, "defensiveDepth");
+        c = _config();
+        c.normal.maxFillBase = 0;
+        (bad[n], fields[n++]) = (c, "normal.maxFillBase");
+        c = _config();
+        c.defensive.maxFillDepthBps = 0;
+        (bad[n], fields[n++]) = (c, "defensive.maxFillDepthBps");
+        c = _config();
+        c.defensive.maxFillBase = c.normal.maxFillBase + 1;
+        (bad[n], fields[n++]) = (c, "defensive.maxFillBase");
+        c = _config();
+        c.defensive.minSpreadBps = 0;
+        c.normal.minSpreadBps = 10;
+        (bad[n], fields[n++]) = (c, "defensive.minSpreadBps");
+        c = _config();
+        c.normal.buybacksAllowed = false;
+        c.defensive.buybacksAllowed = true;
+        (bad[n], fields[n++]) = (c, "defensive.buybacksAllowed");
+
+        for (uint256 i; i < n; ++i) {
+            vm.prank(owner);
+            vm.expectRevert(abi.encodeWithSelector(IMandateModule.InvalidPolicy.selector, fields[i]));
+            safe.execute(address(module), abi.encodeCall(MandateModule.updatePolicy, (policyId, bad[i])));
+        }
+    }
+
+    function test_updatePolicy_takesEffectOnTheNextFill() public {
+        PolicyConfig memory c = _config();
+        c.normal.maxFillBase = 1000e18;
+        c.defensive.maxFillBase = 1000e18;
+        _asSafe(address(module), abi.encodeCall(MandateModule.updatePolicy, (policyId, c)));
+        _expectBuyRevert(abi.encodeWithSelector(IMandateQuoter.FillTooLarge.selector, 2000e18, 1000e18), 2000e18);
+    }
+
+    function test_pausePolicy_blocksEveryStrategyUntilUnpaused() public {
+        bytes32 second = _addStrategy(mm2, StrategyKind.MarketMaking, _mmBounds(), _params(30, 1000e18, 400e6));
+        _asSafe(address(module), abi.encodeCall(MandateModule.pausePolicy, (policyId)));
+        _expectBuyRevert(abi.encodeWithSelector(IMandateQuoter.PolicyPaused.selector), 1000e18);
+        _expectBuyRevertOn(second, abi.encodeWithSelector(IMandateQuoter.PolicyPaused.selector), 10e18);
+
+        _asSafe(address(module), abi.encodeCall(MandateModule.unpausePolicy, (policyId)));
+        _buy(strategyId, 1000e18);
+    }
+
+    function test_revokePolicy_revokesAndDocksEveryStrategy() public {
+        bytes32 second = _addStrategy(mm2, StrategyKind.MarketMaking, _mmBounds(), _params(30, 1000e18, 400e6));
+        _asSafe(address(module), abi.encodeCall(MandateModule.revokePolicy, (policyId)));
+
+        assertEq(uint8(module.getPolicy(policyId).status), uint8(Status.Revoked));
+        assertEq(uint8(module.getStrategy(strategyId).status), uint8(Status.Revoked));
+        assertEq(uint8(module.getStrategy(second).status), uint8(Status.Revoked));
+        assertEq(module.liveStrategiesOf(address(safe)).length, 0);
+        (uint248 b,) = aqua.rawBalances(address(safe), address(router), module.getStrategy(strategyId).activeStrategyHash, address(launch));
+        assertEq(b, 0, "docked");
+
+        vm.prank(owner);
+        vm.expectRevert(IMandateModule.NotPaused.selector);
+        safe.execute(address(module), abi.encodeCall(MandateModule.unpausePolicy, (policyId)));
+        vm.prank(owner);
+        vm.expectRevert(IMandateModule.IsRevoked.selector);
+        safe.execute(address(module), abi.encodeCall(MandateModule.updatePolicy, (policyId, _config())));
+        vm.prank(owner);
+        vm.expectRevert(IMandateModule.PolicyNotActive.selector);
         safe.execute(
             address(module),
             abi.encodeCall(
-                MandateModule.createMandate,
-                (mm, address(launch), address(usdc), b, _params(30, SHIP_LAUNCH, SHIP_USDC))
+                MandateModule.addStrategy,
+                (policyId, mm, StrategyKind.MarketMaking, _mmBounds(), _params(30, 1000e18, 400e6))
             )
         );
     }
 
-    function test_mandateIdsAreUniquePerSafe() public {
-        bytes32 second = _create(_bounds(), _params(30, 1000e18, 400e6));
-        assertTrue(second != id);
-        assertEq(module.mandatesOf(address(safe)).length, 2);
+    /// @notice Even with the module disabled, revoke succeeds and the quoter refuses every fill.
+    function test_revokePolicy_cannotBeBlocked() public {
+        _asSafe(address(safe), abi.encodeCall(MockSafe.disableModule, (address(module))));
+        vm.expectEmit(address(module));
+        emit IMandateModule.StrategyRevoked(strategyId, false);
+        _asSafe(address(module), abi.encodeCall(MandateModule.revokePolicy, (policyId)));
+        _expectBuyRevert(abi.encodeWithSelector(IMandateQuoter.PolicyRevoked.selector), 1000e18);
     }
 
-    // ================================================================ trading through the module's strategy
+    // ================================================================ strategies
 
-    function test_fill_viaActiveOrder_movesSafeTokens() public {
-        uint256 usdcIn = _buy(10_000e18);
-        assertEq(launch.balanceOf(address(safe)), SHIP_LAUNCH - 10_000e18);
-        assertEq(usdc.balanceOf(address(safe)), SHIP_USDC + usdcIn);
+    function test_addStrategy_shipsAndRegisters() public view {
+        Strategy memory s = module.getStrategy(strategyId);
+        assertEq(s.policyId, policyId);
+        assertEq(s.mm, mm);
+        assertEq(uint8(s.kind), uint8(StrategyKind.MarketMaking));
+        assertEq(uint8(s.status), uint8(Status.Active));
+        assertEq(s.activeStrategyHash, router.hash(module.activeOrder(strategyId)));
+        (uint256 b, uint256 q) =
+            aqua.safeBalances(address(safe), address(router), s.activeStrategyHash, address(launch), address(usdc));
+        assertEq(b, SHIP_LAUNCH);
+        assertEq(q, SHIP_USDC);
+        assertEq(module.strategiesOf(policyId).length, 1);
+        assertEq(module.liveStrategiesOf(address(safe)).length, 1);
+    }
+
+    function test_addStrategy_kindMustMatchBounds() public {
+        StrategyBounds memory b = _mmBounds();
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.InvalidStrategy.selector, "maxBuyPriceX36"));
+        safe.execute(
+            address(module),
+            abi.encodeCall(MandateModule.addStrategy, (policyId, mm2, StrategyKind.Buyback, b, _params(30, 1e18, 1e6)))
+        );
+        b.maxBuyPriceX36 = 1;
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.InvalidStrategy.selector, "maxBuyPriceX36"));
+        safe.execute(
+            address(module),
+            abi.encodeCall(MandateModule.addStrategy, (policyId, mm2, StrategyKind.MarketMaking, b, _params(30, 1e18, 1e6)))
+        );
+    }
+
+    function test_addStrategy_rejectsSafeAsMarketMaker() public {
+        vm.prank(owner);
+        vm.expectRevert(IMandateModule.InvalidParties.selector);
+        safe.execute(
+            address(module),
+            abi.encodeCall(
+                MandateModule.addStrategy,
+                (policyId, address(safe), StrategyKind.MarketMaking, _mmBounds(), _params(30, 1e18, 1e6))
+            )
+        );
+    }
+
+    function test_addStrategy_capsTheNumberOfLiveStrategies() public {
+        uint256 limit = module.MAX_LIVE_STRATEGIES_PER_SAFE();
+        for (uint256 i = 1; i < limit; ++i) {
+            _addStrategy(mm2, StrategyKind.MarketMaking, _mmBounds(), _params(30, 1e18, 1e6));
+        }
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.TooManyStrategies.selector, limit));
+        safe.execute(
+            address(module),
+            abi.encodeCall(MandateModule.addStrategy, (policyId, mm2, StrategyKind.MarketMaking, _mmBounds(), _params(30, 1e18, 1e6)))
+        );
+    }
+
+    /// @notice Loophole 7: Aqua balances are virtual, so strategies could promise the same tokens twice.
+    function test_backing_strategiesCannotOvercommitTheSafe() public {
+        uint256 room = HELD_LAUNCH - SHIP_LAUNCH;
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(IMandateModule.InsufficientBacking.selector, address(launch), HELD_LAUNCH + 1, HELD_LAUNCH)
+        );
+        safe.execute(
+            address(module),
+            abi.encodeCall(
+                MandateModule.addStrategy,
+                (policyId, mm2, StrategyKind.MarketMaking, _mmBounds(), _params(30, room + 1, 1e6))
+            )
+        );
+        _addStrategy(mm2, StrategyKind.MarketMaking, _mmBounds(), _params(30, room, 1e6));
+    }
+
+    function test_backing_countsTokensAlreadySold() public {
+        // Fill both strategies to the brim, then sell some base: a reship cannot restore the sold amount.
+        _addStrategy(mm2, StrategyKind.MarketMaking, _mmBounds(), _params(30, HELD_LAUNCH - SHIP_LAUNCH, 1e6));
+        _buy(strategyId, 40_000e18);
+        vm.prank(mm);
+        vm.expectRevert(
+            abi.encodeWithSelector(IMandateModule.InsufficientBacking.selector, address(launch), HELD_LAUNCH, HELD_LAUNCH - 40_000e18)
+        );
+        module.reship(strategyId, _params(30, SHIP_LAUNCH, SHIP_USDC));
+        vm.prank(mm);
+        module.reship(strategyId, _params(30, SHIP_LAUNCH - 40_000e18, SHIP_USDC));
+    }
+
+    function test_backing_revokedStrategiesFreeTheirCommitment() public {
+        bytes32 second = _addStrategy(mm2, StrategyKind.MarketMaking, _mmBounds(), _params(30, HELD_LAUNCH - SHIP_LAUNCH, 1e6));
+        _asSafe(address(module), abi.encodeCall(MandateModule.revokeStrategy, (second)));
+        _addStrategy(mm2, StrategyKind.MarketMaking, _mmBounds(), _params(30, HELD_LAUNCH - SHIP_LAUNCH, 1e6));
+    }
+
+    function test_updateStrategyBounds_clampsSpread_feeShareAndKindFixed() public {
+        StrategyBounds memory b = _mmBounds();
+        b.spreadBpsMin = 50;
+        _asSafe(address(module), abi.encodeCall(MandateModule.updateStrategyBounds, (strategyId, b)));
+        assertEq(module.getStrategy(strategyId).params.spreadBps, 50);
+
+        b.mmFeeShareBps = 1000;
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.FeeShareIsFixed.selector, 5000, 1000));
+        safe.execute(address(module), abi.encodeCall(MandateModule.updateStrategyBounds, (strategyId, b)));
+
+        b = _mmBounds();
+        b.maxBuyPriceX36 = 1; // would turn a market-making strategy into a buyback one
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.InvalidStrategy.selector, "maxBuyPriceX36"));
+        safe.execute(address(module), abi.encodeCall(MandateModule.updateStrategyBounds, (strategyId, b)));
     }
 
     // ================================================================ market maker: allowed
 
-    function test_mm_reshipInsideBounds() public {
-        bytes32 oldHash = module.getMandate(id).activeStrategyHash;
-        ISwapVM.Order memory oldOrder = module.activeOrder(id);
+    function test_mm_reshipInsideBounds_oldVersionStops() public {
+        bytes32 oldHash = module.getStrategy(strategyId).activeStrategyHash;
+        ISwapVM.Order memory oldOrder = module.activeOrder(strategyId);
 
         vm.prank(mm);
-        module.reship(id, _params(80, SHIP_LAUNCH / 2, SHIP_USDC / 2));
+        module.reship(strategyId, _params(80, SHIP_LAUNCH / 2, SHIP_USDC / 2));
 
-        Mandate memory m = module.getMandate(id);
-        assertEq(m.params.spreadBps, 80);
-        assertTrue(m.activeStrategyHash != oldHash, "new hash");
-        assertEq(module.strategyNonce(id), 2);
+        Strategy memory s = module.getStrategy(strategyId);
+        assertEq(s.params.spreadBps, 80);
+        assertTrue(s.activeStrategyHash != oldHash, "new hash");
+        assertEq(module.strategyNonce(strategyId), 2);
 
-        // Old strategy is docked: it can no longer trade.
         usdc.mint(address(taker), 1000e6);
-        vm.expectRevert();
+        vm.expectRevert(); // docked: Aqua has no balances for the old version
         taker.swap(oldOrder, address(usdc), address(launch), 1000e6, true);
-        // New one trades.
-        _buy(1000e18);
+        _buy(strategyId, 1000e18);
     }
 
-    function test_mm_reshipCountsSoldInventory() public {
-        _buy(40_000e18);
-        // Only allotment - 40k may be shipped now.
+    /// @notice Loophole 3: a reship must not reset the policy's counters.
+    function test_mm_reshipKeepsPolicyCounters() public {
+        _buy(strategyId, 50_000e18);
         vm.prank(mm);
-        vm.expectRevert(abi.encodeWithSelector(IMandateModule.ParamsOutOfBounds.selector, "shippedBase"));
-        module.reship(id, _params(30, SHIP_LAUNCH, SHIP_USDC));
-        vm.prank(mm);
-        module.reship(id, _params(30, SHIP_LAUNCH - 40_000e18, SHIP_USDC));
+        module.reship(strategyId, _params(30, SHIP_LAUNCH - 50_000e18, SHIP_USDC));
+        assertEq(quoter.policyCounters(policyId).netSold, 50_000e18);
     }
 
     function test_mm_canPause_onlyIssuerUnpauses() public {
         vm.prank(mm);
-        module.pause(id);
-        _expectBuyRevert(abi.encodeWithSelector(IMandateQuoter.MandatePaused.selector));
+        module.pauseStrategy(strategyId);
+        _expectBuyRevert(abi.encodeWithSelector(IMandateQuoter.StrategyPaused.selector), 1000e18);
 
         vm.prank(mm);
         vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, mm));
-        module.unpause(id);
+        module.unpauseStrategy(strategyId);
 
-        _asSafe(address(module), abi.encodeCall(MandateModule.unpause, (id)));
-        _buy(1000e18);
+        _asSafe(address(module), abi.encodeCall(MandateModule.unpauseStrategy, (strategyId)));
+        _buy(strategyId, 1000e18);
     }
 
-    function test_mm_claimsShareOfFees() public {
-        _buy(30_000e18);
-        (, uint256 quoteFees) = quoter.feesAccrued(id);
-        (uint256 cb, uint256 cq) = module.claimable(id);
-        assertEq(cb, 0);
+    function test_mm_claimsShareOfFeesInBothTokens() public {
+        _buy(strategyId, 30_000e18); // fee in USDC
+        _sell(strategyId, 10_000e18); // fee in LAUNCH
+        (uint256 baseFees, uint256 quoteFees) = quoter.feesAccrued(strategyId);
+        (uint256 cb, uint256 cq) = module.claimable(strategyId);
+        assertEq(cb, baseFees / 2, "50% share");
         assertEq(cq, quoteFees / 2, "50% share");
 
         uint256 safeBefore = usdc.balanceOf(address(safe));
         vm.prank(mm);
-        module.claimFees(id);
+        module.claimFees(strategyId);
         assertEq(usdc.balanceOf(mm), cq);
+        assertEq(launch.balanceOf(mm), cb);
         assertEq(usdc.balanceOf(address(safe)), safeBefore - cq);
+        (uint256 db, uint256 dq) = module.claimed(strategyId);
+        assertEq(db, cb);
+        assertEq(dq, cq);
 
-        // Nothing more until new fills.
         vm.prank(mm);
         vm.expectRevert(IMandateModule.NothingToClaim.selector);
-        module.claimFees(id);
+        module.claimFees(strategyId);
     }
 
     function test_mm_keepsEarnedFeesAfterRevoke() public {
-        _buy(30_000e18);
-        _asSafe(address(module), abi.encodeCall(MandateModule.revoke, (id)));
+        _buy(strategyId, 30_000e18);
+        _asSafe(address(module), abi.encodeCall(MandateModule.revokePolicy, (policyId)));
         vm.prank(mm);
-        (, uint256 q) = module.claimFees(id);
+        (, uint256 q) = module.claimFees(strategyId);
         assertGt(q, 0);
     }
 
     // ================================================================ market maker: forbidden
 
     function test_mm_cannotExceedAnyBound() public {
-        MandateParams[5] memory bad = [
+        StrategyParams[5] memory bad = [
             _params(5, SHIP_LAUNCH, SHIP_USDC), // spread below min
             _params(201, SHIP_LAUNCH, SHIP_USDC), // spread above max
-            _params(30, SHIP_LAUNCH + 1, SHIP_USDC), // more than allotment
-            _params(30, SHIP_LAUNCH, MandateFixture.MAX_SHIPPED_QUOTE + 1), // more quote than committed
+            _params(30, MandateFixture.ALLOTMENT + 1, SHIP_USDC), // more base than the bound
+            _params(30, SHIP_LAUNCH, HELD_USDC + 1), // more quote than the bound
             _params(30, 0, SHIP_USDC) // empty side
         ];
         string[5] memory fields = ["spreadBps", "spreadBps", "shippedBase", "shippedQuote", "shippedBase"];
         for (uint256 i; i < bad.length; i++) {
             vm.prank(mm);
             vm.expectRevert(abi.encodeWithSelector(IMandateModule.ParamsOutOfBounds.selector, fields[i]));
-            module.reship(id, bad[i]);
+            module.reship(strategyId, bad[i]);
         }
-
-        MandateParams memory overCap = _params(30, SHIP_LAUNCH, SHIP_USDC);
-        overCap.epochCap = EPOCH_CAP + 1;
-        vm.prank(mm);
-        vm.expectRevert(abi.encodeWithSelector(IMandateModule.ParamsOutOfBounds.selector, "epochCap"));
-        module.reship(id, overCap);
     }
 
     function test_mm_cannotUseIssuerPowers() public {
         vm.startPrank(mm);
         vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, mm));
-        module.revoke(id);
+        module.revokeStrategy(strategyId);
         vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, mm));
-        module.updateBounds(id, _bounds());
+        module.revokePolicy(policyId);
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, mm));
+        module.updateStrategyBounds(strategyId, _mmBounds());
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, mm));
+        module.updatePolicy(policyId, _config());
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, mm));
+        module.pausePolicy(policyId);
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, mm));
+        module.addStrategy(policyId, mm, StrategyKind.MarketMaking, _mmBounds(), _params(30, 1e18, 1e6));
         vm.stopPrank();
     }
 
-    /// @notice The MM has no path to the Safe's tokens: not via the Safe, not via Aqua, not via the module.
+    /// @notice The market maker has no path to the Safe's tokens: not via the Safe, not via Aqua, not via the module.
     function test_mm_cannotMoveSafeTokens() public {
         vm.startPrank(mm);
         vm.expectRevert(MockSafe.NotOwner.selector);
@@ -244,8 +482,8 @@ contract MandateModuleIntegrationTest is Test {
             address(launch), 0, abi.encodeCall(IERC20.transfer, (mm, 1)), ISafe.Operation.Call
         );
 
-        // Aqua.pull only debits balances the caller itself is the app for: the MM has none.
-        bytes32 h = module.getMandate(id).activeStrategyHash;
+        // Aqua.pull only debits balances the caller itself is the app for: the market maker has none.
+        bytes32 h = module.getStrategy(strategyId).activeStrategyHash;
         vm.expectRevert();
         aqua.pull(address(safe), h, address(launch), 1, mm);
         vm.stopPrank();
@@ -255,113 +493,80 @@ contract MandateModuleIntegrationTest is Test {
     }
 
     function test_mm_powerlessAfterRevoke() public {
-        _asSafe(address(module), abi.encodeCall(MandateModule.revoke, (id)));
+        _asSafe(address(module), abi.encodeCall(MandateModule.revokeStrategy, (strategyId)));
         vm.startPrank(mm);
-        vm.expectRevert(IMandateModule.MandateIsRevoked.selector);
-        module.reship(id, _params(30, SHIP_LAUNCH, SHIP_USDC));
-        vm.expectRevert(IMandateModule.MandateNotActive.selector);
-        module.pause(id);
+        vm.expectRevert(IMandateModule.IsRevoked.selector);
+        module.reship(strategyId, _params(30, SHIP_LAUNCH, SHIP_USDC));
+        vm.expectRevert(IMandateModule.NotActive.selector);
+        module.pauseStrategy(strategyId);
+        vm.stopPrank();
+    }
+
+    function test_mm_ofOneStrategyCannotTouchAnother() public {
+        bytes32 second = _addStrategy(mm2, StrategyKind.MarketMaking, _mmBounds(), _params(30, 1000e18, 400e6));
+        vm.startPrank(mm);
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotMarketMaker.selector, mm));
+        module.reship(second, _params(30, 1000e18, 400e6));
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotMarketMaker.selector, mm));
+        module.claimFees(second);
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuerOrMarketMaker.selector, mm));
+        module.pauseStrategy(second);
         vm.stopPrank();
     }
 
     function test_stranger_hasNoPowers() public {
         vm.startPrank(stranger);
         vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotMarketMaker.selector, stranger));
-        module.reship(id, _params(30, SHIP_LAUNCH, SHIP_USDC));
+        module.reship(strategyId, _params(30, SHIP_LAUNCH, SHIP_USDC));
         vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotMarketMaker.selector, stranger));
-        module.claimFees(id);
+        module.claimFees(strategyId);
         vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuerOrMarketMaker.selector, stranger));
-        module.pause(id);
+        module.pauseStrategy(strategyId);
         vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, stranger));
-        module.revoke(id);
+        module.revokeStrategy(strategyId);
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, stranger));
+        module.revokePolicy(policyId);
         vm.stopPrank();
     }
 
-    /// @notice Another Safe that enabled the same module cannot touch this Safe's mandate.
-    function test_otherSafe_cannotTouchMandate() public {
+    /// @notice Another Safe that enabled the same module cannot touch this Safe's policy or strategies.
+    function test_otherSafe_cannotTouchPolicy() public {
         MockSafe other = new MockSafe(owner);
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, address(other)));
-        other.execute(address(module), abi.encodeCall(MandateModule.revoke, (id)));
-    }
-
-    // ================================================================ issuer
-
-    function test_revoke_docksAndBlocksForever() public {
-        _asSafe(address(module), abi.encodeCall(MandateModule.revoke, (id)));
-        assertEq(uint8(module.getMandate(id).status), uint8(MandateStatus.Revoked));
-        ISwapVM.Order memory o = module.activeOrder(id);
-        usdc.mint(address(taker), 1000e6);
-        vm.expectRevert(); // docked: Aqua has no balances for the strategy
-        taker.swap(o, address(usdc), address(launch), 1000e6, true);
-
+        other.execute(address(module), abi.encodeCall(MandateModule.revokePolicy, (policyId)));
         vm.prank(owner);
-        vm.expectRevert(IMandateModule.MandateNotPaused.selector);
-        safe.execute(address(module), abi.encodeCall(MandateModule.unpause, (id)));
-    }
-
-    /// @notice Even with the module disabled, revoke succeeds and the quoter refuses every fill.
-    function test_revoke_cannotBeBlocked() public {
-        _asSafe(address(safe), abi.encodeCall(MockSafe.disableModule, (address(module))));
-        vm.expectEmit(address(module));
-        emit IMandateModule.MandateRevoked(id, false);
-        _asSafe(address(module), abi.encodeCall(MandateModule.revoke, (id)));
-
-        // Strategy still shipped, but the quoter refuses.
-        _expectBuyRevert(abi.encodeWithSelector(IMandateQuoter.MandateRevoked.selector));
-    }
-
-    function test_updateBounds_clampsLiveParams_feeShareFixed() public {
-        MandateBounds memory b = _bounds();
-        b.spreadBpsMin = 50;
-        b.maxEpochCap = 20_000e18;
-        _asSafe(address(module), abi.encodeCall(MandateModule.updateBounds, (id, b)));
-        Mandate memory m = module.getMandate(id);
-        assertEq(m.params.spreadBps, 50);
-        assertEq(m.params.epochCap, 20_000e18);
-
-        b.mmFeeShareBps = 1000;
-        vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IMandateModule.FeeShareIsFixed.selector, 5000, 1000));
-        safe.execute(address(module), abi.encodeCall(MandateModule.updateBounds, (id, b)));
+        vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, address(other)));
+        other.execute(address(module), abi.encodeCall(MandateModule.revokeStrategy, (strategyId)));
     }
 
     // ================================================================ helpers
 
-    function _bounds() internal view returns (MandateBounds memory b) {
-        b =
-        MandateFixture.defaultMandate(
-            address(0),
-            address(0),
-            address(0),
-            address(0),
-            address(anchor),
-            address(0),
-            uint64(block.timestamp - 20 days)
-        )
-        .bounds;
-        b.maxEpochCap = EPOCH_CAP;
+    function _config() internal view returns (PolicyConfig memory) {
+        return MandateFixture.policyConfig(address(oracle), uint64(block.timestamp - 20 days));
     }
 
-    function _params(
-        uint16 spread,
-        uint256 shippedBase,
-        uint256 shippedQuote
-    )
-        internal
-        pure
-        returns (MandateParams memory)
-    {
-        return
-            MandateParams({
-                spreadBps: spread, epochCap: EPOCH_CAP, shippedBase: shippedBase, shippedQuote: shippedQuote
-            });
+    function _mmBounds() internal pure returns (StrategyBounds memory) {
+        return MandateFixture.marketMakingBounds(MandateFixture.ALLOTMENT, HELD_USDC);
     }
 
-    function _create(MandateBounds memory b, MandateParams memory p) internal returns (bytes32) {
+    function _params(uint16 spread, uint256 base, uint256 quote) internal pure returns (StrategyParams memory) {
+        return StrategyParams({ spreadBps: spread, shippedBase: base, shippedQuote: quote });
+    }
+
+    function _createPolicy(PolicyConfig memory c) internal returns (bytes32) {
         bytes memory ret = _asSafe(
-            address(module), abi.encodeCall(MandateModule.createMandate, (mm, address(launch), address(usdc), b, p))
+            address(module), abi.encodeCall(MandateModule.createPolicy, (address(launch), address(usdc), c))
         );
+        return abi.decode(ret, (bytes32));
+    }
+
+    function _addStrategy(address maker, StrategyKind kind, StrategyBounds memory b, StrategyParams memory p)
+        internal
+        returns (bytes32)
+    {
+        bytes memory ret =
+            _asSafe(address(module), abi.encodeCall(MandateModule.addStrategy, (policyId, maker, kind, b, p)));
         return abi.decode(ret, (bytes32));
     }
 
@@ -370,17 +575,28 @@ contract MandateModuleIntegrationTest is Test {
         return safe.execute(to, data);
     }
 
-    function _buy(uint256 launchOut) internal returns (uint256 usdcIn) {
+    /// @dev Taker buys exactly `launchOut` LAUNCH from the strategy (a treasury sell). Returns USDC paid.
+    function _buy(bytes32 id, uint256 launchOut) internal returns (uint256 usdcIn) {
         ISwapVM.Order memory o = module.activeOrder(id);
         (usdcIn,) = taker.quote(o, address(usdc), address(launch), launchOut, false);
         usdc.mint(address(taker), usdcIn);
         taker.swap(o, address(usdc), address(launch), launchOut, false);
     }
 
-    function _expectBuyRevert(bytes memory err) internal {
+    /// @dev Taker sells exactly `launchIn` LAUNCH to the strategy (a treasury buy). Returns USDC received.
+    function _sell(bytes32 id, uint256 launchIn) internal returns (uint256 usdcOut) {
+        launch.mint(address(taker), launchIn);
+        (, usdcOut) = taker.swap(module.activeOrder(id), address(launch), address(usdc), launchIn, true);
+    }
+
+    function _expectBuyRevert(bytes memory err, uint256 launchOut) internal {
+        _expectBuyRevertOn(strategyId, err, launchOut);
+    }
+
+    function _expectBuyRevertOn(bytes32 id, bytes memory err, uint256 launchOut) internal {
         ISwapVM.Order memory o = module.activeOrder(id);
-        usdc.mint(address(taker), 1000e6);
+        usdc.mint(address(taker), launchOut);
         vm.expectRevert(err);
-        taker.swap(o, address(usdc), address(launch), 1000e6, true);
+        taker.swap(o, address(usdc), address(launch), launchOut, false);
     }
 }

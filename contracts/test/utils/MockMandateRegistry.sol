@@ -2,33 +2,46 @@
 pragma solidity 0.8.30;
 
 import { IMandateRegistry } from "../../src/interfaces/IMandateRegistry.sol";
-import { Mandate, MandateStatus } from "../../src/libraries/MandateTypes.sol";
+import { Policy, PolicyConfig, Status, Strategy, StrategyParams } from "../../src/libraries/MandateTypes.sol";
 
-/// @notice Settable stand-in for MandateModule until Segment 4. No access control: tests only.
+/// @notice Settable stand-in for MandateModule, to test the quoter's rules in isolation. No access control: tests only.
 contract MockMandateRegistry is IMandateRegistry {
-    mapping(bytes32 => Mandate) private _mandates;
+    mapping(bytes32 => Policy) private _policies;
+    mapping(bytes32 => Strategy) private _strategies;
 
-    function set(bytes32 mandateId, Mandate memory m) external {
-        _mandates[mandateId] = m;
+    function setPolicy(bytes32 policyId, Policy memory p) external {
+        _policies[policyId] = p;
     }
 
-    function setStatus(bytes32 mandateId, MandateStatus status) external {
-        _mandates[mandateId].status = status;
+    function setConfig(bytes32 policyId, PolicyConfig memory c) external {
+        _policies[policyId].config = c;
     }
 
-    function setActiveStrategy(bytes32 mandateId, bytes32 strategyHash) external {
-        _mandates[mandateId].activeStrategyHash = strategyHash;
+    function setPolicyStatus(bytes32 policyId, Status status) external {
+        _policies[policyId].status = status;
     }
 
-    function setEpochCap(bytes32 mandateId, uint256 epochCap) external {
-        _mandates[mandateId].params.epochCap = epochCap;
+    function setStrategy(bytes32 strategyId, Strategy memory s) external {
+        _strategies[strategyId] = s;
     }
 
-    function setAnchor(bytes32 mandateId, address anchor) external {
-        _mandates[mandateId].bounds.anchor = anchor;
+    function setStrategyStatus(bytes32 strategyId, Status status) external {
+        _strategies[strategyId].status = status;
     }
 
-    function getMandate(bytes32 mandateId) external view returns (Mandate memory) {
-        return _mandates[mandateId];
+    function setParams(bytes32 strategyId, StrategyParams memory p) external {
+        _strategies[strategyId].params = p;
+    }
+
+    function setActiveStrategy(bytes32 strategyId, bytes32 strategyHash) external {
+        _strategies[strategyId].activeStrategyHash = strategyHash;
+    }
+
+    function getPolicy(bytes32 policyId) external view returns (Policy memory) {
+        return _policies[policyId];
+    }
+
+    function getStrategy(bytes32 strategyId) external view returns (Strategy memory) {
+        return _strategies[strategyId];
     }
 }

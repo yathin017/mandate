@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { Mandate } from "../libraries/MandateTypes.sol";
+import { Policy, Strategy } from "../libraries/MandateTypes.sol";
 
 /// @title IMandateRegistry
-/// @notice Source of truth for mandate terms. Implemented by MandateModule; the quoter only reads it.
+/// @notice Source of truth for policies and strategies. Implemented by MandateModule; the quoter only reads it.
 interface IMandateRegistry {
-    /// @notice Returns the mandate. `status == None` when the id does not exist (never reverts for that).
-    function getMandate(bytes32 mandateId) external view returns (Mandate memory);
+    /// @notice Returns the policy. `status == None` when the id does not exist (never reverts for that).
+    function getPolicy(bytes32 policyId) external view returns (Policy memory);
+
+    /// @notice Returns the strategy. `status == None` when the id does not exist (never reverts for that).
+    function getStrategy(bytes32 strategyId) external view returns (Strategy memory);
 }

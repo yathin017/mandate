@@ -10,9 +10,10 @@ import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import { IMandateModule } from "../../src/interfaces/IMandateModule.sol";
 import { IMandateQuoter } from "../../src/interfaces/IMandateQuoter.sol";
 import { ISafe } from "../../src/interfaces/ISafe.sol";
-import { Mandate, MandateBounds, MandateParams, MandateStatus } from "../../src/libraries/MandateTypes.sol";
+import {
+    PolicyConfig, RiskReason, Status, Strategy, StrategyBounds, StrategyKind, StrategyParams
+} from "../../src/libraries/MandateTypes.sol";
 import { MandateModule } from "../../src/module/MandateModule.sol";
-import { UniswapV4TwapAnchor } from "../../src/anchor/UniswapV4TwapAnchor.sol";
 import { MockERC20 } from "../../src/mocks/MockERC20.sol";
 import { ChainConfig, ChainConfigLib } from "../../script/lib/ChainConfig.sol";
 
@@ -21,7 +22,8 @@ import { MandateFixture } from "../utils/MandateFixture.sol";
 import { ISafeAccount, SafeTransactions } from "../../script/lib/SafeTransactions.sol";
 import { V4AnchorSetup } from "../utils/V4AnchorSetup.sol";
 
-/// @notice Complete module lifecycle on canonical Safe 1.4.1, Aqua, SwapVM and v4 bytecode.
+/// @notice Complete policy and strategy lifecycle on canonical Safe 1.4.1, Aqua, SwapVM and v4 bytecode, with the real
+///         market oracle over a hooked v4 pool.
 /// @dev Issuer actions need two real test-owner signatures. Tokens and oracle history are SYNTHETIC.
 ///      Skipped only when MAINNET_RPC_URL is unset, just like the other fork suites.
 contract MandateModuleForkTest is V4AnchorSetup {
@@ -29,8 +31,8 @@ contract MandateModuleForkTest is V4AnchorSetup {
 
     MandateModule internal module;
     ISafeAccount internal issuer;
-    address internal mm = makeAddr("marketMaker");
     uint256[] internal ownerKeys;
+    bytes32 internal policyId;
     bytes32 internal id;
 
     function _venue() internal view override returns (IAqua, ISwapVM) {
@@ -68,12 +70,17 @@ contract MandateModuleForkTest is V4AnchorSetup {
 
         _asIssuer(safe, abi.encodeCall(ISafeAccount.enableModule, (address(module))));
         _asIssuer(
+            address(module), abi.encodeCall(MandateModule.createPolicy, (address(launch), address(usdc), _config()))
+        );
+        policyId = module.activePolicyOf(safe, address(launch));
+        _asIssuer(
             address(module),
             abi.encodeCall(
-                MandateModule.createMandate, (mm, address(launch), address(usdc), _bounds(), _params(80, SHIP_LAUNCH))
+                MandateModule.addStrategy,
+                (policyId, mm, StrategyKind.MarketMaking, _bounds(), _params(80, SHIP_LAUNCH))
             )
         );
-        id = module.mandatesOf(safe)[0];
+        id = module.strategiesOf(policyId)[0];
     }
 
     function test_fork_createUsesRealMultisigAndShipsFromSafe() public view {
@@ -81,10 +88,9 @@ contract MandateModuleForkTest is V4AnchorSetup {
         assertEq(issuer.getThreshold(), 2);
         assertEq(issuer.getOwners().length, 2);
         assertTrue(issuer.isModuleEnabled(address(module)));
-        assertEq(issuer.nonce(), 2, "enable and create are signed Safe transactions");
-        Mandate memory m = module.getMandate(id);
-        assertEq(m.safe, safe);
-        assertEq(m.bounds.quoter, address(quoter));
+        assertEq(issuer.nonce(), 3, "enable, create policy and add strategy are signed Safe transactions");
+        Strategy memory m = module.getStrategy(id);
+        assertEq(module.getPolicy(policyId).safe, safe);
         assertEq(address(quoter.REGISTRY()), address(module));
         assertEq(m.activeStrategyHash, router.hash(module.activeOrder(id)));
         (uint256 b, uint256 q) =
@@ -133,17 +139,17 @@ contract MandateModuleForkTest is V4AnchorSetup {
         vm.prank(mm);
         module.reship(id, _params(30, SHIP_LAUNCH - 10_000e18));
         assertEq(module.strategyNonce(id), 2);
-        (, uint256 epochSold, uint256 totalSold) = quoter.epochState(id);
-        assertEq(epochSold, 10_000e18);
-        assertEq(totalSold, 10_000e18);
-        assertTrue(router.hash(oldOrder) != module.getMandate(id).activeStrategyHash);
+        IMandateQuoter.PolicyCounters memory c = quoter.policyCounters(policyId);
+        assertEq(c.grossSold, 10_000e18);
+        assertEq(c.totalNetSold, 10_000e18);
+        assertTrue(router.hash(oldOrder) != module.getStrategy(id).activeStrategyHash);
         vm.expectRevert(); // Aqua rejects the docked order before entering the quoter.
         taker.quote(oldOrder, address(usdc), address(launch), 1000e18, false);
         _buyLaunch(module.activeOrder(id), 1000e18);
     }
 
     function test_fork_singleOwnerSignatureCannotRevoke() public {
-        bytes memory data = abi.encodeCall(MandateModule.revoke, (id));
+        bytes memory data = abi.encodeCall(MandateModule.revokePolicy, (policyId));
         uint256[] memory oneKey = new uint256[](1);
         oneKey[0] = ownerKeys[0];
         bytes memory sigs = issuer.signatures(address(module), data, oneKey);
@@ -153,11 +159,11 @@ contract MandateModuleForkTest is V4AnchorSetup {
             address(module), 0, data, ISafe.Operation.Call, 0, 0, 0, address(0), payable(address(0)), sigs
         );
         assertEq(issuer.nonce(), nonceBefore);
-        assertEq(uint8(module.getMandate(id).status), uint8(MandateStatus.Active));
+        assertEq(uint8(module.getPolicy(policyId).status), uint8(Status.Active));
     }
 
     function test_fork_ownerSignaturesCannotBeReplayed() public {
-        bytes memory data = abi.encodeCall(MandateModule.pause, (id));
+        bytes memory data = abi.encodeCall(MandateModule.pauseStrategy, (id));
         bytes memory sigs = issuer.signatures(address(module), data, ownerKeys);
         assertTrue(
             issuer.execTransaction(
@@ -189,13 +195,13 @@ contract MandateModuleForkTest is V4AnchorSetup {
     function test_fork_pauseOnlyIssuerCanResume() public {
         ISwapVM.Order memory o = module.activeOrder(id);
         vm.prank(mm);
-        module.pause(id);
-        vm.expectRevert(IMandateQuoter.MandatePaused.selector);
+        module.pauseStrategy(id);
+        vm.expectRevert(IMandateQuoter.StrategyPaused.selector);
         taker.quote(o, address(usdc), address(launch), 1000e18, false);
         vm.prank(mm);
         vm.expectRevert(abi.encodeWithSelector(IMandateModule.NotIssuer.selector, mm));
-        module.unpause(id);
-        _asIssuer(address(module), abi.encodeCall(MandateModule.unpause, (id)));
+        module.unpauseStrategy(id);
+        _asIssuer(address(module), abi.encodeCall(MandateModule.unpauseStrategy, (id)));
         _buyLaunch(o, 1000e18);
     }
 
@@ -204,12 +210,12 @@ contract MandateModuleForkTest is V4AnchorSetup {
         _buyLaunch(o, 1000e18);
         (, uint256 due) = module.claimable(id);
         assertGt(due, 0);
-        _asIssuer(address(module), abi.encodeCall(MandateModule.revoke, (id)));
-        assertEq(uint8(module.getMandate(id).status), uint8(MandateStatus.Revoked));
+        _asIssuer(address(module), abi.encodeCall(MandateModule.revokePolicy, (policyId)));
+        assertEq(uint8(module.getStrategy(id).status), uint8(Status.Revoked));
         vm.expectRevert();
         taker.quote(o, address(usdc), address(launch), 1000e18, false);
         vm.prank(mm);
-        vm.expectRevert(IMandateModule.MandateIsRevoked.selector);
+        vm.expectRevert(IMandateModule.IsRevoked.selector);
         module.reship(id, _params(30, SHIP_LAUNCH));
         vm.prank(mm);
         module.claimFees(id);
@@ -218,19 +224,19 @@ contract MandateModuleForkTest is V4AnchorSetup {
 
     function test_fork_revokeStillWorksAfterModuleDisabled() public {
         ISwapVM.Order memory o = module.activeOrder(id);
-        bytes32 hash = module.getMandate(id).activeStrategyHash;
+        bytes32 hash = module.getStrategy(id).activeStrategyHash;
         // There is exactly one module, so its predecessor in Safe's linked list is the sentinel.
         _asIssuer(safe, abi.encodeCall(ISafeAccount.disableModule, (address(1), address(module))));
         assertFalse(issuer.isModuleEnabled(address(module)));
-        _asIssuer(address(module), abi.encodeCall(MandateModule.revoke, (id)));
-        assertEq(uint8(module.getMandate(id).status), uint8(MandateStatus.Revoked));
+        _asIssuer(address(module), abi.encodeCall(MandateModule.revokePolicy, (policyId)));
+        assertEq(uint8(module.getStrategy(id).status), uint8(Status.Revoked));
         (uint256 b, uint256 q) = aqua.safeBalances(safe, address(router), hash, address(launch), address(usdc));
         assertEq(b, SHIP_LAUNCH, "dock failed but revoke succeeded");
         assertEq(q, SHIP_USDC);
-        vm.expectRevert(IMandateQuoter.MandateRevoked.selector);
+        vm.expectRevert(IMandateQuoter.PolicyRevoked.selector);
         taker.quote(o, address(usdc), address(launch), 1000e18, false);
         usdc.mint(address(taker), 1000e6);
-        vm.expectRevert(IMandateQuoter.MandateRevoked.selector);
+        vm.expectRevert(IMandateQuoter.PolicyRevoked.selector);
         taker.swap(o, address(usdc), address(launch), 1000e6, true);
     }
 
@@ -244,42 +250,47 @@ contract MandateModuleForkTest is V4AnchorSetup {
         assertTrue(
             other.execute(
                 address(module),
+                abi.encodeCall(MandateModule.createPolicy, (address(launch), address(usdc), _config())),
+                ownerKeys
+            )
+        );
+        bytes32 otherPolicy = module.activePolicyOf(address(other), address(launch));
+        assertTrue(otherPolicy != policyId);
+        assertTrue(
+            other.execute(
+                address(module),
                 abi.encodeCall(
-                    MandateModule.createMandate,
-                    (mm, address(launch), address(usdc), _bounds(), _params(30, SHIP_LAUNCH))
+                    MandateModule.addStrategy,
+                    (otherPolicy, mm, StrategyKind.MarketMaking, _bounds(), _params(30, SHIP_LAUNCH))
                 ),
                 ownerKeys
             )
         );
-        bytes32 otherId = module.mandatesOf(address(other))[0];
+        bytes32 otherId = module.strategiesOf(otherPolicy)[0];
         assertTrue(otherId != id);
-        assertEq(module.getMandate(otherId).bounds.quoter, address(quoter));
         _buyLaunch(module.activeOrder(otherId), 1000e18);
         assertEq(launch.balanceOf(address(other)), SHIP_LAUNCH - 1000e18);
         assertEq(launch.balanceOf(safe), SHIP_LAUNCH);
-        (,, uint256 otherSold) = quoter.epochState(otherId);
-        (,, uint256 issuerSold) = quoter.epochState(id);
-        assertEq(otherSold, 1000e18);
-        assertEq(issuerSold, 0, "counters are isolated between Safes");
+        assertEq(quoter.policyCounters(otherPolicy).totalNetSold, 1000e18);
+        assertEq(quoter.policyCounters(policyId).totalNetSold, 0, "counters are isolated between Safes");
         // Safe wraps a failed inner call as GS013 when safeTxGas and gasPrice are zero.
-        bytes memory data = abi.encodeCall(MandateModule.revoke, (id));
+        bytes memory data = abi.encodeCall(MandateModule.revokePolicy, (policyId));
         bytes memory sigs = other.signatures(address(module), data, ownerKeys);
         vm.expectRevert(bytes("GS013"));
         other.execTransaction(
             address(module), 0, data, ISafe.Operation.Call, 0, 0, 0, address(0), payable(address(0)), sigs
         );
-        assertEq(uint8(module.getMandate(id).status), uint8(MandateStatus.Active));
+        assertEq(uint8(module.getPolicy(policyId).status), uint8(Status.Active));
     }
 
     function test_fork_livePriceBreakerBlocksActualSafeFillThenRecovers() public {
         ISwapVM.Order memory o = module.activeOrder(id);
         moveV4PriceTo(6e23);
         usdc.mint(address(taker), 1000e6);
-        vm.expectPartialRevert(UniswapV4TwapAnchor.SpotTwapDivergence.selector);
+        vm.expectRevert(abi.encodeWithSelector(IMandateQuoter.RiskPaused.selector, RiskReason.MoveBeyondPause));
         taker.swap(o, address(usdc), address(launch), 1000e6, true);
         assertEq(launch.balanceOf(safe), SHIP_LAUNCH);
-        (,, uint256 totalSold) = quoter.epochState(id);
-        assertEq(totalSold, 0);
+        assertEq(quoter.policyCounters(policyId).totalNetSold, 0);
         moveV4PriceTo(MandateFixture.SPOT_X36);
         _buyLaunch(o, 1000e18);
     }
@@ -295,23 +306,15 @@ contract MandateModuleForkTest is V4AnchorSetup {
         assertTrue(issuer.execute(to, data, ownerKeys), "signed issuer transaction failed");
     }
 
-    function _bounds() internal view returns (MandateBounds memory b) {
-        b =
-        MandateFixture.defaultMandate(
-            safe,
-            mm,
-            address(launch),
-            address(usdc),
-            address(v4Anchor),
-            address(quoter),
-            uint64(block.timestamp - 20 days)
-        )
-        .bounds;
-        b.maxEpochCap = EPOCH_CAP;
+    function _config() internal view returns (PolicyConfig memory) {
+        return MandateFixture.policyConfig(address(marketOracle), uint64(block.timestamp - 20 days));
     }
 
-    function _params(uint16 spread, uint256 shippedBase) internal pure returns (MandateParams memory) {
-        return
-            MandateParams({ spreadBps: spread, epochCap: EPOCH_CAP, shippedBase: shippedBase, shippedQuote: SHIP_USDC });
+    function _bounds() internal pure returns (StrategyBounds memory) {
+        return MandateFixture.marketMakingBounds(SHIP_LAUNCH, SHIP_USDC);
+    }
+
+    function _params(uint16 spread, uint256 shippedBase) internal pure returns (StrategyParams memory) {
+        return StrategyParams({ spreadBps: spread, shippedBase: shippedBase, shippedQuote: SHIP_USDC });
     }
 }
