@@ -5347,6 +5347,29 @@ export const safeAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "swapOwner",
+    "inputs": [
+      {
+        "name": "prevOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "oldOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   }
 ] as const satisfies Abi;
 
