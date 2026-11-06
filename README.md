@@ -15,7 +15,8 @@ Built for ETHGlobal Mumbai 2026.
 | `deployments/<chainId>.json` | Addresses of our contracts, written by deploy scripts. |
 | `contracts/` | Foundry project: quoter, Safe module, v4 oracle hook, tests, scripts. |
 | `packages/` | Shared TypeScript packages (chain registry, SDK). |
-| `apps/` | Runnable services (indexer API, web app). |
+| `apps/indexer` | Indexer worker + public API (Postgres, Redis, SSE). |
+| `apps/web` | Dashboard (Vite + React + shadcn); reads only the indexer API. |
 | `replay/` | Scenario export for the Replay Theater. |
 
 ## Requirements

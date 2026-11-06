@@ -322,7 +322,25 @@ Code: `apps/indexer`. Decisions (user): Hono, Drizzle + postgres.js, events + se
 - Not yet done: a trusted-proxy setting for rate limiting behind a load balancer; a separate read-only DB role for
   the API process; image digests in `compose.yaml` (currently major-version tags).
 
-## 13. Infra
+## 13. Web app (Segment 8)
+
+Code: `apps/web`. Decisions (user): Vite + React, shadcn/ui with the tweakcn theme, indexer API as the only data source.
+
+- **No wallet or RPC in the browser.** Wallet actions (reship, claim, revoke) are out of scope; "try a trade" uses the
+  server-simulated attempts endpoint. MM Desk and Issuer Console are not built yet; Act 3 of the replay shows the
+  MM's powers and limits.
+- **Indexer additions for the UI:** `tokens` table (migration `0001_token_metadata`) so amounts can be formatted;
+  `GET /v1/replay` serves the committed `acts.json`, because the traditional-loan side is not mandate history.
+- **Theme:** the tweakcn theme ("claude blu 2") has a near-black `destructive`, so the spec's vermilion stamp and the
+  filled/warning colours are separate semantic tokens for both modes.
+- **shadcn's `cn`** now comes from the `cn` npm package; verified published by shadcn (`shadcn-ui/cn`) before use.
+  shadcn's caret ranges were pinned exactly; the preset's Geist font was removed because the theme uses Inter.
+- **Feed UX:** consecutive refusals with the same reason collapse into one expandable run (Act 2 has 150).
+- **Verification:** typecheck and production build pass; every page rendered against the live indexer in headless
+  Chrome (driven over the DevTools protocol, since `--screenshot` fires before async data and the SSE stream keeps
+  virtual time from settling), in light and dark mode, with no horizontal overflow at 375px.
+
+## 14. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.

@@ -24,7 +24,10 @@
     "indexer:typecheck": "tsc -p apps/indexer/tsconfig.json",
     "indexer:migrate": "pnpm --filter @mandate/indexer db:migrate",
     "indexer:worker": "pnpm --filter @mandate/indexer worker",
-    "indexer:server": "pnpm --filter @mandate/indexer server"
+    "indexer:server": "pnpm --filter @mandate/indexer server",
+    "web:dev": "pnpm --filter @mandate/web dev",
+    "web:build": "pnpm --filter @mandate/web build",
+    "web:typecheck": "pnpm --filter @mandate/web typecheck"
   },
   "type": "module",
   "devDependencies": {
