@@ -93,6 +93,14 @@ export class Cache {
     });
   }
 
+  async getMandateVersion(chainId: number, mandateId: string): Promise<string> {
+    return (await this.attempt(() => this.redis.get(keys.mandateVersion(chainId, mandateId)))) ?? "0";
+  }
+
+  async bumpMandateVersion(chainId: number, mandateId: string): Promise<void> {
+    await this.attempt(() => this.redis.incr(keys.mandateVersion(chainId, mandateId)));
+  }
+
   async publish(change: MandateChange): Promise<void> {
     await this.attempt(() =>
       this.redis.publish(keys.mandateChannel(change.chainId, change.mandateId), JSON.stringify(change)),

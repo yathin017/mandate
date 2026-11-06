@@ -1,3 +1,4 @@
+import { getConnInfo } from "@hono/node-server/conninfo";
 import { zValidator } from "@hono/zod-validator";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -5,6 +6,7 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 
 import type { Cache } from "../cache/cache.ts";
+import type { ChainContext } from "../chain.ts";
 import { keys, TTL } from "../cache/keys.ts";
 import type { Config } from "../config.ts";
 import type { Db } from "../db/client.ts";
@@ -19,12 +21,17 @@ import {
   seriesQuery,
 } from "./params.ts";
 import * as q from "./queries.ts";
+import { attemptBody, simulateAttempt } from "./simulate.ts";
 
 export interface AppDeps {
   readonly db: Db;
   readonly cache: Cache;
   readonly config: Config;
   readonly log?: (message: string) => void;
+  /** Lazily connects to the indexed chain's RPC; only simulated attempts need it. */
+  readonly chain?: () => Promise<ChainContext>;
+  /** Client identity for rate limiting. Defaults to the socket address; proxy headers are never trusted. */
+  readonly clientIp?: (c: Context) => string;
 }
 
 /** Public, read-mostly API. Every response carries the block it reflects (`head`) for provenance. */
@@ -32,6 +39,15 @@ export function createApp(deps: AppDeps) {
   const { db, cache, config } = deps;
   const log = deps.log ?? ((message: string) => console.error(`[api] ${message}`));
   const app = new Hono();
+  const clientIp =
+    deps.clientIp ??
+    ((c: Context) => {
+      try {
+        return getConnInfo(c).remote.address ?? "unknown";
+      } catch {
+        return "unknown";
+      }
+    });
 
   app.use("*", secureHeaders());
   app.use(
@@ -122,7 +138,9 @@ export function createApp(deps: AppDeps) {
       const { limit, before } = c.req.valid("query");
       const cursor = before ? decodeCursor(before) : null;
       if (before && !cursor) return c.json({ error: "invalid cursor" }, 400);
-      return cached(c, chainId, `activity:${mandateId}:${limit}:${before ?? ""}`, async () => {
+      // Simulated attempts do not move the head, so the feed key also carries the mandate's write version.
+      const version = await cache.getMandateVersion(chainId, mandateId);
+      return cached(c, chainId, `activity:${mandateId}:v${version}:${limit}:${before ?? ""}`, async () => {
         const rows = await q.activity(db, chainId, mandateId, { limit, before: cursor });
         const last = rows.at(-1);
         return {
@@ -146,6 +164,38 @@ export function createApp(deps: AppDeps) {
       return cached(c, chainId, `series:${mandateId}:${range.fromBlock ?? ""}:${range.toBlock ?? ""}:${range.limit}`, () =>
         q.series(db, chainId, mandateId, range),
       );
+    },
+  );
+
+  app.post(
+    "/v1/chains/:chainId/mandates/:mandateId/attempts",
+    zValidator("param", mandateParam, invalid),
+    zValidator("json", attemptBody, invalid),
+    async (c) => {
+      const { chainId, mandateId } = c.req.valid("param");
+      if (chainId !== config.INDEXER_CHAIN_ID || !deps.chain) return c.json({ error: "chain not simulated here" }, 404);
+
+      // Fixed one-minute window per client. Fails closed: each request costs RPC calls.
+      const window = Math.floor(Date.now() / 60_000);
+      const hits = await cache.hit(keys.rateLimit("attempts", clientIp(c), window), TTL.rateLimitSeconds);
+      if (hits === undefined) return c.json({ error: "rate limiter unavailable" }, 503);
+      if (hits > config.API_ATTEMPTS_PER_MINUTE) {
+        c.header("retry-after", String(60 - (Math.floor(Date.now() / 1000) % 60)));
+        return c.json({ error: "too many attempts" }, 429);
+      }
+
+      let chain: ChainContext;
+      try {
+        chain = await deps.chain();
+      } catch (error) {
+        log(`chain unavailable: ${error instanceof Error ? error.message : String(error)}`);
+        return c.json({ error: "chain RPC unavailable" }, 503);
+      }
+      const result = await simulateAttempt({ db, cache, chain }, mandateId, c.req.valid("json"));
+      if (result.status === "not-found") return c.json({ error: result.message }, 404);
+      if (result.status === "stale-head") return c.json({ error: result.message }, 409);
+      const at = await head(chainId);
+      return c.json({ head: at, data: result.body as object }, 201);
     },
   );
 

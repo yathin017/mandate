@@ -106,7 +106,10 @@ export async function activity(
       UNION ALL
       SELECT 'attempt', block_number,
              CASE WHEN source = 'simulated' THEN ${SIMULATED_ORD} ELSE log_index END,
-             CASE WHEN source = 'simulated' THEN id::text ELSE tx_hash || ':' || log_index END,
+             CASE WHEN source = 'simulated'
+                  -- creation time (µs, zero-padded) orders simulations within their block; id breaks ties
+                  THEN lpad((extract(epoch FROM created_at) * 1000000)::bigint::text, 20, '0') || ':' || id::text
+                  ELSE tx_hash || ':' || log_index END,
              timestamp, tx_hash, source::text, outcome::text, NULL, amount_in, amount_out, NULL, NULL, NULL,
              error_name, error_args, explanation, request
         FROM attempts

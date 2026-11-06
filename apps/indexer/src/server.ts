@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 
 import { createApp } from "./api/app.ts";
 import { Cache } from "./cache/cache.ts";
+import { createChainContext, type ChainContext } from "./chain.ts";
 import { loadConfig } from "./config.ts";
 import { createDb } from "./db/client.ts";
 
@@ -9,7 +10,16 @@ import { createDb } from "./db/client.ts";
 const config = loadConfig();
 const { db, close } = createDb(config.DATABASE_URL);
 const cache = await Cache.connect(config.REDIS_URL);
-const app = createApp({ db, cache, config });
+// Connected on first simulated attempt; a failed connection is retried on the next request.
+let chain: Promise<ChainContext> | undefined;
+const lazyChain = () => {
+  chain ??= createChainContext(config).catch((error: unknown) => {
+    chain = undefined;
+    throw error;
+  });
+  return chain;
+};
+const app = createApp({ db, cache, config, chain: lazyChain });
 
 const server = serve({ fetch: app.fetch, port: config.API_PORT, hostname: process.env.API_HOST ?? "127.0.0.1" }, (info) =>
   console.log(`[api] listening on http://${info.address}:${info.port}`),
