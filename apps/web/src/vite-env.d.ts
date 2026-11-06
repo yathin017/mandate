@@ -7,4 +7,6 @@ interface ImportMetaEnv {
   readonly VITE_RPC_URL?: string;
   /** Deployment to show: 31337 (local fork, default) or 8453 (Base). Must be registered in @mandate/chains. */
   readonly VITE_CHAIN_ID?: string;
+  /** Local fork only: AnchorLauncher address deployed for development. Ignored on live chains. */
+  readonly VITE_ANCHOR_LAUNCHER?: string;
 }

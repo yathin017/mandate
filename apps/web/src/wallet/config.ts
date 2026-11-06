@@ -1,5 +1,5 @@
 import { getDeployment, getTransactionUrl, isLiveDeployment } from "@mandate/chains";
-import { defineChain, type Address, type Hash } from "viem";
+import { defineChain, isAddress, type Address, type Hash } from "viem";
 import { base } from "viem/chains";
 import { createConfig, http, injected } from "wagmi";
 
@@ -30,6 +30,20 @@ export const demoChain = isLive
 
 /** Short disclosure shown in the header: what chain this is and that its tokens are mocks. */
 export const ENVIRONMENT_LABEL = isLive ? `${demoChain.name.toUpperCase()} · MOCK TOKENS` : "LOCAL FORK";
+
+/**
+ * AnchorLauncher for self-serve anchors: the manifest's address on live chains. The local fork's recorded
+ * deployment has none, so a dev-only VITE_ANCHOR_LAUNCHER is accepted there (never on a live chain).
+ */
+export const ANCHOR_LAUNCHER: Address | undefined = isLiveDeployment(deployment)
+  ? deployment.anchorLauncher
+  : devAnchorLauncher(import.meta.env.VITE_ANCHOR_LAUNCHER);
+
+function devAnchorLauncher(value: string | undefined): Address | undefined {
+  if (!value) return undefined;
+  if (!isAddress(value)) throw new Error(`VITE_ANCHOR_LAUNCHER is not an address: ${value}`);
+  return value;
+}
 
 /** Explorer link for live chains; undefined on the local fork. */
 export const txUrl = (hash: string): string | undefined => getTransactionUrl(CHAIN_ID, hash as Hash);
