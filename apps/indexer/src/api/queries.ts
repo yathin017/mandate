@@ -189,7 +189,7 @@ export async function safeSummary(db: Db, chainId: number, safe: string) {
   const rows = await db.execute<PolicySummaryRow>(sql`
     SELECT p.policy_id, p.status, p.base, p.quote, p.config,
            s.gross_sold::text, s.net_sold::text, s.quote_spent::text, s.total_net_sold::text, s.released::text,
-           s.period_ends_at::text, s.risk_mode::int, s.risk_reason::int, s.priced, s.spot_x36::text, s.twap_x36::text,
+           s.period_ends_at::text, s.timestamp::text AS read_at, s.risk_mode::int, s.risk_reason::int, s.priced, s.spot_x36::text, s.twap_x36::text,
            s.trusted_depth_base::text
     FROM policies p
     LEFT JOIN LATERAL (
@@ -213,7 +213,7 @@ export async function mmSummary(db: Db, chainId: number, mm: string) {
 type PolicySummaryRow = {
   policy_id: string; status: number; base: string; quote: string; config: unknown;
   gross_sold: string | null; net_sold: string | null; quote_spent: string | null; total_net_sold: string | null;
-  released: string | null; period_ends_at: string | null; risk_mode: number | null; risk_reason: number | null;
+  released: string | null; period_ends_at: string | null; read_at: string | null; risk_mode: number | null; risk_reason: number | null;
   priced: boolean | null; spot_x36: string | null; twap_x36: string | null; trusted_depth_base: string | null;
 };
 
@@ -230,6 +230,8 @@ function presentPolicy(r: PolicySummaryRow) {
     totalNetSold: r.total_net_sold ?? "0",
     released: r.released ?? "0",
     periodEndsAt: r.period_ends_at,
+    /** Chain time of the reading, so clients count down in chain time rather than wall-clock time. */
+    readAt: r.read_at,
     riskMode: r.risk_mode,
     riskReason: r.risk_reason,
     priced: r.priced,
