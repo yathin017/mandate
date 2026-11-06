@@ -80,9 +80,12 @@ export interface LiveDeployment extends MandateDeployment {
   readonly safe: Address;
   readonly swapRouter: Address;
   readonly liquidityRouter: Address;
-  /** The demo Safe's treasury policy and its market-making strategy. */
-  readonly policy: Hash;
-  readonly strategy: Hash;
+  /**
+   * The demo Safe's treasury policy and a strategy, when the deployment created them. v2 deployments leave both to the
+   * issuer (set in the app), so they are usually absent; the indexer discovers them from events.
+   */
+  readonly policy?: Hash;
+  readonly strategy?: Hash;
   /** AnchorLauncher for self-serve anchors, when deployed on this chain. */
   readonly anchorLauncher?: Address;
   /** TokenFactory for self-serve token launches, once deployed on this chain. */
@@ -170,11 +173,13 @@ export function parseLiveDeployment(value: unknown): LiveDeployment {
   if (d.sourceChainId !== chainId) throw new Error("A live deployment's source chain must be its own chain");
   if (chainId === 31337) throw new Error("Chain 31337 is reserved for the local fork");
   if (d.syntheticTokens !== true) throw new Error("Live demo must disclose its mock tokens");
+  if (d.mandate !== undefined) throw new Error("This is a v1 manifest (single mandate); v2 deployments record policies and strategies");
   return Object.freeze({
     environment: "live", chainId, sourceChainId: chainId, deployBlock: integer(d.deployBlock, "deployBlock"),
     ...addresses(d, ["module", "quoter", "anchor", "hook", "base", "quote", "deployer", "owner2", "mm", "safe",
       "swapRouter", "liquidityRouter"] as const),
-    policy: hash(d.policy, "policy"), strategy: hash(d.strategy, "strategy"),
+    ...(d.policy === undefined ? {} : { policy: hash(d.policy, "policy") }),
+    ...(d.strategy === undefined ? {} : { strategy: hash(d.strategy, "strategy") }),
     ...(d.anchorLauncher === undefined ? {} : { anchorLauncher: address(d.anchorLauncher, "anchorLauncher") }),
     ...(d.tokenFactory === undefined ? {} : { tokenFactory: address(d.tokenFactory, "tokenFactory") }),
     syntheticTokens: true,

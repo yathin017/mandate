@@ -28,19 +28,23 @@ test("live Base onboarding reads", { skip }, async (t) => {
   });
 
   await t.test("demo pair: launcher pool, deep buffer, settled liquidity, ready, priced near 0.40", async () => {
-    const policy = await client.readContract({ address: deployment.module, abi: mandateModuleAbi,
-      functionName: "getPolicy", args: [deployment.policy] });
-    const window = policy.config.oracle.twapWindow;
-    const status = await readAnchorStatus(client, { chainId: 8453, launcher, base: deployment.base, quote: deployment.quote, window });
+    // The issuer sets the policy in the app; until then readiness is not judged.
+    const policyId = await client.readContract({ address: deployment.module, abi: mandateModuleAbi,
+      functionName: "activePolicyOf", args: [deployment.safe, deployment.base] });
+    const policy = /^0x0{64}$/.test(policyId) ? null
+      : await client.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "getPolicy", args: [policyId] });
+    const status = await readAnchorStatus(client, { chainId: 8453, launcher, base: deployment.base, quote: deployment.quote,
+      ...(policy ? { window: policy.config.oracle.twapWindow } : {}) });
     assert.equal(status.poolId, poolIdOf(anchorPoolKey(deployment.hook, deployment.base, deployment.quote)));
     assert.ok(status.poolExists);
     assert.equal(status.anchor, deployment.anchor, "the demo oracle is the launcher's");
-    assert.equal(policy.config.oracle.oracle, deployment.anchor);
+    if (policy) assert.equal(policy.config.oracle.oracle, deployment.anchor);
     assert.ok(status.liquidity > 0n);
     assert.equal(status.trustedLiquidity, status.liquidity, "the seed liquidity has settled");
     assert.ok(status.initializedAt !== null);
     assert.equal(status.cardinalityNext, 300);
-    assert.ok(status.ready && status.oldestObservation !== null);
+    assert.ok(status.oldestObservation !== null && status.historySeconds > 0);
+    if (policy) assert.ok(status.ready);
     const price = Number(status.spotPriceX36) / 1e24;
     assert.ok(price > 0.3 && price < 0.5, `spot ${price}`);
   });

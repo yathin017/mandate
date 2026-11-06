@@ -8,18 +8,20 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { MandateModule } from "../../src/module/MandateModule.sol";
-import { StrategyParams } from "../../src/libraries/MandateTypes.sol";
+import { Policy, Strategy, StrategyParams } from "../../src/libraries/MandateTypes.sol";
 import { ISafeAccount, SafeTransactions } from "../lib/SafeTransactions.sol";
 import { LiveConfig } from "./LiveConfig.sol";
 
 /// @title RotateRoles
 /// @notice Hands the live Base demo to new testing wallets, entirely through the issuer Safe (2-of-2, signed by
 ///         the current owners' keys from .env):
-///         1. revoke the current strategy (its market maker cannot be changed: the MM is part of the deal),
-///         2. add a new strategy under the same policy with NEW_MM as market maker,
+///         1. revoke STRATEGY (its market maker cannot be changed: the MM is part of the deal),
+///         2. add a new strategy under the same policy with NEW_MM as market maker and the revoked strategy's own
+///            kind, bounds and params (shipped amounts capped to what the Safe can back), so no new terms are chosen,
 ///         3. swap Safe owner 2 to NEW_OWNER2 (last, so the current owner-2 key can still sign steps 1 and 2).
-/// @dev Dry run:  NEW_OWNER2=0x.. NEW_MM=0x.. forge script script/live/RotateRoles.s.sol --rpc-url $BASE_RPC_URL
-///      Broadcast: add --broadcast. deployments/8453.json (owner2, mm, strategy) is updated only when broadcasting.
+/// @dev Needs BASE_OWNER2_PRIVATE_KEY (the current Owner 2) in .env, since both owners sign.
+///      Dry run:  STRATEGY=0x.. NEW_OWNER2=0x.. NEW_MM=0x.. forge script script/live/RotateRoles.s.sol --rpc-url $BASE_RPC_URL
+///      Broadcast: add --broadcast. deployments/8453.json (owner2, mm) is updated only when broadcasting.
 contract RotateRoles is Script {
     using stdJson for string;
 
@@ -30,10 +32,13 @@ contract RotateRoles is Script {
         string memory json = LiveConfig.manifest();
         ISafeAccount safe = ISafeAccount(json.readAddress(".safe"));
         MandateModule module = MandateModule(json.readAddress(".module"));
-        bytes32 policyId = json.readBytes32(".policy");
-        bytes32 oldStrategy = json.readBytes32(".strategy");
-        address base = json.readAddress(".base");
-        address quote = json.readAddress(".quote");
+        bytes32 oldStrategy = vm.envBytes32("STRATEGY");
+        Strategy memory old = module.getStrategy(oldStrategy);
+        bytes32 policyId = old.policyId;
+        Policy memory policy = module.getPolicy(policyId);
+        require(policy.safe == address(safe), "Rotate: strategy belongs to another Safe");
+        address base = policy.base;
+        address quote = policy.quote;
         address oldOwner2 = vm.addr(LiveConfig.owner2Key());
         address newOwner2 = vm.envAddress("NEW_OWNER2");
         address newMm = vm.envAddress("NEW_MM");
@@ -52,13 +57,12 @@ contract RotateRoles is Script {
             "Rotate: revoke failed"
         );
 
-        // 2. New strategy with the new MM; ship no more than the Safe actually holds (the backing check).
-        StrategyParams memory params = LiveConfig.params();
+        // 2. New strategy with the new MM on the revoked one's terms; ship no more than the Safe can back (the module
+        //    sums every live strategy, and the revoked one no longer counts).
+        StrategyParams memory params = old.params;
         params.shippedBase = Math.min(params.shippedBase, IERC20(base).balanceOf(address(safe)));
         params.shippedQuote = Math.min(params.shippedQuote, IERC20(quote).balanceOf(address(safe)));
-        bytes memory add = abi.encodeCall(
-            MandateModule.addStrategy, (policyId, newMm, LiveConfig.kind(), LiveConfig.strategyBounds(), params)
-        );
+        bytes memory add = abi.encodeCall(MandateModule.addStrategy, (policyId, newMm, old.kind, old.bounds, params));
         require(SafeTransactions.execute(safe, address(module), add, keys), "Rotate: addStrategy failed");
         bytes32[] memory ids = module.strategiesOf(policyId);
         bytes32 newStrategy = ids[ids.length - 1];
@@ -83,7 +87,6 @@ contract RotateRoles is Script {
             string memory path = LiveConfig.path();
             vm.writeJson(string.concat('"', vm.toString(newOwner2), '"'), path, ".owner2");
             vm.writeJson(string.concat('"', vm.toString(newMm), '"'), path, ".mm");
-            vm.writeJson(string.concat('"', vm.toString(newStrategy), '"'), path, ".strategy");
         }
     }
 

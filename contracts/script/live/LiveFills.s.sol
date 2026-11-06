@@ -17,8 +17,9 @@ import { LiveConfig } from "./LiveConfig.sol";
 /// @notice Exercises the live Base strategy with real transactions: the deployer (as an EOA taker) buys from and
 ///         sells to the treasury through the canonical router, then, if .env holds the market maker's key, the MM
 ///         re-ships and claims fees.
-/// @dev Needs the demo policy's minimum pool age (1 hour) since deployment; until then the treasury is paused.
-///      Dry run: forge script script/live/LiveFills.s.sol --rpc-url $BASE_RPC_URL; add --broadcast to send.
+/// @dev STRATEGY is the strategy to trade against (added by the issuer in the app). Its policy's market checks apply:
+///      until the pool is old, deep and calm enough by the issuer's own thresholds, fills are refused.
+///      Dry run: STRATEGY=0x.. forge script script/live/LiveFills.s.sol --rpc-url $BASE_RPC_URL; add --broadcast to send.
 contract LiveFills is Script {
     using stdJson for string;
 
@@ -31,7 +32,7 @@ contract LiveFills is Script {
         ChainConfig memory cfg = ChainConfigLib.load(LiveConfig.CHAIN_ID);
         ISwapVM router = ISwapVM(cfg.swapVmRouter);
         MandateModule module = MandateModule(json.readAddress(".module"));
-        bytes32 id = json.readBytes32(".strategy");
+        bytes32 id = vm.envBytes32("STRATEGY");
         address base = json.readAddress(".base");
         address quote = json.readAddress(".quote");
 

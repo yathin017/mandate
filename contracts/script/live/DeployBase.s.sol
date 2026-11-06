@@ -22,17 +22,19 @@ import { UniswapV4MarketOracle } from "../../src/anchor/UniswapV4MarketOracle.so
 import { MockERC20 } from "../../src/mocks/MockERC20.sol";
 import { ChainConfig, ChainConfigLib } from "../lib/ChainConfig.sol";
 import { DemoConfig } from "../lib/DemoConfig.sol";
+import { ISafe } from "../../src/interfaces/ISafe.sol";
 import { ISafeAccount, SafeTransactions } from "../lib/SafeTransactions.sol";
 import { LiveConfig } from "./LiveConfig.sol";
 
 /// @title DeployBase
 /// @notice Deploys Mandate v2 to Base mainnet: module + quoter, oracle hook and AnchorLauncher (the platform), plus a
-///         demo pair with mock tokens: a seeded v4 anchor pool, a 2-of-2 issuer Safe, its treasury policy and one
-///         market-making strategy whose market maker is a separate key. The TokenFactory is kept from the previous
-///         manifest (it does not depend on the module).
+///         demo pair with mock tokens: the pair's market oracle with a seeded v4 pool, and a 2-of-2 issuer Safe
+///         (deployer + Owner 2) holding demo inventory, with the deployer's approval of `enableModule` recorded.
+///         No treasury policy or strategy is created: their values are the issuer's, set in the web wizard. The
+///         TokenFactory is kept from the previous manifest (it does not depend on the module).
 /// @dev Dry run:  forge script script/live/DeployBase.s.sol --rpc-url $BASE_RPC_URL
 ///      Broadcast: add --broadcast. The manifest is written only when broadcasting.
-///      Every issuer action goes through the Safe with both owners' EIP-712 signatures; nothing is impersonated.
+///      Only the deployer's key is used. Owner 2 and the market maker are addresses (their wallets sign in the app).
 contract DeployBase is Script {
     using PoolIdLibrary for PoolKey;
     using stdJson for string;
@@ -47,8 +49,6 @@ contract DeployBase is Script {
         AnchorLauncher launcher;
         UniswapV4MarketOracle anchor;
         ISafeAccount safe;
-        bytes32 policyId;
-        bytes32 strategyId;
     }
 
     function run() external {
@@ -60,19 +60,15 @@ contract DeployBase is Script {
         );
 
         address deployer = vm.addr(LiveConfig.deployerKey());
-        address owner2 = vm.addr(LiveConfig.owner2Key());
-        address mm = vm.addr(LiveConfig.mmKey());
+        address owner2 = LiveConfig.owner2();
+        address mm = LiveConfig.marketMaker();
+        require(owner2 != deployer && mm != deployer && mm != owner2, "Live: roles must be three different wallets");
         uint256 startBlock = block.number;
 
         vm.startBroadcast(LiveConfig.deployerKey());
         Deployed memory d = _deployContracts(cfg);
         _seedPool(cfg, d);
         d.safe = _createSafe(cfg, d, deployer, owner2);
-        (d.policyId, d.strategyId) = _createPolicy(d, mm);
-
-        // Gas for the second owner (approvals in the web app) and the MM (reship, pause, claim).
-        payable(owner2).transfer(LiveConfig.GAS_TOPUP);
-        payable(mm).transfer(LiveConfig.GAS_TOPUP);
         // The deployer is the demo taker: it pays the router, which pushes into Aqua (EOA settlement).
         d.base.approve(cfg.swapVmRouter, type(uint256).max);
         d.quote.approve(cfg.swapVmRouter, type(uint256).max);
@@ -155,37 +151,22 @@ contract DeployBase is Script {
         owners[1] = owner2;
         // Timestamp salt: re-running the script never collides with an earlier Safe.
         safe = SafeTransactions.create(cfg.safeSingletonL2, cfg.safeProxyFactory, owners, 2, block.timestamp);
-        d.base.mint(address(safe), LiveConfig.ALLOTMENT);
-        d.quote.mint(address(safe), LiveConfig.BUYBACK);
-        require(
-            SafeTransactions.execute(
-                safe,
-                address(safe),
-                abi.encodeCall(ISafeAccount.enableModule, (address(d.module))),
-                LiveConfig.sortedOwnerKeys()
-            ),
-            "Live: enableModule failed"
+        d.base.mint(address(safe), LiveConfig.SAFE_BASE);
+        d.quote.mint(address(safe), LiveConfig.SAFE_QUOTE);
+        // The deployer approves enableModule at nonce 0; Owner 2 executes it from the wizard.
+        bytes32 enableHash = safe.getTransactionHash(
+            address(safe),
+            0,
+            abi.encodeCall(ISafeAccount.enableModule, (address(d.module))),
+            ISafe.Operation.Call,
+            0,
+            0,
+            0,
+            address(0),
+            address(0),
+            0
         );
-    }
-
-    function _createPolicy(Deployed memory d, address mm) private returns (bytes32 policyId, bytes32 strategyId) {
-        bytes memory create = abi.encodeCall(
-            MandateModule.createPolicy, (address(d.base), address(d.quote), LiveConfig.policy(address(d.anchor)))
-        );
-        require(
-            SafeTransactions.execute(d.safe, address(d.module), create, LiveConfig.sortedOwnerKeys()),
-            "Live: createPolicy failed"
-        );
-        policyId = d.module.activePolicyOf(address(d.safe), address(d.base));
-        bytes memory add = abi.encodeCall(
-            MandateModule.addStrategy,
-            (policyId, mm, LiveConfig.kind(), LiveConfig.strategyBounds(), LiveConfig.params())
-        );
-        require(
-            SafeTransactions.execute(d.safe, address(d.module), add, LiveConfig.sortedOwnerKeys()),
-            "Live: addStrategy failed"
-        );
-        strategyId = d.module.strategiesOf(policyId)[0];
+        safe.approveHash(enableHash);
     }
 
     function _writeManifest(
@@ -217,9 +198,7 @@ contract DeployBase is Script {
         if (factory != address(0)) vm.serializeAddress(obj, "tokenFactory", factory);
         vm.serializeAddress(obj, "swapRouter", address(d.swapRouter));
         vm.serializeAddress(obj, "liquidityRouter", address(d.liquidityRouter));
-        vm.serializeAddress(obj, "safe", address(d.safe));
-        vm.serializeBytes32(obj, "policy", d.policyId);
-        string memory json = vm.serializeBytes32(obj, "strategy", d.strategyId);
+        string memory json = vm.serializeAddress(obj, "safe", address(d.safe));
         vm.writeJson(json, LiveConfig.path());
     }
 

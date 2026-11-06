@@ -81,10 +81,12 @@ test("live deployments carry their policy and strategy, and disclose mock tokens
   assert.throws(() => parseDeployment({ ...live, syntheticTokens: false }), /mock tokens/);
   assert.throws(() => parseDeployment({ ...live, environment: "staging" }), /Unknown deployment environment/);
   assert.throws(() => parseDeployment({ ...live, anchorLauncher: "0x1234" }), /anchorLauncher|address/i);
-  assert.throws(() => parseDeployment({ ...live, strategy: undefined }), /strategy/);
+  assert.throws(() => parseDeployment({ ...live, strategy: "0x12" }), /strategy/);
+  const { policy: _p, strategy: _s, ...bare } = live;
+  assert.equal(isLiveDeployment(parseDeployment(bare)) && parseDeployment(bare).chainId, 8453, "policy and strategy are optional");
 });
 
 test("a v1 manifest (single mandate id) is rejected rather than misread", () => {
   const { policy: _p, strategy: _s, ...v1 } = live;
-  assert.throws(() => parseDeployment({ ...v1, mandate: `0x${"0c".repeat(32)}` }), /policy/);
+  assert.throws(() => parseDeployment({ ...v1, mandate: `0x${"0c".repeat(32)}` }), /v1 manifest/);
 });
