@@ -21,7 +21,10 @@
     "sdk:test:fork": "pnpm packages:build && node --env-file-if-exists=.env replay/export.ts --test-sdk",
     "packages:typecheck": "tsc -p packages/chains/tsconfig.test.json && tsc -p packages/sdk/tsconfig.test.json",
     "indexer:test": "pnpm --filter @mandate/indexer test",
-    "indexer:typecheck": "tsc -p apps/indexer/tsconfig.json"
+    "indexer:typecheck": "tsc -p apps/indexer/tsconfig.json",
+    "indexer:migrate": "pnpm --filter @mandate/indexer db:migrate",
+    "indexer:worker": "pnpm --filter @mandate/indexer worker",
+    "indexer:server": "pnpm --filter @mandate/indexer server"
   },
   "type": "module",
   "devDependencies": {

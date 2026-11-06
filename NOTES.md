@@ -297,7 +297,32 @@ Code: `contracts/src/module/MandateModule.sol`, `src/libraries/MandateStrategy.s
 - Package READMEs document the APIs and commands. Segment 7 remains gated: indexer framework, ORM, blocked-
   attempt ingestion and the draft database schema require the user's choices/review before implementation.
 
-## 12. Infra
+## 12. Indexer and API (Segment 7)
+
+Code: `apps/indexer`. Decisions (user): Hono, Drizzle + postgres.js, events + server re-simulation, docker compose.
+
+- **Schema is a draft** (`src/db/schema.ts`, migration `0000_draft_initial`). All tables keyed by `chain_id`;
+  uint256 as `numeric(78,0)`; hex text with format checks. Every evidence row cascades from `blocks`.
+- **Blocked attempts.** Reverted swaps emit nothing. Two labeled sources: `onchain_actor` (demo ScenarioActor
+  `Attempted`, receipt-backed) and `simulated` (server `eth_call` at the indexed head; the client supplies
+  parameters only). Allowed actor attempts are omitted from the feed because their `Filled` row covers them.
+- **Reorg findings (fixed, tested):** (1) the cursor's canonicality must be checked before comparing with the head,
+  because a replacement chain can be shorter; (2) viem caches `getBlockNumber` for 4s by default, so the client is
+  created with `cacheTime: 0`; (3) on the demo node, empty replacement blocks are byte-identical (fixed timestamp
+  interval, see §10), so the reorg test includes a transaction to make the fork real.
+- **Cache.** Response keys embed the head hash, so a new head is the invalidation. Simulations bump a per-mandate
+  version in feed keys. Dedupe of simulations moved from a Redis memo to the table's unique key after a test
+  showed the memo could outlive a database reset and skip the insert.
+- **Live updates.** One shared Redis subscriber fans out to all SSE clients; streams are capped per process.
+- **Node 24 type stripping** forbids parameter properties; `erasableSyntaxOnly` is on so tsc rejects them.
+- `pnpm replay:serve` keeps the verified demo fork alive for the worker. Exports stay byte-identical, so the
+  committed manifest matches the live node.
+- Verification: **27 indexer tests pass** (indexer reconciliation with `acts.json`, forced reorg, API, cache,
+  simulations, SSE). End-to-end: worker indexed 216 events; API, simulation and SSE checked with real processes.
+- Not yet done: a trusted-proxy setting for rate limiting behind a load balancer; a separate read-only DB role for
+  the API process; image digests in `compose.yaml` (currently major-version tags).
+
+## 13. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.
