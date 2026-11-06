@@ -5,6 +5,8 @@ import type { Address } from "viem";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SafeStep } from "@/onboarding/SafeStep";
+import { AnchorStep, useAnchorStatus } from "@/onboarding/AnchorStep";
+import { ModuleStep } from "@/onboarding/ModuleStep";
 import { TokenStep } from "@/onboarding/TokenStep";
 import { useTokenInfo } from "@/onboarding/useTokenInfo";
 import { useSafeCheck } from "@/onboarding/useSafeCheck";
@@ -28,6 +30,10 @@ export function Onboarding() {
   const quoteCheck = useTokenInfo(quote, safe);
   const tokensDone =
     safeDone && baseCheck.info?.ok === true && quoteCheck.info?.ok === true && base!.toLowerCase() !== quote!.toLowerCase();
+  const moduleDone = tokensDone && check.moduleEnabled;
+  const anchor = useAnchorStatus(tokensDone ? (base as Address) : null, tokensDone ? (quote as Address) : null);
+  const anchorReady = Boolean(anchor.data?.anchor && anchor.data.ready);
+  const display = (info: typeof baseCheck.info) => (info?.ok ? { symbol: info.symbol, decimals: info.decimals } : { symbol: "?", decimals: 18 });
 
   const select = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
@@ -49,9 +55,26 @@ export function Onboarding() {
       state: tokensDone ? "done" : safeDone ? "current" : "upcoming",
       body: safe ? <TokenStep safe={safe} base={base} quote={quote} onChange={select} /> : undefined,
     },
-    { title: "Enable Mandate", description: "The Safe's owners turn on the Mandate module.", state: tokensDone ? "current" : "upcoming" },
-    { title: "Price anchor", description: "A Uniswap v4 pool with the oracle hook and 30 minutes of history.", state: "upcoming" },
-    { title: "Create the mandate", description: "Terms, market maker, owners' approval.", state: "upcoming" },
+    {
+      title: "Enable Mandate",
+      description: "The Safe's owners turn on the Mandate module.",
+      state: moduleDone ? "done" : tokensDone ? "current" : "upcoming",
+      body: safe ? <ModuleStep safe={safe as Address} check={check} /> : undefined,
+    },
+    {
+      title: "Price anchor",
+      description: "A Uniswap v4 pool with the oracle hook and 30 minutes of history.",
+      // Independent of the module: anyone can launch the anchor while owners approve.
+      state: anchorReady ? "done" : tokensDone ? "current" : "upcoming",
+      body: tokensDone ? (
+        <AnchorStep base={base as Address} quote={quote as Address} baseToken={display(baseCheck.info)} quoteToken={display(quoteCheck.info)} />
+      ) : undefined,
+    },
+    {
+      title: "Create the mandate",
+      description: "Terms, market maker, owners' approval.",
+      state: moduleDone && anchor.data?.anchor ? "current" : "upcoming",
+    },
   ];
 
   return (
