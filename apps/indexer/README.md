@@ -12,13 +12,16 @@ change stream. Postgres is the source of truth; Redis is disposable.
 ## Run it
 
 ```sh
-docker compose up -d                 # Postgres 16 + Redis 7 on loopback (see compose.yaml)
+pnpm infra:up                        # docker compose: Postgres 16 + Redis 7 on loopback (needs Docker running)
 cp .env.example .env                 # DATABASE_URL, REDIS_URL, INDEXER_* and API_* settings
 pnpm install --frozen-lockfile
 pnpm replay:serve                    # terminal 1: verified demo fork on 127.0.0.1:8547, kept alive
 pnpm indexer:worker                  # terminal 2: migrates, then follows the chain
-pnpm indexer:server                  # terminal 3: API on 127.0.0.1:8787
+pnpm indexer:server                  # terminal 3: API on 127.0.0.1:8787 (start after the worker has migrated)
 ```
+
+Both processes check their dependencies first and exit with one actionable line if Postgres, the schema or the
+chain RPC is missing. Redis being down is only a warning.
 
 Tests need a disposable database and the live demo node. They **wipe** `INDEXER_TEST_DATABASE_URL`:
 

@@ -4,9 +4,15 @@ import { loadConfig } from "./config.ts";
 import { createDb } from "./db/client.ts";
 import { runMigrations } from "./db/migrate.ts";
 import { Indexer, type BatchCommitted } from "./ingest/indexer.ts";
+import { checkPostgres, checkRedis, checkRpc, runWithPreflight } from "./preflight.ts";
 
-/** Indexer process: migrate, then follow the chain until SIGINT/SIGTERM. */
+/** Indexer process: check infrastructure, migrate, then follow the chain until SIGINT/SIGTERM. */
 const config = loadConfig();
+await runWithPreflight("indexer", async () => {
+  await checkPostgres(config.DATABASE_URL);
+  await checkRedis(config.REDIS_URL, (message) => console.warn(`[indexer] ${message}`));
+  await checkRpc(config.INDEXER_RPC_URL, config.INDEXER_CHAIN_ID);
+});
 await runMigrations(config.DATABASE_URL);
 const { db, close } = createDb(config.DATABASE_URL);
 const cache = await Cache.connect(config.REDIS_URL);

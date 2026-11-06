@@ -22,6 +22,8 @@
     "packages:typecheck": "tsc -p packages/chains/tsconfig.test.json && tsc -p packages/sdk/tsconfig.test.json",
     "indexer:test": "pnpm --filter @mandate/indexer test",
     "indexer:typecheck": "tsc -p apps/indexer/tsconfig.json",
+    "infra:up": "docker compose up -d --wait",
+    "infra:down": "docker compose down",
     "indexer:migrate": "pnpm --filter @mandate/indexer db:migrate",
     "indexer:worker": "pnpm --filter @mandate/indexer worker",
     "indexer:server": "pnpm --filter @mandate/indexer server",

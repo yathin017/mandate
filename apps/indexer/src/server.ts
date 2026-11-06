@@ -7,9 +7,16 @@ import { Cache } from "./cache/cache.ts";
 import { createChainContext, type ChainContext } from "./chain.ts";
 import { loadConfig } from "./config.ts";
 import { createDb } from "./db/client.ts";
+import { checkPostgres, checkRedis, checkSchema, runWithPreflight } from "./preflight.ts";
 
 /** API process. Read-only against Postgres except simulated attempts; listens on loopback by default. */
 const config = loadConfig();
+// The API needs Postgres (and the worker's migrations); the RPC is only needed lazily for simulations.
+await runWithPreflight("api", async () => {
+  await checkPostgres(config.DATABASE_URL);
+  await checkSchema(config.DATABASE_URL);
+  await checkRedis(config.REDIS_URL, (message) => console.warn(`[api] ${message}`));
+});
 const { db, close } = createDb(config.DATABASE_URL);
 const cache = await Cache.connect(config.REDIS_URL);
 // Connected on first simulated attempt; a failed connection is retried on the next request.
