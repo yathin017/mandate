@@ -12,11 +12,13 @@ export const address = z
   .transform((value) => value.toLowerCase());
 
 export const chainParam = z.object({ chainId: z.coerce.number().int().positive() });
-export const mandateParam = chainParam.extend({ mandateId: hash });
+export const policyParam = chainParam.extend({ policyId: hash });
+export const strategyParam = chainParam.extend({ strategyId: hash });
 export const mmParam = chainParam.extend({ address });
 export const safeParam = chainParam.extend({ safe: address });
 
-export const listQuery = z.object({ safe: address.optional(), mm: address.optional() });
+export const policyListQuery = z.object({ safe: address.optional() });
+export const strategyListQuery = z.object({ safe: address.optional(), mm: address.optional(), policy: hash.optional() });
 export const launchedQuery = z.object({ creator: address.optional(), recipient: address.optional() });
 
 /** Opaque keyset cursor: `${blockNumber}.${ord}.${key}`, base64url-encoded. */

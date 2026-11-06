@@ -38,13 +38,13 @@ export type SimulationResult =
  */
 export async function simulateAttempt(
   deps: { db: Db; cache: Cache; chain: ChainContext },
-  mandateId: string,
+  strategyId: string,
   body: AttemptBody,
 ): Promise<SimulationResult> {
   const { db, cache, chain } = deps;
   const cursor = await q.getCursor(db, chain.chainId);
-  const mandate = await q.getMandate(db, chain.chainId, mandateId);
-  if (!cursor || !mandate) return { status: "not-found", message: "mandate not indexed" };
+  const strategy = await q.getStrategy(db, chain.chainId, strategyId);
+  if (!cursor || !strategy) return { status: "not-found", message: "strategy not indexed" };
 
   const requestHash = keccak256(
     encodeAbiParameters(
@@ -59,7 +59,7 @@ export async function simulateAttempt(
     .where(
       and(
         eq(attempts.chainId, chain.chainId),
-        eq(attempts.mandateId, mandateId),
+        eq(attempts.strategyId, strategyId),
         eq(attempts.source, "simulated"),
         eq(attempts.requestHash, requestHash),
         eq(attempts.blockNumber, cursor.blockNumber),
@@ -68,22 +68,28 @@ export async function simulateAttempt(
   if (existing) return { status: "ok", body: responseOf(existing) };
 
   const [base, quote] = await Promise.all([
-    chain.tokenDisplay(mandate.base as Address),
-    chain.tokenDisplay(mandate.quote as Address),
+    chain.tokenDisplay(strategy.base as Address),
+    chain.tokenDisplay(strategy.quote as Address),
   ]);
+  const policy = await q.latestPolicySnapshot(db, chain.chainId, strategy.policyId);
   const [block] = await db
     .select({ timestamp: blocks.timestamp })
     .from(blocks)
     .where(and(eq(blocks.chainId, chain.chainId), eq(blocks.number, cursor.blockNumber)));
 
-  const result = await chain.sdk.quote(mandateId as Hash, {
+  const result = await chain.sdk.quote(strategyId as Hash, {
     taker: body.taker as Address,
     tokenIn: body.tokenIn as Address,
     tokenOut: body.tokenOut as Address,
     amount: body.amount,
     isExactIn: body.isExactIn,
     blockNumber: cursor.blockNumber,
-    context: { base, quote, ...(block ? { now: block.timestamp } : {}) },
+    context: {
+      base,
+      quote,
+      ...(block ? { now: block.timestamp } : {}),
+      ...(policy ? { periodEndsAt: BigInt(policy.periodEndsAt) } : {}),
+    },
   });
   if (result.source.blockHash.toLowerCase() !== cursor.blockHash) {
     return { status: "stale-head", message: "the indexed head was reorged; retry" };
@@ -91,7 +97,7 @@ export async function simulateAttempt(
 
   const row = {
     chainId: chain.chainId,
-    mandateId,
+    strategyId,
     source: "simulated" as const,
     outcome: result.ok ? ("allowed" as const) : ("blocked" as const),
     errorName: result.ok ? null : result.error.errorName,
@@ -108,10 +114,15 @@ export async function simulateAttempt(
   };
   await db.insert(attempts).values(row).onConflictDoNothing();
 
-  await cache.bumpMandateVersion(chain.chainId, mandateId);
-  await cache.publish({
+  // Both feeds list this attempt: the strategy's and its policy's.
+  const subjects = [
+    { kind: "strategy" as const, id: strategyId },
+    { kind: "policy" as const, id: strategy.policyId },
+  ];
+  for (const subject of subjects) await cache.bumpVersion(chain.chainId, subject);
+  for (const subject of subjects) await cache.publish({
     chainId: chain.chainId,
-    mandateId,
+    subject,
     blockNumber: cursor.blockNumber.toString(),
     blockHash: cursor.blockHash,
     reorg: false,

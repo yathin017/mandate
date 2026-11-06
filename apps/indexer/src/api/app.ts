@@ -20,17 +20,20 @@ import { keys, TTL } from "../cache/keys.ts";
 import type { Config } from "../config.ts";
 import type { Db } from "../db/client.ts";
 import { toJsonSafe } from "../json.ts";
+import type { Subject } from "../cache/keys.ts";
 import {
   activityQuery,
   chainParam,
   decodeCursor,
   encodeCursor,
-  listQuery,
   launchedQuery,
-  mandateParam,
   mmParam,
+  policyListQuery,
+  policyParam,
   safeParam,
   seriesQuery,
+  strategyListQuery,
+  strategyParam,
 } from "./params.ts";
 import * as q from "./queries.ts";
 import { attemptBody, simulateAttempt } from "./simulate.ts";
@@ -140,11 +143,21 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: dbOk, db: dbOk, redis: redisOk, chainId: config.INDEXER_CHAIN_ID, head: at ?? null }, dbOk ? 200 : 503);
   });
 
-  app.get("/v1/chains/:chainId/mandates", zValidator("param", chainParam, invalid), zValidator("query", listQuery, invalid), async (c) => {
+  app.get("/v1/chains/:chainId/policies", zValidator("param", chainParam, invalid), zValidator("query", policyListQuery, invalid), async (c) => {
     const { chainId } = c.req.valid("param");
     const filter = c.req.valid("query");
-    return cached(c, chainId, `mandates?safe=${filter.safe ?? ""}&mm=${filter.mm ?? ""}`, async () => {
-      const rows = await q.listMandates(db, chainId, filter);
+    return cached(c, chainId, `policies?safe=${filter.safe ?? ""}`, async () => {
+      const rows = await q.listPolicies(db, chainId, filter);
+      const tokens = await q.tokenMap(db, chainId, rows.flatMap((row) => [row.base, row.quote]));
+      return rows.map((row) => ({ ...row, tokens: { base: tokens[row.base] ?? null, quote: tokens[row.quote] ?? null } }));
+    });
+  });
+
+  app.get("/v1/chains/:chainId/strategies", zValidator("param", chainParam, invalid), zValidator("query", strategyListQuery, invalid), async (c) => {
+    const { chainId } = c.req.valid("param");
+    const filter = c.req.valid("query");
+    return cached(c, chainId, `strategies?safe=${filter.safe ?? ""}&mm=${filter.mm ?? ""}&policy=${filter.policy ?? ""}`, async () => {
+      const rows = await q.listStrategies(db, chainId, filter);
       const tokens = await q.tokenMap(db, chainId, rows.flatMap((row) => [row.base, row.quote]));
       return rows.map((row) => ({ ...row, tokens: { base: tokens[row.base] ?? null, quote: tokens[row.quote] ?? null } }));
     });
@@ -176,24 +189,23 @@ export function createApp(deps: AppDeps) {
     if (!result) return c.json({ error: "chain not indexed" }, 404);
     const { scores } = result.body.data as { scores: { mm: string }[] };
     const score = scores.find((s) => s.mm === address.toLowerCase());
-    return score ? c.json({ head: result.body.head, data: { weights: WEIGHTS, ...score } }) : c.json({ error: "no mandates for this market maker" }, 404);
+    return score ? c.json({ head: result.body.head, data: { weights: WEIGHTS, ...score } }) : c.json({ error: "no strategies for this market maker" }, 404);
   });
 
-  /** Mandate summary rows with token display metadata. */
-  async function summaryWithTokens(chainId: number, filter: { safe: string } | { mm: string }) {
-    const rows = await q.mandateSummary(db, chainId, filter);
+  /** Attaches display metadata for every base/quote token in `rows`. */
+  async function withTokens<T extends { base: string; quote: string }>(chainId: number, rows: T[]) {
     const tokens = await q.tokenMap(db, chainId, rows.flatMap((row) => [row.base, row.quote]));
     return rows.map((row) => ({ ...row, tokens: { base: tokens[row.base] ?? null, quote: tokens[row.quote] ?? null } }));
   }
 
   app.get("/v1/chains/:chainId/safes/:safe/summary", zValidator("param", safeParam, invalid), async (c) => {
     const { chainId, safe } = c.req.valid("param");
-    return cached(c, chainId, `safe-summary:${safe}`, () => summaryWithTokens(chainId, { safe }));
+    return cached(c, chainId, `safe-summary:${safe}`, async () => withTokens(chainId, await q.safeSummary(db, chainId, safe)));
   });
 
   app.get("/v1/chains/:chainId/mms/:address/summary", zValidator("param", mmParam, invalid), async (c) => {
     const { chainId, address } = c.req.valid("param");
-    return cached(c, chainId, `mm-summary:${address}`, () => summaryWithTokens(chainId, { mm: address }));
+    return cached(c, chainId, `mm-summary:${address}`, async () => withTokens(chainId, await q.mmSummary(db, chainId, address)));
   });
 
   app.get("/v1/chains/:chainId/tokens/launched", zValidator("param", chainParam, invalid), zValidator("query", launchedQuery, invalid), async (c) => {
@@ -204,80 +216,125 @@ export function createApp(deps: AppDeps) {
     );
   });
 
-  app.get("/v1/chains/:chainId/mandates/:mandateId", zValidator("param", mandateParam, invalid), async (c) => {
-    const { chainId, mandateId } = c.req.valid("param");
-    return cached(c, chainId, `mandate:${mandateId}`, async () => {
-      const mandate = await q.getMandate(db, chainId, mandateId);
-      if (!mandate) return null;
-      const chain = await q.getChain(db, chainId);
-      const tokens = await q.tokenMap(db, chainId, [mandate.base, mandate.quote]);
+  app.get("/v1/chains/:chainId/policies/:policyId", zValidator("param", policyParam, invalid), async (c) => {
+    const { chainId, policyId } = c.req.valid("param");
+    return cached(c, chainId, `policy:${policyId}`, async () => {
+      const policy = await q.getPolicy(db, chainId, policyId);
+      if (!policy) return null;
+      const [chain, tokens, snapshot, strategies] = await Promise.all([
+        q.getChain(db, chainId),
+        q.tokenMap(db, chainId, [policy.base, policy.quote]),
+        q.latestPolicySnapshot(db, chainId, policyId),
+        q.listStrategies(db, chainId, { policy: policyId }),
+      ]);
       return {
-        mandate,
-        tokens: { base: tokens[mandate.base] ?? null, quote: tokens[mandate.quote] ?? null },
-        snapshot: (await q.latestSnapshot(db, chainId, mandateId)) ?? null,
+        policy,
+        tokens: { base: tokens[policy.base] ?? null, quote: tokens[policy.quote] ?? null },
+        snapshot: snapshot ?? null,
+        strategies,
         chain: chain ? { environment: chain.environment, sourceChainId: chain.sourceChainId } : null,
       };
     });
   });
 
-  app.get(
-    "/v1/chains/:chainId/mandates/:mandateId/activity",
-    zValidator("param", mandateParam, invalid),
-    zValidator("query", activityQuery, invalid),
-    async (c) => {
-      const { chainId, mandateId } = c.req.valid("param");
-      const { limit, before } = c.req.valid("query");
-      const cursor = before ? decodeCursor(before) : null;
-      if (before && !cursor) return c.json({ error: "invalid cursor" }, 400);
-      // Simulated attempts do not move the head, so the feed key also carries the mandate's write version.
-      const version = await cache.getMandateVersion(chainId, mandateId);
-      return cached(c, chainId, `activity:${mandateId}:v${version}:${limit}:${before ?? ""}`, async () => {
-        const rows = await q.activity(db, chainId, mandateId, { limit, before: cursor });
-        const last = rows.at(-1);
-        return {
-          items: rows,
-          next:
-            rows.length === limit && last
-              ? encodeCursor({ blockNumber: BigInt(last.block_number), ord: Number(last.ord), key: last.key })
-              : null,
-        };
-      });
-    },
-  );
+  app.get("/v1/chains/:chainId/strategies/:strategyId", zValidator("param", strategyParam, invalid), async (c) => {
+    const { chainId, strategyId } = c.req.valid("param");
+    return cached(c, chainId, `strategy:${strategyId}`, async () => {
+      const strategy = await q.getStrategy(db, chainId, strategyId);
+      if (!strategy) return null;
+      const [chain, tokens, snapshot, policy, policySnapshot] = await Promise.all([
+        q.getChain(db, chainId),
+        q.tokenMap(db, chainId, [strategy.base, strategy.quote]),
+        q.latestStrategySnapshot(db, chainId, strategyId),
+        q.getPolicy(db, chainId, strategy.policyId),
+        q.latestPolicySnapshot(db, chainId, strategy.policyId),
+      ]);
+      return {
+        strategy,
+        policy: policy ?? null,
+        tokens: { base: tokens[strategy.base] ?? null, quote: tokens[strategy.quote] ?? null },
+        snapshot: snapshot ?? null,
+        policySnapshot: policySnapshot ?? null,
+        chain: chain ? { environment: chain.environment, sourceChainId: chain.sourceChainId } : null,
+      };
+    });
+  });
 
-  app.get(
-    "/v1/chains/:chainId/mandates/:mandateId/series",
-    zValidator("param", mandateParam, invalid),
-    zValidator("query", seriesQuery, invalid),
-    async (c) => {
-      const { chainId, mandateId } = c.req.valid("param");
-      const range = c.req.valid("query");
-      return cached(c, chainId, `series:${mandateId}:${range.fromBlock ?? ""}:${range.toBlock ?? ""}:${range.limit}`, () =>
-        q.series(db, chainId, mandateId, range),
-      );
-    },
-  );
+  /** Activity and series routes are the same for both subjects; only the scope differs. */
+  const SUBJECTS = [
+    { kind: "policy", path: "policies", param: policyParam, idOf: (p: { policyId?: string }) => p.policyId! },
+    { kind: "strategy", path: "strategies", param: strategyParam, idOf: (p: { strategyId?: string }) => p.strategyId! },
+  ] as const;
+
+  const exists = (chainId: number, subject: Subject) =>
+    subject.kind === "policy" ? q.getPolicy(db, chainId, subject.id) : q.getStrategy(db, chainId, subject.id);
+
+  for (const def of SUBJECTS) {
+    app.get(
+      `/v1/chains/:chainId/${def.path}/:${def.kind}Id/activity`,
+      zValidator("param", def.param, invalid),
+      zValidator("query", activityQuery, invalid),
+      async (c) => {
+        const params = c.req.valid("param") as { chainId: number; policyId?: string; strategyId?: string };
+        const subject: Subject = { kind: def.kind, id: def.idOf(params) };
+        const { limit, before } = c.req.valid("query");
+        const cursor = before ? decodeCursor(before) : null;
+        if (before && !cursor) return c.json({ error: "invalid cursor" }, 400);
+        // Simulated attempts do not move the head, so the feed key also carries the subject's write version.
+        const version = await cache.getVersion(params.chainId, subject);
+        return cached(c, params.chainId, `activity:${def.kind}:${subject.id}:v${version}:${limit}:${before ?? ""}`, async () => {
+          const rows = await q.activity(db, params.chainId, subject, { limit, before: cursor });
+          const last = rows.at(-1);
+          return {
+            items: rows,
+            next:
+              rows.length === limit && last
+                ? encodeCursor({ blockNumber: BigInt(last.block_number), ord: Number(last.ord), key: last.key })
+                : null,
+          };
+        });
+      },
+    );
+
+    app.get(
+      `/v1/chains/:chainId/${def.path}/:${def.kind}Id/series`,
+      zValidator("param", def.param, invalid),
+      zValidator("query", seriesQuery, invalid),
+      async (c) => {
+        const params = c.req.valid("param") as { chainId: number; policyId?: string; strategyId?: string };
+        const id = def.idOf(params);
+        const range = c.req.valid("query");
+        return cached(c, params.chainId, `series:${def.kind}:${id}:${range.fromBlock ?? ""}:${range.toBlock ?? ""}:${range.limit}`, () =>
+          def.kind === "policy" ? q.policySeries(db, params.chainId, id, range) : q.strategySeries(db, params.chainId, id, range),
+        );
+      },
+    );
+
+    app.get(`/v1/chains/:chainId/${def.path}/:${def.kind}Id/stream`, zValidator("param", def.param, invalid), async (c) => {
+      const params = c.req.valid("param") as { chainId: number; policyId?: string; strategyId?: string };
+      return stream(c, params.chainId, { kind: def.kind, id: def.idOf(params) });
+    });
+  }
 
   let openStreams = 0;
   const maxStreams = deps.maxStreams ?? 500;
   const heartbeatMs = deps.heartbeatMs ?? 15_000;
 
   /**
-   * Server-sent events for one mandate: `ready` with the current head, then `change` after every committed
-   * batch or simulated attempt that touches it. Clients refetch the REST resources on `change`.
+   * Server-sent events for one policy or strategy: `ready` with the current head, then `change` after every
+   * committed batch or simulated attempt that touches it. Clients refetch the REST resources on `change`.
    */
-  app.get("/v1/chains/:chainId/mandates/:mandateId/stream", zValidator("param", mandateParam, invalid), async (c) => {
-    const { chainId, mandateId } = c.req.valid("param");
+  async function stream(c: Context, chainId: number, subject: Subject) {
     const at = await head(chainId);
     if (!at) return c.json({ error: "chain not indexed" }, 404);
-    if (!(await q.getMandate(db, chainId, mandateId))) return c.json({ error: "not found" }, 404);
+    if (!(await exists(chainId, subject))) return c.json({ error: "not found" }, 404);
     if (openStreams >= maxStreams) return c.json({ error: "too many streams" }, 503);
 
     const queue: string[] = [];
     let wake: (() => void) | undefined;
     let unsubscribe: () => void;
     try {
-      unsubscribe = await cache.subscribe(chainId, mandateId, (change) => {
+      unsubscribe = await cache.subscribe(chainId, subject, (change) => {
         queue.push(JSON.stringify(change));
         wake?.();
       });
@@ -311,16 +368,16 @@ export function createApp(deps: AppDeps) {
         unsubscribe();
       }
     });
-  });
+  }
 
   app.post(
-    "/v1/chains/:chainId/mandates/:mandateId/attempts",
-    zValidator("param", mandateParam, invalid),
+    "/v1/chains/:chainId/strategies/:strategyId/attempts",
+    zValidator("param", strategyParam, invalid),
     zValidator("json", attemptBody, invalid),
     // Each request costs RPC calls.
     rateLimit({ cache, scope: "attempts", perMinute: config.API_ATTEMPTS_PER_MINUTE, clientIp, unavailable: "rate limiter unavailable" }),
     async (c) => {
-      const { chainId, mandateId } = c.req.valid("param");
+      const { chainId, strategyId } = c.req.valid("param");
       if (chainId !== config.INDEXER_CHAIN_ID || !deps.chain) return c.json({ error: "chain not simulated here" }, 404);
 
       let chain: ChainContext;
@@ -330,7 +387,7 @@ export function createApp(deps: AppDeps) {
         log(`chain unavailable: ${error instanceof Error ? error.message : String(error)}`);
         return c.json({ error: "chain RPC unavailable" }, 503);
       }
-      const result = await simulateAttempt({ db, cache, chain }, mandateId, c.req.valid("json"));
+      const result = await simulateAttempt({ db, cache, chain }, strategyId, c.req.valid("json"));
       if (result.status === "not-found") return c.json({ error: result.message }, 404);
       if (result.status === "stale-head") return c.json({ error: result.message }, 409);
       const at = await head(chainId);
