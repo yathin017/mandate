@@ -37,8 +37,8 @@ describe("simulated attempts", { skip }, () => {
     await close();
   });
 
-  const post = (target: ReturnType<typeof createApp>, mandateId: string, body: unknown) =>
-    target.request(`/v1/chains/31337/mandates/${mandateId}/attempts`, {
+  const post = (target: ReturnType<typeof createApp>, strategyId: string, body: unknown) =>
+    target.request(`/v1/chains/31337/strategies/${strategyId}/attempts`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -52,26 +52,28 @@ describe("simulated attempts", { skip }, () => {
     isExactIn: true,
   });
 
-  test("a sell past Act 1's epoch cap is blocked with the real reason", async () => {
-    const res = await post(app, fork.mandates.act1, sell());
+  test("a sell past Act 1's net sell cap is blocked with the real reason", async () => {
+    const res = await post(app, fork.strategies.act1, sell());
     assert.equal(res.status, 201);
     const { data } = await res.json();
     assert.equal(data.simulated, true);
     assert.equal(data.outcome, "blocked");
-    assert.equal(data.errorName, "EpochCapReached");
+    assert.equal(data.errorName, "NetSellCapReached");
     assert.match(data.explanation, /Blocked by Mandate/);
   });
 
-  test("the revoked Act 3 mandate refuses every fill", async () => {
-    const { data } = await (await post(app, fork.mandates.act3, sell())).json();
+  test("the revoked Act 3 strategy refuses every fill", async () => {
+    const { data } = await (await post(app, fork.strategies.act3, sell())).json();
     assert.equal(data.outcome, "blocked");
     assert.ok(data.errorName);
   });
 
   test("simulated rows appear in the feed immediately and repeats are deduped", async () => {
-    const id = fork.mandates.act1;
-    const feedPath = `/v1/chains/31337/mandates/${id}/activity?limit=5`;
-    await app.request(feedPath); // warm the cache
+    const id = fork.strategies.act1;
+    const feedPath = `/v1/chains/31337/strategies/${id}/activity?limit=5`;
+    const policyFeedPath = `/v1/chains/31337/policies/${fork.policies.act1}/activity?limit=5`;
+    await app.request(feedPath); // warm the caches
+    await app.request(policyFeedPath);
     const first = await (await post(app, id, { ...sell(), amount: "123000000" })).json();
     const again = await (await post(app, id, { ...sell(), amount: "123000000" })).json();
     assert.equal(again.data.requestHash, first.data.requestHash);
@@ -85,10 +87,12 @@ describe("simulated attempts", { skip }, () => {
     const feed = await ((await app.request(feedPath)) as JsonResponse).json();
     assert.equal(feed.data.items[0].source, "simulated", "newest item is the simulation");
     assert.equal(feed.data.items[0].request.amount, "123000000");
+    const policyFeed = await ((await app.request(policyFeedPath)) as JsonResponse).json();
+    assert.equal(policyFeed.data.items[0].source, "simulated", "the policy feed is invalidated too");
   });
 
   test("clients cannot supply outcomes or malformed amounts", async () => {
-    const id = fork.mandates.act1;
+    const id = fork.strategies.act1;
     assert.equal((await post(app, id, { ...sell(), outcome: "allowed" })).status, 400);
     assert.equal((await post(app, id, { ...sell(), amount: "-1" })).status, 400);
     assert.equal((await post(app, id, { ...sell(), amount: "1".repeat(80) })).status, 400);
@@ -106,14 +110,14 @@ describe("simulated attempts", { skip }, () => {
       log: () => {},
     });
     const statuses = [];
-    for (let i = 0; i < 5; i++) statuses.push((await post(limited, fork.mandates.act1, sell())).status);
+    for (let i = 0; i < 5; i++) statuses.push((await post(limited, fork.strategies.act1, sell())).status);
     assert.deepEqual(statuses, [201, 201, 201, 429, 429]);
   });
 
   test("fails closed when the rate limiter is unavailable", async () => {
     const dead = await Cache.connect("redis://127.0.0.1:1");
     const degraded = createApp({ db, cache: dead, config, chain: async () => ctx, log: () => {} });
-    assert.equal((await post(degraded, fork.mandates.act1, sell())).status, 503);
+    assert.equal((await post(degraded, fork.strategies.act1, sell())).status, 503);
     await dead.close();
   });
 });

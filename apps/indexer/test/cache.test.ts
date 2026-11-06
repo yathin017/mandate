@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { Cache, type MandateChange } from "../src/cache/cache.ts";
+import { Cache, type SubjectChange } from "../src/cache/cache.ts";
 import { keys } from "../src/cache/keys.ts";
 
 const redisUrl = process.env.INDEXER_TEST_REDIS_URL;
@@ -31,12 +31,15 @@ describe("cache against Redis", { skip: redisUrl ? false : "set INDEXER_TEST_RED
     await cache.close();
   });
 
-  test("published changes reach subscribers of that mandate only", async () => {
+  test("published changes reach subscribers of that subject only", async () => {
     const cache = await Cache.connect(redisUrl!);
-    const received: MandateChange[] = [];
-    const unsubscribe = await cache.subscribe(7, "0xmine", (change) => received.push(change));
-    const change = { chainId: 7, mandateId: "0xmine", blockNumber: "5", blockHash: "0xh", reorg: false };
-    await cache.publish({ ...change, mandateId: "0xother" });
+    const received: SubjectChange[] = [];
+    const mine = { kind: "strategy" as const, id: "0xmine" };
+    const unsubscribe = await cache.subscribe(7, mine, (change) => received.push(change));
+    const change = { chainId: 7, subject: mine, blockNumber: "5", blockHash: "0xh", reorg: false };
+    await cache.publish({ ...change, subject: { kind: "strategy", id: "0xother" } });
+    // Same id, other kind: a policy feed is a different channel.
+    await cache.publish({ ...change, subject: { kind: "policy", id: "0xmine" } });
     await cache.publish(change);
     await new Promise((resolve) => setTimeout(resolve, 200));
     assert.deepEqual(received, [change]);

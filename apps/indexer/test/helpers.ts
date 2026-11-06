@@ -41,7 +41,8 @@ export interface ReplayStep {
 }
 export interface ReplayAct {
   act: number;
-  mandateId: string;
+  policyId: string;
+  strategyId: string;
   steps: ReplayStep[];
 }
 

@@ -7,7 +7,7 @@ import { computeScores, WEIGHTS, type MmEvidence } from "../src/score/score.ts";
 /** Pure scoring rules; no chain or database needed. */
 const base: MmEvidence = {
   mm: "0xaa", okRounds: 0, faultRounds: 0, responseMinutes: [], fills: 0, quoteVolume: 0, weightedDeviation: 0,
-  mandates: 1, revoked: 0, managedDays: 30,
+  strategies: 1, revoked: 0, managedDays: 30,
 };
 
 test("weights add up to one and match the agreed split", () => {
@@ -24,7 +24,7 @@ test("a market maker without probes or fills is new, never zero", () => {
 test("a perfect record scores 100; components follow their formulas", () => {
   const [perfect, other] = computeScores([
     { ...base, mm: "0xaa", okRounds: 10, fills: 4, quoteVolume: 1000, weightedDeviation: 0 },
-    { ...base, mm: "0xbb", okRounds: 6, faultRounds: 4, responseMinutes: [30, 90, 60], fills: 1, quoteVolume: 9, weightedDeviation: 4.5, mandates: 2, revoked: 1, managedDays: 15 },
+    { ...base, mm: "0xbb", okRounds: 6, faultRounds: 4, responseMinutes: [30, 90, 60], fills: 1, quoteVolume: 9, weightedDeviation: 4.5, strategies: 2, revoked: 1, managedDays: 15 },
   ]);
   assert.equal(perfect!.score, 100);
   const c = other!.components;
@@ -49,6 +49,10 @@ test("missing components are reported and the rest are rescaled", () => {
 
 test("only refusals the market maker controls count against it", () => {
   assert.equal(classify(null), "ok");
-  for (const name of ["AnchorDeviation", "InsufficientLiquidity", "ZeroBalance"]) assert.equal(classify(name), "mm_fault");
-  for (const name of ["BelowFloor", "EpochCapReached", "ReleaseExceeded", "SpotTwapDivergence", "UnknownError"]) assert.equal(classify(name), "neutral");
+  for (const name of ["QuoteOffMarket", "InsufficientLiquidity", "ZeroBalance"]) assert.equal(classify(name), "mm_fault");
+  // Issuer rails and market conditions are not the market maker's fault.
+  for (const name of ["BelowFloor", "NetSellCapReached", "GrossSellCapReached", "QuoteSpendCapReached", "ReleaseExceeded",
+    "RiskPaused", "FillTooLarge", "PriceImpactTooHigh", "BuybacksNotAllowed", "PolicyPaused", "UnknownError"]) {
+    assert.equal(classify(name), "neutral");
+  }
 });

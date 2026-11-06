@@ -5,7 +5,7 @@ import { and, count, eq, sql } from "drizzle-orm";
 
 import { createChainContext, type ChainContext } from "../src/chain.ts";
 import { createDb } from "../src/db/client.ts";
-import { attempts, fills, mandates, snapshots, syncCursors } from "../src/db/schema.ts";
+import { attempts, fills, policies, policySnapshots, strategies, strategySnapshots, syncCursors } from "../src/db/schema.ts";
 import { Indexer, type BatchCommitted } from "../src/ingest/indexer.ts";
 import { loadReplay, resetDatabase, rpc, skip, testConfig, testDatabaseUrl } from "./helpers.ts";
 import { getLocalForkDeployment } from "@mandate/chains";
@@ -13,7 +13,7 @@ import { getLocalForkDeployment } from "@mandate/chains";
 /** These suites run against the local demo fork; its manifest supplies the fork-only addresses. */
 const fork = getLocalForkDeployment();
 
-const NON_MANDATE_KINDS = new Set(["approval", "traditional-sell", "market-move"]);
+const NON_STRATEGY_KINDS = new Set(["approval", "traditional-sell", "market-move"]);
 const TRADE_KINDS = new Set(["treasury-sell", "treasury-buyback"]);
 
 describe("indexer against the live demo chain", { skip }, () => {
@@ -54,19 +54,31 @@ describe("indexer against the live demo chain", { skip }, () => {
       const [row] = await db
         .select({ n: count() })
         .from(fills)
-        .where(eq(fills.mandateId, act.mandateId.toLowerCase()));
+        .where(eq(fills.strategyId, act.strategyId.toLowerCase()));
       assert.equal(row!.n, expected, `act ${act.act} fills`);
     }
   });
 
-  test("one blocked attempt per blocked mandate step, with a decoded reason", async () => {
+  test("fills carry their policy, risk mode and execution quality against the pre-fill market", async () => {
+    const rows = await db.select().from(fills);
+    assert.ok(rows.length > 0);
+    for (const row of rows) {
+      assert.match(row.policyId, /^0x[0-9a-f]{64}$/);
+      assert.ok(row.riskMode === 0 || row.riskMode === 1, "fills only happen in Normal or Defensive mode");
+      assert.ok(row.referenceSpotX36 !== null, `reference price for ${row.txHash}`);
+      // The demo pool sits at its strategy's price, so every fill lands within a few percent of the market.
+      assert.ok(Math.abs(row.qualityBps!) < 500, `quality ${row.qualityBps} bps`);
+    }
+  });
+
+  test("one blocked attempt per blocked strategy step, with a decoded reason", async () => {
     const replay = await loadReplay();
     for (const act of replay.acts) {
-      const expected = act.steps.filter((s) => !NON_MANDATE_KINDS.has(s.kind) && s.outcome === "blocked").length;
+      const expected = act.steps.filter((s) => !NON_STRATEGY_KINDS.has(s.kind) && s.outcome === "blocked").length;
       const rows = await db
         .select()
         .from(attempts)
-        .where(and(eq(attempts.mandateId, act.mandateId.toLowerCase()), eq(attempts.outcome, "blocked")));
+        .where(and(eq(attempts.strategyId, act.strategyId.toLowerCase()), eq(attempts.outcome, "blocked")));
       assert.equal(rows.length, expected, `act ${act.act} blocked attempts`);
       for (const row of rows) {
         assert.equal(row.source, "onchain_actor");
@@ -77,7 +89,7 @@ describe("indexer against the live demo chain", { skip }, () => {
     }
   });
 
-  test("traditional-loan and market-move steps never become mandate history", async () => {
+  test("traditional-loan and market-move steps never become strategy history", async () => {
     const [row] = await db
       .select({ n: count() })
       .from(attempts)
@@ -85,13 +97,27 @@ describe("indexer against the live demo chain", { skip }, () => {
     assert.equal(row!.n, 0);
   });
 
-  test("projections and snapshots exist for all three mandates", async () => {
-    const rows = await db.select().from(mandates);
-    assert.equal(rows.length, 3);
-    const act3 = rows.find((m) => m.mandateId === fork.mandates.act3.toLowerCase())!;
+  test("policies, strategies and their snapshots exist for all three acts", async () => {
+    const policyRows = await db.select().from(policies);
+    const strategyRows = await db.select().from(strategies);
+    assert.equal(policyRows.length, 3);
+    assert.equal(strategyRows.length, 3);
+    const act3 = strategyRows.find((m) => m.strategyId === fork.strategies.act3.toLowerCase())!;
     assert.equal(act3.status, 3, "act 3 ends revoked");
-    const [snap] = await db.select({ n: count() }).from(snapshots);
-    assert.ok(snap!.n > 0);
+    assert.equal(act3.policyId, fork.policies.act3.toLowerCase());
+    assert.equal(policyRows.find((p) => p.policyId === act3.policyId)!.status, 3, "its policy too");
+    const [policySnaps] = await db.select({ n: count() }).from(policySnapshots);
+    const [strategySnaps] = await db.select({ n: count() }).from(strategySnapshots);
+    assert.ok(policySnaps!.n > 0 && strategySnaps!.n > 0);
+  });
+
+  test("the pump is recorded as a Paused risk mode, then a calm market", async () => {
+    const act2 = fork.policies.act2.toLowerCase();
+    const rows = await db.select().from(policySnapshots).where(eq(policySnapshots.policyId, act2));
+    assert.ok(rows.some((r) => r.riskMode === 2 && r.riskReason === 4), "MoveBeyondPause recorded");
+    const latest = rows.reduce((a, b) => (a.blockNumber > b.blockNumber ? a : b));
+    assert.equal(latest.riskMode, 0, "calm at the head");
+    assert.equal(latest.priced, true);
   });
 
   test("re-indexing is idempotent", async () => {

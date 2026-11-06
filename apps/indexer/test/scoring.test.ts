@@ -10,7 +10,7 @@ import { Prober } from "../src/score/prober.ts";
 import { indexDemoChain, rpc, skip, testConfig } from "./helpers.ts";
 
 /**
- * Probes and scores over the indexed demo fork: the demo market maker has real fills, a revoked mandate and live
+ * Probes and scores over the indexed demo fork: the demo market maker has real fills, a revoked strategy and live
  * ones. Blocks are mined between probe rounds, so the fork is snapshotted and restored.
  */
 describe("market-maker scoring on the demo chain", { skip }, () => {
@@ -36,7 +36,7 @@ describe("market-maker scoring on the demo chain", { skip }, () => {
     await indexed.close();
   });
 
-  test("each round probes every live mandate on both sides, at an indexed block", async () => {
+  test("each round probes every live strategy on both sides, at an indexed block", async () => {
     const prober = new Prober(indexed.ctx, indexed.db, config, () => {});
     let written = 0;
     for (let round = 0; round < 6; round++) {
@@ -53,7 +53,7 @@ describe("market-maker scoring on the demo chain", { skip }, () => {
     await prober.probeOnce();
 
     const sql = postgres(config.DATABASE_URL, { max: 1 });
-    const [counted] = await sql`SELECT count(*)::int AS live FROM mandates WHERE chain_id = ${config.INDEXER_CHAIN_ID} AND status IN (1, 2)`;
+    const [counted] = await sql`SELECT count(*)::int AS live FROM strategies WHERE chain_id = ${config.INDEXER_CHAIN_ID} AND status IN (1, 2)`;
     const live = counted!.live as number;
     const rows = await sql`SELECT side, outcome, error_name FROM mm_probes`;
     const orphans = await sql`SELECT count(*)::int AS n FROM mm_probes p LEFT JOIN blocks b ON b.chain_id = p.chain_id AND b.number = p.block_number WHERE b.number IS NULL`;

@@ -33,7 +33,7 @@ async function readUntil(body: ReadableStream<Uint8Array>, predicate: (text: str
   return text;
 }
 
-describe("live mandate stream", { skip }, () => {
+describe("live strategy and policy streams", { skip }, () => {
   const config = testConfig();
   let ctx: ChainContext;
   let db: Parameters<typeof createApp>[0]["db"];
@@ -52,7 +52,7 @@ describe("live mandate stream", { skip }, () => {
     await close();
   });
 
-  const path = () => `/v1/chains/31337/mandates/${fork.mandates.act2}/stream`;
+  const path = () => `/v1/chains/31337/strategies/${fork.strategies.act2}/stream`;
 
   test("sends ready, then a change when the worker publishes", async () => {
     const app = createApp({ db, cache, config, log: () => {} });
@@ -65,7 +65,7 @@ describe("live mandate stream", { skip }, () => {
     assert.match(await readUntil(body, (t) => t.includes("event: ready")), /event: ready/);
     await cache.publish({
       chainId: 31337,
-      mandateId: fork.mandates.act2.toLowerCase(),
+      subject: { kind: "strategy", id: fork.strategies.act2.toLowerCase() },
       blockNumber: "1",
       blockHash: "0xfeed",
       reorg: false,
@@ -91,9 +91,25 @@ describe("live mandate stream", { skip }, () => {
     second.abort();
   });
 
-  test("unknown mandates and a dead Redis are refused", async () => {
+  test("a policy stream receives its policy's changes", async () => {
     const app = createApp({ db, cache, config, log: () => {} });
-    assert.equal((await app.request(`/v1/chains/31337/mandates/0x${"ef".repeat(32)}/stream`)).status, 404);
+    const controller = new AbortController();
+    const res = await app.request(`/v1/chains/31337/policies/${fork.policies.act2}/stream`, { signal: controller.signal });
+    assert.equal(res.status, 200);
+    const body = res.body!;
+    await readUntil(body, (t) => t.includes("event: ready"));
+    const change = { chainId: 31337, blockNumber: "2", blockHash: "0xbeef", reorg: false };
+    await cache.publish({ ...change, subject: { kind: "strategy", id: fork.policies.act2.toLowerCase() } });
+    await cache.publish({ ...change, subject: { kind: "policy", id: fork.policies.act2.toLowerCase() } });
+    const text = await readUntil(body, (t) => t.includes("event: change"));
+    assert.equal(text.match(/event: change/g)?.length, 1, "only the policy channel");
+    controller.abort();
+  });
+
+  test("unknown subjects and a dead Redis are refused", async () => {
+    const app = createApp({ db, cache, config, log: () => {} });
+    assert.equal((await app.request(`/v1/chains/31337/strategies/0x${"ef".repeat(32)}/stream`)).status, 404);
+    assert.equal((await app.request(`/v1/chains/31337/policies/0x${"ef".repeat(32)}/stream`)).status, 404);
     const dead = await Cache.connect("redis://127.0.0.1:1");
     const degraded = createApp({ db, cache: dead, config, log: () => {} });
     assert.equal((await degraded.request(path())).status, 503);
