@@ -303,3 +303,96 @@ export const authSessions = pgTable(
     ),
   ],
 );
+
+// ---------------------------------------------------------------- marketplace (DRAFT)
+// Off-chain marketplace data written by signed-in wallets. Performance is never stored here: market-maker scores are
+// computed from indexed chain data.
+
+/** A market maker's public listing. One per wallet; only that wallet (signed in) may edit it. */
+export const mmProfiles = pgTable(
+  "mm_profiles",
+  {
+    address: text("address")
+      .primaryKey()
+      .references(() => accounts.address),
+    displayName: text("display_name").notNull(),
+    bio: text("bio").notNull().default(""),
+    website: text("website"),
+    /** How issuers reach the market maker (e.g. a Telegram handle or email); shown publicly. */
+    contact: text("contact"),
+    /** Free-form tags for what the market maker covers ("Base launches", "USDC pairs"). */
+    coverage: text("coverage").array().notNull().default(sql`'{}'::text[]`),
+    /** Smallest deal the market maker takes, in USD (whole dollars); null = no minimum. */
+    minDealUsd: integer("min_deal_usd"),
+    /** Unlisted profiles stay reachable by address but are left out of the marketplace list. */
+    listed: boolean("listed").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("mm_profiles_listed_idx").on(t.listed),
+    check(
+      "mm_profiles_fmt",
+      sql`${t.address} ~ ${sql.raw(`'${ADDRESS}'`)} AND char_length(${t.displayName}) BETWEEN 1 AND 64
+        AND char_length(${t.bio}) <= 1000 AND (${t.minDealUsd} IS NULL OR ${t.minDealUsd} >= 0)
+        AND cardinality(${t.coverage}) <= 10`,
+    ),
+  ],
+);
+
+/**
+ * Lifecycle: draft → sent → accepted → executed, with declined (by the MM), withdrawn (by an issuer owner) and
+ * expired (past `expires_at` before execution) as ends.
+ */
+export const proposalStatus = pgEnum("proposal_status", ["draft", "sent", "accepted", "declined", "withdrawn", "expired", "executed"]);
+
+/**
+ * Terms an issuer Safe offers a market maker. `terms` is the SDK's MandateTermsJson; `terms_hash` is the EIP-712
+ * digest the market maker signs (it covers the id, Safe, terms and expiry), so terms cannot change after sending.
+ */
+export const proposals = pgTable(
+  "proposals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    chainId: integer("chain_id").notNull(),
+    safe: text("safe").notNull(),
+    /** The Safe owner who created it (any current owner may manage it). */
+    issuer: text("issuer")
+      .notNull()
+      .references(() => accounts.address),
+    mm: text("mm").notNull(),
+    base: text("base").notNull(),
+    quote: text("quote").notNull(),
+    terms: jsonb("terms").notNull(),
+    termsHash: text("terms_hash").notNull(),
+    status: proposalStatus("status").notNull().default("draft"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    mmSignature: text("mm_signature"),
+    /** Set when the Safe executed createMandate for these terms (verified onchain). */
+    mandateId: text("mandate_id"),
+    note: text("note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("proposals_safe_idx").on(t.chainId, t.safe),
+    index("proposals_mm_idx").on(t.chainId, t.mm),
+    // A mandate is the outcome of at most one proposal.
+    uniqueIndex("proposals_mandate_uq").on(t.chainId, t.mandateId),
+    check(
+      "proposals_fmt",
+      sql`${t.safe} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.issuer} ~ ${sql.raw(`'${ADDRESS}'`)}
+        AND ${t.mm} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.base} ~ ${sql.raw(`'${ADDRESS}'`)}
+        AND ${t.quote} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.termsHash} ~ ${sql.raw(`'${HASH}'`)}
+        AND (${t.mandateId} IS NULL OR ${t.mandateId} ~ ${sql.raw(`'${HASH}'`)}) AND char_length(${t.note}) <= 1000`,
+    ),
+    // Each lifecycle state carries exactly the evidence it needs.
+    check(
+      "proposals_state",
+      sql`(${t.status} <> 'accepted' OR ${t.mmSignature} IS NOT NULL)
+        AND (${t.status} <> 'executed' OR (${t.mmSignature} IS NOT NULL AND ${t.mandateId} IS NOT NULL))`,
+    ),
+  ],
+);
