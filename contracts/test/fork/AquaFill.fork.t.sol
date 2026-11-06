@@ -6,10 +6,10 @@ import { Test } from "forge-std/Test.sol";
 import { TokenMock } from "@1inch/solidity-utils/contracts/mocks/TokenMock.sol";
 import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
-import { MakerTraitsLib } from "@1inch/swap-vm/src/libs/MakerTraits.sol";
 
 import { ChainConfig, ChainConfigLib } from "../../script/lib/ChainConfig.sol";
 import { AquaProgram } from "../../src/libraries/AquaProgram.sol";
+import { AquaOrders } from "../utils/AquaOrders.sol";
 import { AquaTaker } from "../utils/AquaTaker.sol";
 import { ProbeExtruction } from "../utils/ProbeExtruction.sol";
 
@@ -113,30 +113,8 @@ contract AquaFillForkTest is Test {
         assertTrue(exactIn, "isExactIn");
     }
 
-    /// @dev Aqua-backed order: no signature, balances come from the maker's shipped strategy.
     function _order(bytes memory program) internal view returns (ISwapVM.Order memory) {
-        return MakerTraitsLib.build(
-            MakerTraitsLib.Args({
-                maker: maker,
-                receiver: address(0),
-                shouldUnwrapWeth: false,
-                useAquaInsteadOfSignature: true,
-                allowZeroAmountIn: false,
-                hasPreTransferInHook: false,
-                hasPostTransferInHook: false,
-                hasPreTransferOutHook: false,
-                hasPostTransferOutHook: false,
-                preTransferInTarget: address(0),
-                preTransferInData: "",
-                postTransferInTarget: address(0),
-                postTransferInData: "",
-                preTransferOutTarget: address(0),
-                preTransferOutData: "",
-                postTransferOutTarget: address(0),
-                postTransferOutData: "",
-                program: program
-            })
-        );
+        return AquaOrders.build(maker, program);
     }
 
     /// @dev Ships `order` from the maker. Aqua's strategy hash is keccak256 of the shipped bytes,
