@@ -88,7 +88,9 @@ function build(terms: Terms, now: bigint, base: TokenDisplay, quote: TokenDispla
     return {
       bounds: {
         allotment,
-        releaseStart: now - days(terms.releaseBackdateDays, "Release began"),
+        // Rounded to the UTC day so every owner builds byte-identical calldata (and the same Safe tx hash)
+        // even though each approval mines a new block.
+        releaseStart: (now / 86_400n) * 86_400n - days(terms.releaseBackdateDays, "Release began"),
         releaseDuration: days(terms.releaseDays, "Release duration"),
         epochLength: 86_400n,
         maxEpochCap: dailyCap,
