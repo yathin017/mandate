@@ -28,8 +28,6 @@ export const demoChain = isLive
       testnet: true,
     });
 
-/** Short disclosure shown in the header: what chain this is and that its tokens are mocks. */
-export const ENVIRONMENT_LABEL = isLive ? `${demoChain.name.toUpperCase()} · MOCK TOKENS` : "LOCAL FORK";
 
 /**
  * AnchorLauncher for self-serve anchors: the manifest's address on live chains. The local fork's recorded
