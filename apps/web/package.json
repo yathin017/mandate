@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Mandate dashboard: public mandate pages, replay theater and simulated trades, served from the indexer API.",
+  "description": "Mandate web app: token launch, onboarding, market-maker marketplace, mandate pages and wallet flows.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

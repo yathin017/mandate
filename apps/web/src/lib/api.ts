@@ -7,7 +7,6 @@ import type {
   SimulationResult,
   Snapshot,
 } from "./types";
-import type { Replay } from "./replay";
 
 /** The indexer API is the app's only data source. Dev: /api proxy (vite.config.ts). Prod: VITE_API_URL. */
 export const API_BASE = (import.meta.env.VITE_API_URL ?? "/api").replace(/\/$/, "");
@@ -51,7 +50,6 @@ export const api = {
       `${chainPath}/mandates/${id}/activity?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
     ),
   series: (id: string) => request<Envelope<Snapshot[]>>(`${chainPath}/mandates/${id}/series?limit=2000`),
-  replay: () => request<Replay>("/v1/replay"),
   simulate: (
     id: string,
     body: { taker: string; tokenIn: string; tokenOut: string; amount: string; isExactIn: boolean },

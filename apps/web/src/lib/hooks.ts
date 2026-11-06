@@ -10,14 +10,12 @@ export const qk = {
   mandate: (id: string) => ["mandate", id, "detail"] as const,
   activity: (id: string) => ["mandate", id, "activity"] as const,
   series: (id: string) => ["mandate", id, "series"] as const,
-  replay: ["replay"] as const,
 };
 
 export const useHealth = () => useQuery({ queryKey: qk.health, queryFn: api.health, refetchInterval: 15_000 });
 export const useMandates = () => useQuery({ queryKey: qk.mandates, queryFn: api.mandates });
 export const useMandate = (id: string) => useQuery({ queryKey: qk.mandate(id), queryFn: () => api.mandate(id) });
 export const useSeries = (id: string) => useQuery({ queryKey: qk.series(id), queryFn: () => api.series(id) });
-export const useReplay = () => useQuery({ queryKey: qk.replay, queryFn: api.replay, staleTime: Infinity });
 
 export const useActivity = (id: string) =>
   useInfiniteQuery({

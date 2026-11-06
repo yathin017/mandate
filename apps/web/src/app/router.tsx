@@ -13,7 +13,6 @@ const MandatePage = lazy(() => import("@/pages/MandatePage").then((m) => ({ defa
 const IssuerConsole = lazy(() => import("@/pages/IssuerConsole").then((m) => ({ default: m.IssuerConsole })));
 const Onboarding = lazy(() => import("@/pages/Onboarding").then((m) => ({ default: m.Onboarding })));
 const MMDesk = lazy(() => import("@/pages/MMDesk").then((m) => ({ default: m.MMDesk })));
-const ReplayTheater = lazy(() => import("@/pages/ReplayTheater").then((m) => ({ default: m.ReplayTheater })));
 
 const page = (element: React.ReactNode) => <Suspense fallback={<Skeleton className="h-96 w-full" />}>{element}</Suspense>;
 
@@ -22,7 +21,6 @@ export const router = createBrowserRouter([
     element: <Layout />,
     children: [
       { index: true, element: <Landing /> },
-      { path: "replay", element: page(<ReplayTheater />) },
       { path: "mandates", element: <MandateList /> },
       { path: "mandates/:mandateId", element: page(<MandatePage />) },
       { path: "issuer", element: page(<IssuerConsole />) },

@@ -34,12 +34,9 @@ export function Landing() {
         </p>
         <div className="flex flex-wrap gap-3">
           <Button asChild size="lg">
-            <Link to="/replay">
-              Watch the replay <ArrowRight />
+            <Link to="/mandates">
+              Open a mandate <ArrowRight />
             </Link>
-          </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link to="/mandates">Open a mandate</Link>
           </Button>
         </div>
       </section>
