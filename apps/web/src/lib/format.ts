@@ -54,9 +54,9 @@ export function formatDuration(seconds: number): string {
   const d = Math.floor(seconds / 86_400);
   const h = Math.floor((seconds % 86_400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (d) return `${d}d ${h}h`;
-  if (h) return `${h}h ${m}m`;
-  return `${m}m ${seconds % 60}s`;
+  const s = seconds % 60;
+  const parts = d ? [[d, "d"], [h, "h"]] : h ? [[h, "h"], [m, "m"]] : [[m, "m"], [s, "s"]];
+  return parts.filter(([n]) => n).map(([n, unit]) => `${n}${unit}`).join(" ") || "0s";
 }
 
 export function formatChainTime(seconds: string | number): string {
@@ -67,4 +67,14 @@ export function formatChainTime(seconds: string | number): string {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+/** Parses a human decimal ("12.5") into raw units, or returns null if it is malformed or too precise. */
+export function parseUnits(input: string, decimals: number): bigint | null {
+  const value = input.trim().replaceAll(",", "");
+  const match = /^(\d{1,40})(?:\.(\d+))?$/.exec(value);
+  if (!match) return null;
+  const fraction = match[2] ?? "";
+  if (fraction.length > decimals) return null;
+  return BigInt(match[1]!) * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, "0") || "0");
 }

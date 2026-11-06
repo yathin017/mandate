@@ -34,7 +34,7 @@ export function Layout() {
                 className={({ isActive }) =>
                   cn(
                     "rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground",
-                    isActive && "bg-secondary text-foreground",
+                    isActive && "bg-muted font-medium text-foreground",
                   )
                 }
               >
