@@ -1,7 +1,7 @@
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { formatChainTime, formatPrice, formatUnits } from "@/lib/format";
-import type { Snapshot, TokenDisplay } from "@/lib/types";
+import type { PolicySnapshot, TokenDisplay } from "@/lib/types";
 
 const toNumber = (raw: string, decimals: number) => Number(formatUnits(raw, decimals, 6).replaceAll(",", ""));
 const price = (x36: string, base: TokenDisplay, quote: TokenDisplay) =>
@@ -14,7 +14,7 @@ const tooltipStyle = {
 } as const;
 
 /** Release curve (dashed) vs cumulative net sold (solid). Sold must always stay under the curve. */
-export function ReleaseChart({ series, base }: { series: Snapshot[]; base: TokenDisplay }) {
+export function ReleaseChart({ series, base }: { series: PolicySnapshot[]; base: TokenDisplay }) {
   const data = series.map((s) => ({
     t: Number(s.timestamp),
     released: toNumber(s.released, base.decimals),
@@ -34,7 +34,7 @@ export function ReleaseChart({ series, base }: { series: Snapshot[]; base: Token
   );
 }
 
-/** v4 spot and TWAP with the anchor tolerance band and the price floor. */
+/** v4 spot and TWAP with the policy's quote tolerance band and the price floor. */
 export function PriceChart({
   series,
   base,
@@ -42,7 +42,7 @@ export function PriceChart({
   floorX36,
   maxDeviationBps,
 }: {
-  series: Snapshot[];
+  series: PolicySnapshot[];
   base: TokenDisplay;
   quote: TokenDisplay;
   floorX36: string;
@@ -50,18 +50,18 @@ export function PriceChart({
 }) {
   const band = maxDeviationBps / 10_000;
   const data = series
-    .filter((s) => s.anchorTwapX36 && s.anchorSpotX36)
+    .filter((s) => s.priced)
     .map((s) => {
-      const twap = price(s.anchorTwapX36!, base, quote);
+      const twap = price(s.twapX36, base, quote);
       return {
         t: Number(s.timestamp),
-        spot: price(s.anchorSpotX36!, base, quote),
+        spot: price(s.spotX36, base, quote),
         twap,
         upper: twap * (1 + band),
         lower: twap * (1 - band),
       };
     });
-  const floor = price(floorX36, base, quote);
+  const floor = BigInt(floorX36) === 0n ? null : price(floorX36, base, quote);
   return (
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={data} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
@@ -73,7 +73,7 @@ export function PriceChart({
         <Line dataKey="lower" name="Band (lower)" stroke="var(--muted-foreground)" strokeDasharray="2 4" dot={false} />
         <Line dataKey="twap" name="Uniswap TWAP" stroke="var(--chart-2)" strokeWidth={2} dot={false} />
         <Line dataKey="spot" name="Uniswap spot" stroke="var(--chart-1)" dot={false} />
-        <ReferenceLine y={floor} stroke="var(--blocked)" strokeDasharray="4 3" label={{ value: "floor", fill: "var(--blocked)", fontSize: 11, position: "insideBottomRight" }} />
+        {floor !== null && <ReferenceLine y={floor} stroke="var(--blocked)" strokeDasharray="4 3" label={{ value: "floor", fill: "var(--blocked)", fontSize: 11, position: "insideBottomRight" }} />}
       </LineChart>
     </ResponsiveContainer>
   );

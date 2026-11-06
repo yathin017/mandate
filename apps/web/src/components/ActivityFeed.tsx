@@ -4,14 +4,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BlockedStamp, Hex, SyntheticTag } from "@/components/status";
-import { formatChainTime, formatPrice, formatUnits } from "@/lib/format";
+import { formatBps, formatChainTime, formatPrice, formatUnits } from "@/lib/format";
 import { clauseOf } from "@/lib/clauses";
+import type { Subject } from "@/lib/api";
 import { useActivity } from "@/lib/hooks";
 import type { ActivityItem, TokenDisplay } from "@/lib/types";
 
 
-export function ActivityFeed({ mandateId, base, quote }: { mandateId: string; base: TokenDisplay; quote: TokenDisplay }) {
-  const activity = useActivity(mandateId);
+/** Fills and refused attempts of one strategy, or of every strategy of a policy. */
+export function ActivityFeed({ subject, base, quote }: { subject: Subject; base: TokenDisplay; quote: TokenDisplay }) {
+  const activity = useActivity(subject);
   if (activity.isPending) return <Skeleton className="h-64 w-full" />;
   if (activity.isError) return <p className="text-sm text-blocked">Could not load activity: {activity.error.message}</p>;
 
@@ -100,6 +102,13 @@ function ActivityRow({ item, base, quote }: { item: ActivityItem; base: TokenDis
             <span className="tabular font-mono">{formatUnits(quoteAmount, quote.decimals)} {quote.symbol}</span>
             <span className="text-muted-foreground"> at {formatPrice(item.price_x36!, base.decimals, quote.decimals)}</span>
           </p>
+          {(item.quality_bps !== null || item.risk_mode === 1) && (
+            <p className="text-[11px] text-muted-foreground">
+              {item.quality_bps !== null &&
+                `${formatBps(Math.abs(item.quality_bps))} ${item.quality_bps >= 0 ? "better" : "worse"} than the Uniswap price before the fill`}
+              {item.risk_mode === 1 && " · defensive limits applied"}
+            </p>
+          )}
           {meta}
         </div>
       </li>

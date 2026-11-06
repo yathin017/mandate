@@ -2,17 +2,45 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { shortHex } from "@/lib/format";
-import type { MandateStatus } from "@/lib/types";
+import { riskReasonText } from "@mandate/sdk";
 
-const STATUS: Record<MandateStatus, { label: string; className: string }> = {
+import type { RiskMode, Status } from "@/lib/types";
+
+const STATUS: Record<Status, { label: string; className: string }> = {
   1: { label: "Active", className: "bg-filled text-filled-foreground" },
   2: { label: "Paused", className: "bg-warning text-warning-foreground" },
   3: { label: "Revoked", className: "bg-blocked text-blocked-foreground" },
 };
 
-export function StatusPill({ status }: { status: MandateStatus }) {
+/** Status of a policy or a strategy (set by its parties, unlike the risk mode). */
+export function StatusPill({ status }: { status: Status }) {
   const s = STATUS[status];
   return <Badge className={cn("rounded-full", s.className)}>{s.label}</Badge>;
+}
+
+const MODE: Record<RiskMode, { label: string; className: string }> = {
+  0: { label: "Normal", className: "border-filled text-filled" },
+  1: { label: "Defensive", className: "border-warning text-warning" },
+  2: { label: "Market pause", className: "border-blocked text-blocked" },
+};
+
+/**
+ * The risk mode the quoter applies right now, from the oracle's readings against the issuer's thresholds. Hover for
+ * the reason. Unknown (not yet indexed) shows nothing.
+ */
+export function RiskBadge({ mode, reason }: { mode: RiskMode | null | undefined; reason?: number | null | undefined }) {
+  if (mode === null || mode === undefined) return null;
+  const m = MODE[mode];
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant="outline" className={cn("cursor-help rounded-full", m.className)}>{m.label}</Badge>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs text-xs">
+        {mode === 0 ? "Normal limits apply" : mode === 1 ? "Tighter limits apply" : "No fills"} because {riskReasonText(reason ?? 0)}.
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 /** The signature element: a rotated stamp naming the clause that refused the action. */

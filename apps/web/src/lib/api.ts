@@ -1,4 +1,4 @@
-import type { MandateTermsJson } from "@mandate/sdk";
+import type { StrategyTermsJson } from "@mandate/sdk";
 
 import type {
   ActivityPage,
@@ -6,15 +6,19 @@ import type {
   LaunchedToken,
   MmProfile,
   MmScore,
+  PolicyDetail,
+  PolicyListItem,
+  PolicySnapshot,
+  PolicySummary,
   Proposal,
-  SafeMandateSummary,
   Session,
   Envelope,
   Health,
-  MandateDetail,
-  MandateListItem,
   SimulationResult,
-  Snapshot,
+  StrategyDetail,
+  StrategyListItem,
+  StrategySnapshot,
+  StrategySummary,
 } from "./types";
 
 /** The indexer API is the app's only data source. Dev: /api proxy (vite.config.ts). Prod: VITE_API_URL. */
@@ -51,21 +55,33 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 const chainPath = `/v1/chains/${CHAIN_ID}`;
 
+/** A change feed's subject: a treasury policy or one of its strategies. */
+export interface Subject {
+  readonly kind: "policy" | "strategy";
+  readonly id: string;
+}
+const PATH = { policy: "policies", strategy: "strategies" } as const;
+
 export const api = {
   health: () => request<Health>("/health"),
-  mandates: () => request<Envelope<MandateListItem[]>>(`${chainPath}/mandates`),
-  mandatesByMm: (mm: string) => request<Envelope<MandateListItem[]>>(`${chainPath}/mandates?mm=${encodeURIComponent(mm)}`),
-  mandate: (id: string) => request<Envelope<MandateDetail>>(`${chainPath}/mandates/${id}`),
-  activity: (id: string, before?: string | null, limit = 25) =>
+  policies: (safe?: string) => request<Envelope<PolicyListItem[]>>(`${chainPath}/policies${safe ? `?safe=${safe}` : ""}`),
+  policy: (id: string) => request<Envelope<PolicyDetail>>(`${chainPath}/policies/${id}`),
+  strategies: (filter: { safe?: string; mm?: string; policy?: string } = {}) => {
+    const query = new URLSearchParams(Object.entries(filter).filter(([, v]) => v) as [string, string][]).toString();
+    return request<Envelope<StrategyListItem[]>>(`${chainPath}/strategies${query ? `?${query}` : ""}`);
+  },
+  strategy: (id: string) => request<Envelope<StrategyDetail>>(`${chainPath}/strategies/${id}`),
+  activity: (subject: Subject, before?: string | null, limit = 25) =>
     request<Envelope<ActivityPage>>(
-      `${chainPath}/mandates/${id}/activity?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
+      `${chainPath}/${PATH[subject.kind]}/${subject.id}/activity?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
     ),
-  series: (id: string) => request<Envelope<Snapshot[]>>(`${chainPath}/mandates/${id}/series?limit=2000`),
+  policySeries: (id: string) => request<Envelope<PolicySnapshot[]>>(`${chainPath}/policies/${id}/series?limit=2000`),
+  strategySeries: (id: string) => request<Envelope<StrategySnapshot[]>>(`${chainPath}/strategies/${id}/series?limit=2000`),
   simulate: (
-    id: string,
+    strategyId: string,
     body: { taker: string; tokenIn: string; tokenOut: string; amount: string; isExactIn: boolean },
   ) =>
-    request<Envelope<SimulationResult>>(`${chainPath}/mandates/${id}/attempts`, {
+    request<Envelope<SimulationResult>>(`${chainPath}/strategies/${strategyId}/attempts`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
@@ -79,21 +95,21 @@ export const api = {
   mmProfiles: () => request<{ data: MmProfile[] }>("/v1/mms"),
   mmProfile: (address: string) => request<{ data: MmProfile }>(`/v1/mms/${address}`),
   mmScores: () => request<Envelope<{ weights: Record<string, number>; scores: MmScore[] }>>(`${chainPath}/mms/scores`),
-  mmSummary: (address: string) => request<Envelope<SafeMandateSummary[]>>(`${chainPath}/mms/${address}/summary`),
+  mmSummary: (address: string) => request<Envelope<StrategySummary[]>>(`${chainPath}/mms/${address}/summary`),
   saveProfile: (profile: Omit<MmProfile, "address" | "updatedAt">) =>
     request<{ data: MmProfile }>("/v1/mms/me", { method: "PUT", body: JSON.stringify(profile) }),
-  safeSummary: (safe: string) => request<Envelope<SafeMandateSummary[]>>(`${chainPath}/safes/${safe}/summary`),
+  safeSummary: (safe: string) => request<Envelope<PolicySummary[]>>(`${chainPath}/safes/${safe}/summary`),
   // Proposals: owners of the issuer Safe draft and send; the named market maker accepts with a signature.
   proposalsForSafe: (safe: string) => request<{ data: Proposal[] }>(`/v1/proposals?safe=${safe}`),
   proposalsForMe: () => request<{ data: Proposal[] }>("/v1/proposals?as=mm"),
-  createProposal: (body: { safe: string; terms: MandateTermsJson; expiresAt: number; note: string; send: boolean }) =>
+  createProposal: (body: { safe: string; terms: StrategyTermsJson; expiresAt: number; note: string; send: boolean }) =>
     request<{ data: Proposal }>("/v1/proposals", { method: "POST", body: JSON.stringify({ chainId: CHAIN_ID, ...body }) }),
   proposalAction: (id: string, action: "send" | "withdraw" | "decline") =>
     request<{ data: Proposal }>(`/v1/proposals/${id}/${action}`, { method: "POST" }),
   acceptProposal: (id: string, signature: string) =>
     request<{ data: Proposal }>(`/v1/proposals/${id}/accept`, { method: "POST", body: JSON.stringify({ signature }) }),
-  markExecuted: (id: string, mandateId: string) =>
-    request<{ data: Proposal }>(`/v1/proposals/${id}/executed`, { method: "POST", body: JSON.stringify({ mandateId }) }),
+  markExecuted: (id: string, strategyId: string) =>
+    request<{ data: Proposal }>(`/v1/proposals/${id}/executed`, { method: "POST", body: JSON.stringify({ strategyId }) }),
   launchedTokens: () => request<Envelope<LaunchedToken[]>>(`${chainPath}/tokens/launched`),
-  streamUrl: (id: string) => `${API_BASE}${chainPath}/mandates/${id}/stream`,
+  streamUrl: (subject: Subject) => `${API_BASE}${chainPath}/${PATH[subject.kind]}/${subject.id}/stream`,
 };

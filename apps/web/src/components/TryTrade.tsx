@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BlockedStamp, SyntheticTag } from "@/components/status";
 import { api } from "@/lib/api";
 import { formatUnits, parseUnits } from "@/lib/format";
-import type { Mandate, TokenDisplay } from "@/lib/types";
+import type { Strategy, TokenDisplay } from "@/lib/types";
 
 /** Any address works as the quote's `from` (nothing is signed); Anvil's account 0 is used on every chain. */
 const DEMO_TAKER = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
@@ -19,18 +19,19 @@ type Side = "buy" | "sell";
  * Asks the indexer to simulate a trade against the live strategy. The server runs the router quote and decides
  * the outcome; this form only sends the trade parameters.
  */
-export function TryTrade({ mandate, base, quote }: { mandate: Mandate; base: TokenDisplay; quote: TokenDisplay }) {
+export function TryTrade({ strategy, base, quote }: { strategy: Strategy; base: TokenDisplay; quote: TokenDisplay }) {
   const [side, setSide] = useState<Side>("buy");
+  // A probe amount for the form, not an economic setting: the user edits it before simulating.
   const [amount, setAmount] = useState("100");
   const payToken = side === "buy" ? quote : base;
   const raw = parseUnits(amount, payToken.decimals);
 
   const simulate = useMutation({
     mutationFn: () =>
-      api.simulate(mandate.mandateId, {
+      api.simulate(strategy.strategyId, {
         taker: DEMO_TAKER,
-        tokenIn: side === "buy" ? mandate.quote : mandate.base,
-        tokenOut: side === "buy" ? mandate.base : mandate.quote,
+        tokenIn: side === "buy" ? strategy.quote : strategy.base,
+        tokenOut: side === "buy" ? strategy.base : strategy.quote,
         amount: raw!.toString(),
         isExactIn: true,
       }),

@@ -22,89 +22,151 @@ export interface Tokens {
   quote: TokenDisplay | null;
 }
 
-/** MandateStatus: 1 Active, 2 Paused, 3 Revoked. */
-export type MandateStatus = 1 | 2 | 3;
+/** Status of a policy or a strategy: 1 Active, 2 Paused, 3 Revoked. */
+export type Status = 1 | 2 | 3;
+/** RiskMode the quoter applies: 0 Normal, 1 Defensive, 2 Paused. */
+export type RiskMode = 0 | 1 | 2;
+/** StrategyKind: 0 market making, 1 buyback. */
+export type StrategyKind = 0 | 1;
 
-export interface MandateBounds {
-  allotment: string;
-  releaseStart: string;
-  releaseDuration: string;
-  epochLength: string;
-  maxEpochCap: string;
-  maxShippedQuote: string;
-  floorPriceX36: string;
-  maxAnchorDeviationBps: number | string;
-  twapWindow: number | string;
-  spreadBpsMin: number | string;
-  spreadBpsMax: number | string;
-  mmFeeShareBps: number | string;
-  anchor: string;
-  quoter: string;
+/** Mirrors the DRAFT Solidity PolicyConfig; bigints as decimal strings. */
+export interface PolicyConfig {
+  release: { allotment: string; releaseStart: string; releaseDuration: string };
+  period: { periodLength: string; grossSellCap: string; netSellCap: string; quoteSpendCap: string };
+  price: { floorPriceX36: string; maxQuoteDeviationBps: number | string; maxImpactBps: number | string };
+  oracle: {
+    oracle: string; twapWindow: number | string; shortWindow: number | string; depthBandBps: number | string;
+    minPoolAge: number | string; minTrustedDepth: string; defensiveMoveBps: number | string; pauseMoveBps: number | string;
+    defensiveVolatilityBps: number | string; pauseVolatilityBps: number | string; defensiveDepth: string;
+  };
+  normal: ModeLimits;
+  defensive: ModeLimits;
 }
 
-export interface MandateParams {
-  spreadBps: number | string;
-  epochCap: string;
-  shippedBase: string;
-  shippedQuote: string;
+export interface ModeLimits {
+  maxFillBase: string;
+  maxFillDepthBps: number | string;
+  minSpreadBps: number | string;
+  buybacksAllowed: boolean;
 }
 
-export interface Mandate {
+export interface Policy {
   chainId: number;
-  mandateId: string;
+  policyId: string;
   module: string;
   safe: string;
-  mm: string;
   base: string;
   quote: string;
-  status: MandateStatus;
-  activeStrategyHash: string;
-  bounds: MandateBounds;
-  params: MandateParams;
+  status: Status;
+  config: PolicyConfig;
   createdBlock: string;
   updatedBlock: string;
 }
 
-export type AnchorStatus = "within-spot-band" | "blocked" | "unavailable";
+export interface StrategyBounds {
+  spreadBpsMin: number | string;
+  spreadBpsMax: number | string;
+  maxShippedBase: string;
+  maxShippedQuote: string;
+  mmFeeShareBps: number | string;
+  maxBuyPriceX36: string;
+}
 
-export interface Snapshot {
+export interface StrategyParams {
+  spreadBps: number | string;
+  shippedBase: string;
+  shippedQuote: string;
+}
+
+export interface Strategy {
   chainId: number;
-  mandateId: string;
+  strategyId: string;
+  policyId: string;
+  safe: string;
+  mm: string;
+  base: string;
+  quote: string;
+  kind: StrategyKind;
+  status: Status;
+  activeStrategyHash: string;
+  bounds: StrategyBounds;
+  params: StrategyParams;
+  createdBlock: string;
+  updatedBlock: string;
+}
+
+/** A policy's treasury-wide reading at one block: shared counters and the risk mode with the oracle readings. */
+export interface PolicySnapshot {
+  chainId: number;
+  policyId: string;
   blockNumber: string;
   blockHash: string;
   timestamp: string;
-  status: MandateStatus;
-  spreadBps: number;
-  epochCap: string;
-  epochIndex: string;
-  netSoldThisEpoch: string;
+  status: Status;
+  periodIndex: string;
+  grossSold: string;
+  netSold: string;
+  quoteSpent: string;
   totalNetSold: string;
   released: string;
-  remainingThisEpoch: string;
-  sellableNow: string;
-  epochResetsAt: string;
+  periodEndsAt: string;
+  riskMode: RiskMode;
+  /** RiskReason index (see the SDK's RISK_REASONS). */
+  riskReason: number;
+  priced: boolean;
+  spotX36: string;
+  twapX36: string;
+  shortTwapX36: string;
+  trustedDepthBase: string;
+  poolAge: string;
+}
+
+/** A strategy's own reading at one block. */
+export interface StrategySnapshot {
+  chainId: number;
+  strategyId: string;
+  blockNumber: string;
+  blockHash: string;
+  timestamp: string;
+  status: Status;
+  spreadBps: number;
+  shippedBase: string;
+  shippedQuote: string;
+  nonce: string;
   feesBase: string;
   feesQuote: string;
   claimedBase: string;
   claimedQuote: string;
-  anchorStatus: AnchorStatus;
-  anchorSpotX36: string | null;
-  anchorTwapX36: string | null;
-  anchorDeviationBps: string | null;
-  anchorMaxDeviationBps: number | null;
 }
 
-export interface MandateDetail {
-  mandate: Mandate;
+export interface ChainInfo {
+  environment: string;
+  sourceChainId: number;
+}
+
+export interface PolicyDetail {
+  policy: Policy;
   tokens: Tokens;
-  snapshot: Snapshot | null;
-  chain: { environment: string; sourceChainId: number } | null;
+  snapshot: PolicySnapshot | null;
+  strategies: Strategy[];
+  chain: ChainInfo | null;
 }
 
-export type MandateListItem = Mandate & { tokens: Tokens };
+export interface StrategyDetail {
+  strategy: Strategy;
+  policy: Policy | null;
+  tokens: Tokens;
+  snapshot: StrategySnapshot | null;
+  policySnapshot: PolicySnapshot | null;
+  chain: ChainInfo | null;
+}
+
+export type PolicyListItem = Policy & { tokens: Tokens };
+export type StrategyListItem = Strategy & { tokens: Tokens };
 
 export interface ActivityItem {
   kind: "fill" | "attempt";
+  strategy_id: string;
   block_number: string;
   ord: number;
   key: string;
@@ -118,6 +180,9 @@ export interface ActivityItem {
   price_x36: string | null;
   fee_token: string | null;
   fee_amount: string | null;
+  /** Fills: the risk mode they ran in and their distance from the pre-fill market (bps, + favours the treasury). */
+  risk_mode: number | null;
+  quality_bps: number | null;
   error_name: string | null;
   error_args: unknown;
   explanation: string | null;
@@ -207,7 +272,7 @@ export interface LaunchedToken {
 
 export type ProposalStatus = "draft" | "sent" | "accepted" | "declined" | "withdrawn" | "expired" | "executed";
 
-/** Terms an issuer Safe offers a market maker (`/v1/proposals`). `terms` is the SDK's MandateTermsJson. */
+/** A strategy an issuer Safe offers a market maker (`/v1/proposals`). `terms` is the SDK's StrategyTermsJson. */
 export interface Proposal {
   id: string;
   chainId: number;
@@ -216,31 +281,33 @@ export interface Proposal {
   mm: string;
   base: string;
   quote: string;
-  terms: import("@mandate/sdk").MandateTermsJson;
+  kind: StrategyKind;
+  terms: import("@mandate/sdk").StrategyTermsJson;
   termsHash: string;
   status: ProposalStatus;
   /** Unix seconds. */
   expiresAt: number;
   mmSignature: string | null;
-  mandateId: string | null;
+  strategyId: string | null;
   note: string;
   createdAt: string;
   sentAt: string | null;
   decidedAt: string | null;
 }
 
-/** One mandate in an issuer Safe's overview (`/v1/chains/:id/safes/:safe/summary`); amounts are raw units. */
-export interface SafeMandateSummary {
-  mandateId: string;
-  status: MandateStatus;
+/** One strategy's figures (`/safes/:safe/summary` per policy, `/mms/:address/summary`); amounts are raw units. */
+export interface StrategySummary {
+  strategyId: string;
+  policyId: string;
+  safe: string;
+  status: Status;
+  kind: StrategyKind;
   mm: string;
   base: string;
   quote: string;
-  allotment: string;
-  totalNetSold: string;
-  released: string;
-  soldToday: string;
-  dailyCap: string;
+  spreadBps: number | null;
+  shippedBase: string;
+  shippedQuote: string;
   feesBase: string;
   feesQuote: string;
   claimedBase: string;
@@ -249,9 +316,36 @@ export interface SafeMandateSummary {
   mmFeeShareBps: number;
   mmEarnedBase: string;
   mmEarnedQuote: string;
-  anchorStatus: AnchorStatus | null;
   fills: number;
   quoteVolume: string;
+  /** Volume-weighted distance of fills from the pre-fill market, bps; + favours the treasury. */
+  avgQualityBps: number | null;
   refused: number;
+  policyStatus: Status | null;
+  riskMode: RiskMode | null;
+  riskReason: number | null;
+  tokens: Tokens;
+}
+
+/** One policy in an issuer Safe's overview, with its latest reading and its strategies. */
+export interface PolicySummary {
+  policyId: string;
+  status: Status;
+  base: string;
+  quote: string;
+  config: PolicyConfig;
+  grossSold: string;
+  netSold: string;
+  quoteSpent: string;
+  totalNetSold: string;
+  released: string;
+  periodEndsAt: string | null;
+  riskMode: RiskMode | null;
+  riskReason: number | null;
+  priced: boolean | null;
+  spotX36: string | null;
+  twapX36: string | null;
+  trustedDepthBase: string | null;
+  strategies: Omit<StrategySummary, "tokens">[];
   tokens: Tokens;
 }
