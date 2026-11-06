@@ -9,4 +9,6 @@ interface ImportMetaEnv {
   readonly VITE_CHAIN_ID?: string;
   /** Local fork only: AnchorLauncher address deployed for development. Ignored on live chains. */
   readonly VITE_ANCHOR_LAUNCHER?: string;
+  /** Local fork only: TokenFactory address deployed for development. Ignored on live chains. */
+  readonly VITE_TOKEN_FACTORY?: string;
 }

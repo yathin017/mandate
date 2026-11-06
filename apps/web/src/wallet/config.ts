@@ -37,11 +37,16 @@ export const ENVIRONMENT_LABEL = isLive ? `${demoChain.name.toUpperCase()} · MO
  */
 export const ANCHOR_LAUNCHER: Address | undefined = isLiveDeployment(deployment)
   ? deployment.anchorLauncher
-  : devAnchorLauncher(import.meta.env.VITE_ANCHOR_LAUNCHER);
+  : devAddress("VITE_ANCHOR_LAUNCHER", import.meta.env.VITE_ANCHOR_LAUNCHER);
 
-function devAnchorLauncher(value: string | undefined): Address | undefined {
+/** TokenFactory for self-serve launches; same rule as the launcher (manifest on live chains, VITE_ on the fork). */
+export const TOKEN_FACTORY: Address | undefined = isLiveDeployment(deployment)
+  ? deployment.tokenFactory
+  : devAddress("VITE_TOKEN_FACTORY", import.meta.env.VITE_TOKEN_FACTORY);
+
+function devAddress(name: string, value: string | undefined): Address | undefined {
   if (!value) return undefined;
-  if (!isAddress(value)) throw new Error(`VITE_ANCHOR_LAUNCHER is not an address: ${value}`);
+  if (!isAddress(value)) throw new Error(`${name} is not an address: ${value}`);
   return value;
 }
 
