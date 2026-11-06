@@ -1,23 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {AquaOpcodes} from "@1inch/swap-vm/src/opcodes/AquaOpcodes.sol";
-import {XYCSwap} from "@1inch/swap-vm/src/instructions/XYCSwap.sol";
-import {Extruction} from "@1inch/swap-vm/src/instructions/Extruction.sol";
-import {Program, ProgramBuilder} from "@1inch/swap-vm/test/utils/ProgramBuilder.sol";
+import { AquaOpcodes } from "@1inch/swap-vm/src/opcodes/AquaOpcodes.sol";
+import { XYCSwap } from "@1inch/swap-vm/src/instructions/XYCSwap.sol";
+import { Extruction } from "@1inch/swap-vm/src/instructions/Extruction.sol";
+import { Controls } from "@1inch/swap-vm/src/instructions/Controls.sol";
+import { Program, ProgramBuilder } from "@1inch/swap-vm/test/utils/ProgramBuilder.sol";
 
-import {AquaProgram} from "../../src/libraries/AquaProgram.sol";
+import { AquaProgram } from "../../src/libraries/AquaProgram.sol";
 
 /// @dev Exposes swap-vm's real opcode table so we can look up indices by function pointer.
 contract AquaOpcodesHarness is AquaOpcodes {
     using ProgramBuilder for Program;
 
-    constructor() AquaOpcodes(address(0)) {}
+    constructor() AquaOpcodes(address(0)) { }
 
     function xycSwapIndex() external pure returns (uint8) {
         return ProgramBuilder.init(_opcodes()).findOpcode(XYCSwap._xycSwapXD);
+    }
+
+    function saltIndex() external pure returns (uint8) {
+        return ProgramBuilder.init(_opcodes()).findOpcode(Controls._salt);
     }
 
     function extructionIndex() external pure returns (uint8) {
@@ -31,6 +36,7 @@ contract AquaProgramTest is Test {
 
     function test_opcodeNumbersMatchSwapVm() public view {
         assertEq(AquaProgram.OP_XYC_SWAP, harness.xycSwapIndex(), "XYCSwap");
+        assertEq(AquaProgram.OP_SALT, harness.saltIndex(), "Salt");
         assertEq(AquaProgram.OP_EXTRUCTION, harness.extructionIndex(), "Extruction");
     }
 

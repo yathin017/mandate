@@ -13,6 +13,9 @@ pragma solidity 0.8.30;
 library AquaProgram {
     /// @dev Constant-product swap over the strategy's Aqua balances (`XYCSwap._xycSwapXD`).
     uint8 internal constant OP_XYC_SWAP = 17;
+    /// @dev No-op that only changes the program bytes (`Controls._salt`). Aqua never re-ships a docked
+    ///      strategy hash, so every (re)ship of otherwise identical terms needs a fresh salt.
+    uint8 internal constant OP_SALT = 20;
     /// @dev Delegates to an external IExtruction / IStaticExtruction target (`Extruction._extruction`).
     uint8 internal constant OP_EXTRUCTION = 32;
 
@@ -27,6 +30,11 @@ library AquaProgram {
     /// @notice `XYCSwap` instruction; takes no args.
     function xycSwap() internal pure returns (bytes memory) {
         return instruction(OP_XYC_SWAP, "");
+    }
+
+    /// @notice `Salt` instruction carrying `nonce`, to make a strategy hash unique.
+    function salt(uint256 nonce) internal pure returns (bytes memory) {
+        return instruction(OP_SALT, abi.encodePacked(nonce));
     }
 
     /// @notice `Extruction` instruction calling `target` with `targetArgs`.
