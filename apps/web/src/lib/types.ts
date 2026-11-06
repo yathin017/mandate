@@ -340,6 +340,8 @@ export interface PolicySummary {
   totalNetSold: string;
   released: string;
   periodEndsAt: string | null;
+  /** Chain time of the reading. */
+  readAt: string | null;
   riskMode: RiskMode | null;
   riskReason: number | null;
   priced: boolean | null;

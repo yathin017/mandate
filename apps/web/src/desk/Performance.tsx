@@ -79,7 +79,7 @@ export function Performance() {
                     <TableRow key={m.strategyId}>
                       <TableCell>
                         <Link to={`/strategies/${m.strategyId}`} className="flex items-center gap-2 whitespace-nowrap underline-offset-4 hover:underline">
-                          {m.tokens.base?.symbol ?? "?"} / {quote.symbol} <StatusPill status={m.status} /> <RiskBadge mode={m.riskMode} reason={m.riskReason} />
+                          {m.tokens.base?.symbol ?? "?"} / {quote.symbol} <StatusPill status={m.status} /> {m.status !== 3 && <RiskBadge mode={m.riskMode} reason={m.riskReason} />}
                         </Link>
                       </TableCell>
                       <TableCell className="tabular text-right font-mono">{m.fills}</TableCell>

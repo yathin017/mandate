@@ -218,7 +218,8 @@ function PolicyCard({ safe, policy: p, isOwner, addStrategy }: { safe: Address; 
     revoke: buildRevokePolicyCall(deployment, id),
   };
   const pct = (part: string, whole: string) => (BigInt(whole) === 0n ? 0 : Number((BigInt(part) * 100n) / BigInt(whole)));
-  const resetsIn = p.periodEndsAt ? Number(p.periodEndsAt) - Math.floor(Date.now() / 1000) : null;
+  // Chain time: a fork's clock need not match the wall clock.
+  const resetsIn = p.periodEndsAt && p.readAt ? Number(p.periodEndsAt) - Number(p.readAt) : null;
   const refs = { base: { address: getAddress(p.base), ...base }, quote: { address: getAddress(p.quote), ...quote } };
 
   return (
@@ -232,7 +233,7 @@ function PolicyCard({ safe, policy: p, isOwner, addStrategy }: { safe: Address; 
             <span className="text-base font-normal text-muted-foreground">against {quote.symbol}</span>
           </CardTitle>
           <StatusPill status={p.status} />
-          <RiskBadge mode={p.riskMode} reason={p.riskReason} />
+          {p.status !== 3 && <RiskBadge mode={p.riskMode} reason={p.riskReason} />}
           {isOwner && p.status !== 3 && (
             <div className="ml-auto flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => setEditing(!editing)}>

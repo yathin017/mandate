@@ -51,7 +51,7 @@ function StrategyView({ data, base, quote, stream }: { data: StrategyDetail; bas
             {base.symbol} / {quote.symbol} {strategy.kind === 1 ? "buyback" : "market making"}
           </h1>
           <StatusPill status={strategy.status} />
-          <RiskBadge mode={policySnapshot?.riskMode} reason={policySnapshot?.riskReason} />
+          {!revoked && <RiskBadge mode={policySnapshot?.riskMode} reason={policySnapshot?.riskReason} />}
           <LiveBadge state={stream} />
           {environment === "local-mainnet-fork" && <SyntheticTag label="LOCAL FORK · SYNTHETIC TOKENS" />}
           {environment === "live" && <SyntheticTag label="LIVE · MOCK TOKENS" />}
@@ -78,7 +78,7 @@ function StrategyView({ data, base, quote, stream }: { data: StrategyDetail; bas
         </Alert>
       )}
 
-      {policy && policySnapshot && <PolicyGauges snapshot={policySnapshot} config={policy.config} base={base} quote={quote} series={series.data?.data ?? []} />}
+      {!revoked && policy && policySnapshot && <PolicyGauges snapshot={policySnapshot} config={policy.config} base={base} quote={quote} series={series.data?.data ?? []} />}
 
       {snapshot && (
         <Card>

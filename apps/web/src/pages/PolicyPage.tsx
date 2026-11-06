@@ -38,7 +38,7 @@ export function PolicyPage() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-serif text-3xl font-semibold tracking-tight">{base.symbol} treasury policy</h1>
           <StatusPill status={policy.status} />
-          <RiskBadge mode={snapshot?.riskMode} reason={snapshot?.riskReason} />
+          {policy.status !== 3 && <RiskBadge mode={snapshot?.riskMode} reason={snapshot?.riskReason} />}
           <LiveBadge state={stream} />
           {chain?.environment === "local-mainnet-fork" && <SyntheticTag label="LOCAL FORK · SYNTHETIC TOKENS" />}
           {chain?.environment === "live" && <SyntheticTag label="LIVE · MOCK TOKENS" />}
@@ -51,7 +51,7 @@ export function PolicyPage() {
         </div>
       </header>
 
-      {snapshot && <PolicyGauges snapshot={snapshot} config={policy.config} base={base} quote={quote} series={series.data?.data ?? []} />}
+      {snapshot && policy.status !== 3 && <PolicyGauges snapshot={snapshot} config={policy.config} base={base} quote={quote} series={series.data?.data ?? []} />}
 
       <section className="space-y-3">
         <h2 className="font-serif text-xl font-semibold">Strategies</h2>
