@@ -1,9 +1,9 @@
-import { buildCreateMandateCall, mandateModuleAbi, termsFromJson } from "@mandate/sdk";
+import { buildAddStrategyCall, mandateModuleAbi, termsFromJson } from "@mandate/sdk";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import type { Address, PublicClient } from "viem";
-import { useConnection, usePublicClient } from "wagmi";
+import type { Address, Hash, PublicClient } from "viem";
+import { useConnection, usePublicClient, useReadContract } from "wagmi";
 
 import { ScoreBadge } from "@/components/score";
 import { Hex } from "@/components/status";
@@ -32,7 +32,8 @@ const STATUS: Record<ProposalStatus, { label: string; tone: string }> = {
 
 /**
  * An issuer Safe's proposals and their next step: send a draft, wait for the market maker, then (once it signed the
- * exact terms) execute createMandate through the Safe and link the new mandate. Listing needs a signed-in owner.
+ * exact terms) add the strategy through the Safe under its policy for the pair and link it. Listing needs a signed-in
+ * owner.
  */
 export function ProposalList({
   safe,
@@ -44,7 +45,7 @@ export function ProposalList({
   /** Display metadata for a proposal's pair, when the caller knows it. */
   tokens?: (p: Proposal) => { base: TokenDisplay; quote: TokenDisplay } | undefined;
   filter?: (p: Proposal) => boolean;
-  /** Called once a proposal is linked to its new mandate. */
+  /** Called once a proposal is linked to its new strategy. */
   onExecuted?: () => void;
 }) {
   const { signedIn } = useSession();
@@ -92,13 +93,24 @@ function ProposalRow({
   const refresh = () => client.invalidateQueries({ queryKey: proposalsKey(safe) });
   const act = useMutation({ mutationFn: (action: "send" | "withdraw") => api.proposalAction(p.id, action), onSettled: refresh });
 
-  // After the Safe executes createMandate, link the new mandate. The API accepts only a mandate whose Safe, market
-  // maker, pair and bounds match the accepted terms, so trying the Safe's newest mandates first is safe.
+  // The strategy is added under the Safe's live policy for the pair.
+  const policyId = useReadContract({
+    address: deployment.module,
+    abi: mandateModuleAbi,
+    functionName: "activePolicyOf",
+    args: [safe, p.base as Address],
+    chainId: demoChain.id,
+  }).data as Hash | undefined;
+  const hasPolicy = policyId !== undefined && !/^0x0{64}$/.test(policyId);
+
+  // After the Safe executes addStrategy, link the new strategy. The API accepts only a strategy whose Safe, market
+  // maker, pair, kind and bounds match the accepted terms, so trying the policy's newest strategies first is safe.
   const link = useMutation({
     mutationFn: async () => {
       if (!publicClient) throw new Error("No chain connection");
-      const ids = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "mandatesOf", args: [safe] });
-      let lastError: unknown = new Error("No mandate found for this Safe yet");
+      if (!hasPolicy) throw new Error("This Safe has no live policy for the pair yet");
+      const ids = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "strategiesOf", args: [policyId] });
+      let lastError: unknown = new Error("No strategy found under this policy yet");
       for (const id of [...ids].reverse().slice(0, 5)) {
         try {
           return await api.markExecuted(p.id, id);
@@ -112,17 +124,17 @@ function ProposalRow({
     onSettled: refresh,
   });
 
-  // Before offering to execute, check whether the Safe already created this mandate (e.g. linking failed last time):
-  // executing again would create a second mandate from the same terms.
+  // Before offering to execute, check whether the Safe already added this strategy (e.g. linking failed last time):
+  // executing again would add a second strategy from the same terms.
   const [checkedExisting, setCheckedExisting] = useState(false);
   /** Set once the owners executed here; only then is a failed link worth showing (the pre-check fails by design). */
   const [executedHere, setExecutedHere] = useState(false);
   const { mutate: relink } = link;
   useEffect(() => {
-    if (p.status !== "accepted") return;
+    if (p.status !== "accepted" || !hasPolicy) return;
     setCheckedExisting(false);
     relink(undefined, { onSettled: () => setCheckedExisting(true) });
-  }, [p.id, p.status, relink]);
+  }, [p.id, p.status, relink, hasPolicy]);
 
   const t = p.terms;
   const b = tokens?.base ?? { symbol: "base", decimals: 18 };
@@ -144,9 +156,10 @@ function ProposalRow({
         </span>
       </div>
       <p className="text-sm text-muted-foreground">
-        {formatUnits(t.bounds.allotment, b.decimals, 0)} {b.symbol} over {Number(t.bounds.releaseDuration) / 86_400} days · daily cap{" "}
-        {formatUnits(t.bounds.maxEpochCap, b.decimals, 0)} · floor {formatPrice(t.bounds.floorPriceX36, b.decimals, q.decimals, 6)} {q.symbol} ·
-        spread {formatBps(t.params.spreadBps)} · MM fee share {formatBps(t.bounds.mmFeeShareBps)}
+        {t.kind === "1" ? `Buyback up to ${formatPrice(t.bounds.maxBuyPriceX36, b.decimals, q.decimals, 6)} ${q.symbol}` : "Market making"} · spread{" "}
+        {formatBps(t.params.spreadBps)} ({formatBps(t.bounds.spreadBpsMin)}–{formatBps(t.bounds.spreadBpsMax)}) · ships{" "}
+        {formatUnits(t.params.shippedBase, b.decimals, 0)} {b.symbol} and {formatUnits(t.params.shippedQuote, q.decimals, 0)} {q.symbol} · MM fee
+        share {formatBps(t.bounds.mmFeeShareBps)}
       </p>
       {p.note && <p className="text-sm whitespace-pre-line">“{p.note}”</p>}
 
@@ -161,31 +174,36 @@ function ProposalRow({
             Withdraw
           </Button>
         )}
-        {p.status === "executed" && p.mandateId && (
+        {p.status === "executed" && p.strategyId && (
           <Button asChild size="sm" variant="outline">
-            <Link to={`/mandates/${p.mandateId}`}>Open mandate</Link>
+            <Link to={`/strategies/${p.strategyId}`}>Open strategy</Link>
           </Button>
         )}
       </div>
       {act.error && <p className="text-sm text-blocked">{act.error.message}</p>}
 
-      {p.status === "accepted" && !checkedExisting && <p className="text-sm text-muted-foreground">Checking the Safe for this mandate…</p>}
-      {p.status === "accepted" && checkedExisting && (
+      {p.status === "accepted" && !hasPolicy && (
+        <p className="text-sm text-warning">
+          The market maker signed. Create the treasury policy for this pair first; the strategy runs under it.
+        </p>
+      )}
+      {p.status === "accepted" && hasPolicy && !checkedExisting && <p className="text-sm text-muted-foreground">Checking the policy for this strategy…</p>}
+      {p.status === "accepted" && hasPolicy && checkedExisting && (
         <div className="space-y-2">
           <p className="text-sm">
-            The market maker signed these exact terms. The Safe's owners now approve and execute the mandate.
+            The market maker signed these exact terms. The Safe's owners now approve and add the strategy.
           </p>
           <SafeActionPanel
             safe={safe}
-            call={buildCreateMandateCall(deployment, termsFromJson(t))}
-            label="Create the accepted mandate"
+            call={addCall(policyId, t)}
+            label="Add the accepted strategy"
             {...(tokens ? { context: tokens } : {})}
             onDone={() => {
               setExecutedHere(true);
               link.mutate();
             }}
           />
-          {link.isPending && <p className="text-sm text-muted-foreground">Linking the new mandate…</p>}
+          {link.isPending && <p className="text-sm text-muted-foreground">Linking the new strategy…</p>}
           {link.error && executedHere && (
             <p className="text-sm text-blocked">
               {link.error.message}{" "}
@@ -198,4 +216,10 @@ function ProposalRow({
       )}
     </li>
   );
+}
+
+/** addStrategy for accepted terms under `policyId`; exactly the terms the market maker signed. */
+function addCall(policyId: Hash, json: Proposal["terms"]) {
+  const terms = termsFromJson(json);
+  return buildAddStrategyCall(deployment, { policyId, marketMaker: terms.marketMaker, kind: terms.kind, bounds: terms.bounds, params: terms.params });
 }

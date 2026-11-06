@@ -50,7 +50,7 @@ export function TokenStep({
     <div className="space-y-6">
       <TokenField
         title="Your token (base)"
-        hint="The token the treasury sells under the mandate."
+        hint="The token the treasury trades under its policy."
         holder={safe}
         value={base}
         onChange={(v) => onChange("base", v)}
@@ -155,7 +155,7 @@ function TokenField({
           {check.balance !== undefined && (
             <p className={check.balance === 0n ? "text-warning" : "text-muted-foreground"}>
               Safe balance: <span className="tabular font-mono">{formatUnits(check.balance, info.decimals, 4)}</span> {info.symbol}
-              {check.balance === 0n && " · fund the Safe before the mandate can trade"}
+              {check.balance === 0n && " · fund the Safe before its strategies can trade"}
             </p>
           )}
         </div>

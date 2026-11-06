@@ -15,8 +15,8 @@ export function ModuleStep({ safe, check }: { safe: Address; check: SafeCheck })
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
-        Lets the Safe ship Mandate strategies. It cannot move tokens on its own: every mandate still needs the owners'
-        approval, and the market maker only gets the bounded powers the mandate grants.
+        Lets the Safe ship Mandate strategies. It cannot move tokens on its own: every policy and strategy still needs the
+        owners' approval, and a market maker only gets the bounded powers its strategy grants.
       </p>
       <SafeActionPanel
         safe={safe}

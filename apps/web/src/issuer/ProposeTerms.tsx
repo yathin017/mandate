@@ -89,7 +89,7 @@ export function SendProposal({ safe, base, quote, built, onSent }: { safe: Addre
     mutationFn: () =>
       api.createProposal({
         safe,
-        terms: termsToJson({ marketMaker: built.marketMaker, base: base.address, quote: quote.address, bounds: built.bounds, params: built.params }),
+        terms: termsToJson({ marketMaker: built.marketMaker, base: base.address, quote: quote.address, kind: built.kind, bounds: built.bounds, params: built.params }),
         expiresAt: Math.floor(Date.now() / 1000) + Number(days) * 86_400,
         note,
         send: true,
@@ -104,7 +104,8 @@ export function SendProposal({ safe, base, quote, built, onSent }: { safe: Addre
     <div className="space-y-3 rounded-lg border p-4">
       <p className="font-medium">Send as a proposal</p>
       <p className="text-sm text-muted-foreground">
-        The market maker accepts by signing these exact terms. Then the Safe's owners approve and execute the mandate.
+        The market maker accepts by signing these exact terms. Then the Safe's owners approve and add the strategy under
+        their treasury policy.
       </p>
       <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
         <div className="space-y-1.5">

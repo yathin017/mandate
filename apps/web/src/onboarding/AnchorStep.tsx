@@ -19,12 +19,16 @@ import { CONFIG_CHAIN_ID } from "./SafeStep";
 
 const Q96 = 1n << 96n;
 
-/** Shared with the wizard so it knows when the anchor step is complete. */
-export function useAnchorStatus(base: Address | null, quote: Address | null) {
+/**
+ * Shared with the wizard so it knows when the anchor step is complete. `window` is the treasury policy's TWAP window
+ * once a policy exists; without it readiness is not judged (there is no window to cover yet).
+ */
+export function useAnchorStatus(base: Address | null, quote: Address | null, window?: number) {
   const publicClient = usePublicClient({ chainId: demoChain.id }) as PublicClient | undefined;
   return useQuery({
-    queryKey: ["anchor-status", demoChain.id, ANCHOR_LAUNCHER, base, quote],
-    queryFn: () => readAnchorStatus(publicClient!, { chainId: CONFIG_CHAIN_ID, launcher: ANCHOR_LAUNCHER!, base: base!, quote: quote! }),
+    queryKey: ["anchor-status", demoChain.id, ANCHOR_LAUNCHER, base, quote, window ?? null],
+    queryFn: () =>
+      readAnchorStatus(publicClient!, { chainId: CONFIG_CHAIN_ID, launcher: ANCHOR_LAUNCHER!, base: base!, quote: quote!, ...(window ? { window } : {}) }),
     enabled: Boolean(publicClient && ANCHOR_LAUNCHER && base && quote),
     refetchInterval: 15_000,
   });
@@ -42,8 +46,9 @@ function depth(status: AnchorStatus, base: Address): { base: bigint; quote: bigi
 }
 
 /**
- * Step 4: a Uniswap v4 pool with the Mandate oracle hook and a TWAP anchor for (base, quote), via AnchorLauncher.
- * Done once the anchor exists and its pool has a full TWAP window of history.
+ * Step 4: a Uniswap v4 pool with the Mandate oracle hook and a market oracle for (base, quote), via AnchorLauncher,
+ * and liquidity in it. Done once the oracle exists and the pool has liquidity; the policy then decides how much
+ * history, age and depth it requires before the treasury trades.
  */
 export function AnchorStep({
   base,
@@ -54,6 +59,7 @@ export function AnchorStep({
   holdings,
   lpParam,
   onLp,
+  window,
 }: {
   base: Address;
   quote: Address;
@@ -64,8 +70,10 @@ export function AnchorStep({
   holdings?: { base?: bigint | undefined; quote?: bigint | undefined };
   lpParam?: string | null;
   onLp?: (encoded: string | null) => void;
+  /** The treasury policy's TWAP window, once there is a policy. */
+  window?: number;
 }) {
-  const status = useAnchorStatus(base, quote);
+  const status = useAnchorStatus(base, quote, window);
   const tx = useTx();
   const [price, setPrice] = useState("");
 
@@ -110,7 +118,7 @@ export function AnchorStep({
           {needsPrice && (
             <div className="space-y-1.5">
               <Label htmlFor="start-price">Starting price ({quoteToken.symbol} per {baseToken.symbol})</Label>
-              <Input id="start-price" className="w-48 tabular font-mono" placeholder="0.40" value={price} onChange={(e) => setPrice(e.target.value)} />
+              <Input id="start-price" className="w-48 tabular font-mono" placeholder="price" value={price} onChange={(e) => setPrice(e.target.value)} />
               {priceError && <p className="text-xs text-blocked">{priceError}</p>}
             </div>
           )}
@@ -160,6 +168,12 @@ function PoolFacts({ status, depth: d, baseToken, quoteToken }: { status: Anchor
           ? "No liquidity: anyone can move this price for free, so the anchor would be meaningless. Add liquidity from the Safe below before trading."
           : `In-range depth ≈ ${formatUnits(d.base, baseToken.decimals, 0)} ${baseToken.symbol} / ${formatUnits(d.quote, quoteToken.decimals, 0)} ${quoteToken.symbol}. Deeper pools make the anchor harder to move.`}
       </p>
+      {!empty && status.trustedLiquidity < status.liquidity && (
+        <p className="text-xs text-warning">
+          Some liquidity was added recently and is not trusted yet: the oracle counts it once it has stayed for its settle
+          period, so a just-in-time deposit cannot inflate depth.
+        </p>
+      )}
     </div>
   );
 }
@@ -174,18 +188,25 @@ function Readiness({ status, anchor }: { status: AnchorStatus; anchor: Address }
   }, [status.source.timestamp]);
   const now = Number(status.source.timestamp) + elapsed;
   const remaining = status.readyAt === null ? null : Math.max(0, status.readyAt - now);
+  const age = status.initializedAt === null ? null : Math.max(0, now - status.initializedAt);
 
   return (
     <div className="space-y-1 rounded-lg border p-3 text-sm">
       <p>
-        Anchor <Hex value={anchor} /> · price-history buffer {status.cardinalityNext} slots
+        Oracle <Hex value={anchor} /> · price-history buffer {status.cardinalityNext} slots
       </p>
-      {status.ready || remaining === 0 ? (
-        <p className="text-filled">Ready: the pool has a full 30-minute price history.</p>
+      <p className="text-muted-foreground">
+        Pool age <span className="tabular font-mono">{age === null ? "…" : formatDuration(age)}</span> · price history{" "}
+        <span className="tabular font-mono">{formatDuration(status.historySeconds + elapsed)}</span>
+      </p>
+      {status.ready === null ? (
+        <p className="text-muted-foreground">Your treasury policy sets how much history, pool age and depth trading needs.</p>
+      ) : status.ready || remaining === 0 ? (
+        <p className="text-filled">The pool covers the policy's TWAP window.</p>
       ) : (
         <p className="text-warning">
-          Collecting price history: quotes open in <span className="tabular font-mono">{remaining === null ? "…" : formatDuration(remaining)}</span>.
-          You can prepare the mandate meanwhile.
+          Collecting price history: the policy's TWAP window is covered in{" "}
+          <span className="tabular font-mono">{remaining === null ? "…" : formatDuration(remaining)}</span>.
         </p>
       )}
     </div>

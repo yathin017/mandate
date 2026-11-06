@@ -6,21 +6,22 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SafeStep } from "@/onboarding/SafeStep";
 import { AnchorStep, useAnchorStatus } from "@/onboarding/AnchorStep";
-import { MandateStep } from "@/onboarding/MandateStep";
 import { ModuleStep } from "@/onboarding/ModuleStep";
+import { PolicyStep } from "@/onboarding/PolicyStep";
+import { StrategyStep } from "@/onboarding/StrategyStep";
 import { TokenStep } from "@/onboarding/TokenStep";
 import { useTokenInfo } from "@/onboarding/useTokenInfo";
 import { useSafeCheck } from "@/onboarding/useSafeCheck";
-import { useSafeMandates } from "@/onboarding/useSafeMandates";
+import { useSafePolicy } from "@/onboarding/useSafePolicy";
 import { cn } from "@/lib/utils";
 import { demoChain, isLive } from "@/wallet/config";
 
 type StepState = "done" | "current" | "upcoming";
 
 /**
- * Self-serve launch: Safe → tokens → module → anchor → mandate (proposed to a market maker, or created directly).
- * Choices live in the URL (?safe=…, ?mm=…, and the reviewed direct terms), so every owner can open the same link and
- * continue; each step's completion is read from the chain, not stored locally.
+ * Self-serve launch: Safe → tokens → module → anchor and liquidity → treasury policy → strategy (proposed to a market
+ * maker, or added directly). Choices live in the URL (?safe=…, ?mm=…, and the reviewed policy and terms), so every
+ * owner can open the same link and continue; each step's completion is read from the chain, not stored locally.
  */
 export function Onboarding() {
   const [params, setParams] = useSearchParams();
@@ -34,15 +35,21 @@ export function Onboarding() {
   const tokensDone =
     safeDone && baseCheck.info?.ok === true && quoteCheck.info?.ok === true && base!.toLowerCase() !== quote!.toLowerCase();
   const moduleDone = tokensDone && check.moduleEnabled;
-  const anchor = useAnchorStatus(tokensDone ? (base as Address) : null, tokensDone ? (quote as Address) : null);
-  const anchorReady = Boolean(anchor.data?.anchor && anchor.data.ready);
-  const display = (info: typeof baseCheck.info) => (info?.ok ? { symbol: info.symbol, decimals: info.decimals } : { symbol: "?", decimals: 18 });
-  const safeMandates = useSafeMandates(moduleDone ? (safe as Address) : null);
-  // Revoked mandates do not count: the issuer may start over with a new one for the same pair.
-  const pairMandates = (safeMandates.data ?? []).filter(
-    (m) => m.status !== 3 && m.base.toLowerCase() === base?.toLowerCase() && m.quote.toLowerCase() === quote?.toLowerCase(),
+  const safePolicy = useSafePolicy(moduleDone ? (safe as Address) : null, tokensDone ? (base as Address) : null);
+  const policy = safePolicy.data ?? null;
+  const anchor = useAnchorStatus(
+    tokensDone ? (base as Address) : null,
+    tokensDone ? (quote as Address) : null,
+    policy ? Number(policy.config.oracle.twapWindow) : undefined,
   );
-  const mandateDone = pairMandates.length > 0;
+  // An oracle on an empty pool is meaningless: the step is done once the pool has liquidity too.
+  const anchorDone = Boolean(anchor.data?.anchor && anchor.data.liquidity > 0n);
+  const display = (info: typeof baseCheck.info) => (info?.ok ? { symbol: info.symbol, decimals: info.decimals } : { symbol: "?", decimals: 18 });
+  const policyDone = Boolean(policy && policy.quote.toLowerCase() === quote?.toLowerCase());
+  const strategyDone = Boolean(policy?.strategies.some((s) => s.status !== 3));
+  const tokenRef = (info: typeof baseCheck.info) => (info?.ok ? { address: info.address, symbol: info.symbol, decimals: info.decimals } : null);
+  const baseRef = tokenRef(baseCheck.info);
+  const quoteRef = tokenRef(quoteCheck.info);
 
   const select = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
@@ -72,9 +79,9 @@ export function Onboarding() {
     },
     {
       title: "Price anchor",
-      description: "A Uniswap v4 pool with the oracle hook and 30 minutes of history.",
+      description: "A Uniswap v4 pool with the oracle hook, and liquidity in it.",
       // Independent of the module: anyone can launch the anchor while owners approve.
-      state: anchorReady ? "done" : tokensDone ? "current" : "upcoming",
+      state: anchorDone ? "done" : tokensDone ? "current" : "upcoming",
       body: tokensDone ? (
         <AnchorStep
           base={base as Address}
@@ -85,30 +92,51 @@ export function Onboarding() {
           holdings={{ base: baseCheck.balance, quote: quoteCheck.balance }}
           lpParam={params.get("lp")}
           onLp={(encoded) => select("lp", encoded)}
+          {...(policy ? { window: Number(policy.config.oracle.twapWindow) } : {})}
         />
       ) : undefined,
     },
     {
-      title: "Create the mandate",
-      description: "Terms, market maker, owners' approval.",
-      state: mandateDone ? "done" : moduleDone && anchor.data?.anchor ? "current" : "upcoming",
+      title: "Treasury policy",
+      description: "Release, limits shared by every strategy, price rules and market-risk thresholds. All yours to set.",
+      state: policyDone ? "done" : moduleDone && anchor.data?.anchor ? "current" : "upcoming",
       body:
-        moduleDone && anchor.data?.anchor && baseCheck.info?.ok && quoteCheck.info?.ok ? (
-          <MandateStep
+        moduleDone && anchor.data?.anchor && baseRef && quoteRef ? (
+          <PolicyStep
             safe={safe as Address}
             threshold={check.threshold}
-            base={{ address: baseCheck.info.address, symbol: baseCheck.info.symbol, decimals: baseCheck.info.decimals }}
-            quote={{ address: quoteCheck.info.address, symbol: quoteCheck.info.symbol, decimals: quoteCheck.info.decimals }}
-            anchor={anchor.data.anchor}
-            anchorReady={anchorReady}
-            anchorPriceX36={anchor.data.spotPriceX36}
-            holdings={{ base: baseCheck.balance, quote: quoteCheck.balance }}
-            mandates={pairMandates}
+            base={baseRef}
+            quote={quoteRef}
+            oracle={anchor.data.anchor}
+            holdings={baseCheck.balance !== undefined ? { base: baseCheck.balance } : {}}
+            policy={policy}
+            policyParam={params.get("policy")}
+            onPolicy={(encoded) => select("policy", encoded)}
+            onCreated={() => {
+              select("policy", null);
+              void safePolicy.refetch();
+            }}
+          />
+        ) : undefined,
+    },
+    {
+      title: "Strategy",
+      description: "A market maker runs it under the policy: proposed and signed, or added directly.",
+      state: strategyDone ? "done" : policyDone ? "current" : "upcoming",
+      body:
+        policyDone && policy && baseRef && quoteRef ? (
+          <StrategyStep
+            safe={safe as Address}
+            threshold={check.threshold}
+            base={baseRef}
+            quote={quoteRef}
+            policy={policy}
+            anchorPriceX36={anchor.data?.spotPriceX36}
             termsParam={params.get("terms")}
             onTerms={(encoded) => select("terms", encoded)}
             onCreated={() => {
               select("terms", null);
-              void safeMandates.refetch();
+              void safePolicy.refetch();
             }}
             mode={params.get("mode") === "direct" ? "direct" : "propose"}
             onMode={(m) => select("mode", m === "direct" ? "direct" : null)}
@@ -124,7 +152,7 @@ export function Onboarding() {
       <div>
         <h1 className="font-serif text-3xl font-semibold tracking-tight">Launch</h1>
         <p className="text-muted-foreground">
-          Set up a mandate for your own token on {demoChain.name}. Every step is a transaction you sign; nothing is custodial.
+          Set up market making for your own token on {demoChain.name}. Every step is a transaction you sign; nothing is custodial.
         </p>
       </div>
       {isLive && (
