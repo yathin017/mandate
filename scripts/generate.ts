@@ -46,6 +46,7 @@ const contracts = {
   demoState: "DemoState.sol/DemoState",
   scenarioActor: "ScenarioActor.sol/ScenarioActor",
   anchorLauncher: "AnchorLauncher.sol/AnchorLauncher",
+  tokenFactory: "TokenFactory.sol/TokenFactory",
   stateView: "IStateView.sol/IStateView",
   mockErc20: "MockERC20.sol/MockERC20",
 };
