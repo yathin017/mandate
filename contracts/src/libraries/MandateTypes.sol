@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 // DRAFT: field set and layout are not final; they may change with client requirements.
-// Keep MandateRegistry (Segment 4), MandateQuoter and the indexer schema in sync when editing.
+// Keep MandateModule, MandateQuoter and the indexer schema in sync when editing.
 
 /// @notice Lifecycle of a mandate. `None` means the id was never created.
 enum MandateStatus {

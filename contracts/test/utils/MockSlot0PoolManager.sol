@@ -7,6 +7,8 @@ contract MockSlot0PoolManager {
 
     function setTick(int24 tick) external {
         // Layout: [lpFee 24][protocolFee 24][tick 24][sqrtPriceX96 160]; only the tick is read by the anchor.
+        // Preserve the signed int24's two's-complement bits before widening into the packed slot.
+        // forge-lint: disable-next-line(unsafe-typecast)
         _slot0 = bytes32(uint256(uint24(tick)) << 160);
     }
 

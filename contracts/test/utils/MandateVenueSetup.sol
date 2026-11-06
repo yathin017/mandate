@@ -21,7 +21,8 @@ import { MockPriceAnchor } from "./MockPriceAnchor.sol";
 /// @title MandateVenueSetup
 /// @notice Shared setup for running MandateQuoter behind a real Aqua + AquaSwapVMRouter. Subclasses pick the
 ///         venue: freshly deployed from pinned source (integration) or the canonical deployment (fork).
-/// @dev The Safe is a plain address until MandateModule lands (Segment 4); Aqua only needs it as `msg.sender`.
+/// @dev Quoter-focused tests use a plain maker address to isolate pricing rules. MandateModuleForkTest uses
+///      a canonical Safe proxy with signed owner transactions for the full module lifecycle.
 abstract contract MandateVenueSetup is Test {
     bytes32 internal constant ID = keccak256("mandate-1");
     uint256 internal constant SHIP_LAUNCH = 10_000_000e18;

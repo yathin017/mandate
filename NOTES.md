@@ -3,7 +3,7 @@
 Verified facts, decisions and spec conflicts. Every entry names its source. If this file and
 `.agents/README.md` disagree, this file reflects what the code/chain actually does.
 
-Last verified: Nov 6, 2026, mainnet block ~26,355,100. Updated after Segment 3.
+Last verified: Nov 6, 2026. Fork tests pin mainnet block 26,355,000. Updated through Segment 4.
 
 ---
 
@@ -132,7 +132,7 @@ Code: `contracts/src/quoter/MandateQuoter.sol`. Strategy program: `[Salt(nonce),
     `EpochCapReached(used, requested, cap)`, `ReleaseExceeded(totalNetSold, requested, released)`,
     `AnchorDeviation(price, twap, deviationBps, maxBps)`.
 
-### For Segment 4 (MandateModule)
+### Module integration requirements (implemented in Segment 4)
 
 - **Every (re)ship needs a fresh salt.** Aqua never re-ships a docked hash (`StrategiesMustBeImmutable`).
 - The module must implement `IMandateRegistry.getMandate` and update `activeStrategyHash` atomically with
@@ -164,15 +164,54 @@ Code: `src/hook/MandateOracleHook.sol`, `src/anchor/UniswapV4TwapAnchor.sol`.
 - **Any failure blocks trading.** Unknown pair, zero window, missing history and out-of-range price all revert, and
   the quoter propagates the revert.
 
-> **Conflict with spec §11 Act 2:** "the attacker pumps the v4 pool first and tries to sell to the treasury →
-> AnchorDeviation" does not happen with a TWAP anchor, and that is by design: a same-block pump moves v4 spot but
-> not the TWAP (`test_flashPump_doesNotMoveAnchor`). What the anchor does block is a **sustained** market move that
-> leaves the treasury's Aqua price stale: after the v4 price falls to 0.30 and holds for the window, dumpers cannot
-> sell into the treasury at 0.40; when the market recovers, the same trade fills
-> (`test_sustainedCrash_blocksStaleExit_thenRecovers`). The Act 2 script should use this sequence. Adding a
-> v4 spot-vs-TWAP circuit breaker is possible later if we also want to pause during the pump itself.
+### Live-price circuit breaker
 
-## 9. Infra
+- The adapter also reads the pool's live tick through `StateLibrary.getSlot0`. If the resulting spot price is
+  more than its immutable `MAX_SPOT_DEVIATION_BPS` from the TWAP, `consult` reverts with `SpotTwapDivergence`.
+  The demo limit is 200 bps (2%). `snapshot(window)` reports spot, TWAP and deviation even when that breaker trips.
+- **Act 2 now has two distinct protections:** a same-block pump to 0.60 leaves the TWAP near 0.40 but trips
+  `SpotTwapDivergence`; after arbitrage restores spot, fills resume. A sustained crash to 0.30 eventually brings
+  spot and TWAP together, so the breaker clears, but the quoter's `AnchorDeviation` still refuses fills at the
+  stale treasury price. Recovery restores fills in both cases.
+- Sources: `contracts/src/anchor/UniswapV4TwapAnchor.sol`, `test/unit/UniswapV4TwapAnchor.t.sol`, and
+  `test/fork/V4Anchor.fork.t.sol` (`test_flashPump_tripsCircuitBreaker_thenRecovers` and
+  `test_sustainedCrash_blocksStaleExit_thenRecovers`). The replay must map each actual error accurately.
+
+## 9. Safe module (Segment 4)
+
+Code: `contracts/src/module/MandateModule.sol`, `src/libraries/MandateStrategy.sol`.
+
+- **One module for every Safe.** It deploys its own quoter in its constructor; the registry link and quoter target
+  cannot be independently misconfigured. Mandate ids include chain id, module address, Safe and a per-Safe counter.
+- **Issuer actions come from the Safe itself.** Owners authorize creation, bounds updates, unpause and revoke
+  through Safe transactions. The MM may reship inside the rails, pause and claim fees; it is never a Safe module.
+- **Quote inventory has an explicit rail:** `maxShippedQuote` caps the MM's requested virtual buyback inventory.
+  `shippedBase` is capped at `allotment - totalNetSold`; reshipping never resets sell counters or accrued fees.
+- **Direct claims, fixed share.** The MM claims its fraction of each token's cumulative fees, less prior claims.
+  The fee share is fixed at creation and earned fees remain claimable after revoke. Claims still require the module
+  to be enabled and the Safe to hold the owed tokens; there is no fee escrow or guaranteed solvency.
+- **Revoke changes status before attempting to dock.** A disabled module cannot dock through Safe, but the Safe's
+  signed transaction can still revoke in the registry. The quoter then rejects the still-shipped strategy.
+- **Bounds updates clamp live spread and epoch cap.** Shipped-inventory rails are rechecked on the next reship;
+  updating those rails alone does not dock or change existing Aqua virtual balances.
+- **Canonical Safe:** singleton `0x29fcB43b46531BcA003ddC8FCB67FFE91900C762`, factory
+  `0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67`. Verified against Safe's
+  [SafeL2 deployment manifest](https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.4.1/safe_l2.json)
+  and [factory manifest](https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.4.1/safe_proxy_factory.json).
+- Test-only ABI and EIP-712 signing helper are in `test/utils/SafeTransactions.sol`, verified against
+  [Safe v1.4.1](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/Safe.sol),
+  [ModuleManager](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/base/ModuleManager.sol), and
+  [SafeProxyFactory](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/proxies/SafeProxyFactory.sol).
+  Proxy setup is atomic with creation; owner signatures are sorted by address and sign the Safe's current nonce.
+- Coverage: `test/integration/MandateModule.integration.t.sol` covers the permission matrix offline with a mock Safe.
+  `test/fork/MandateModule.fork.t.sol` exercises a real 2-of-2 Safe against canonical Aqua, SwapVM and v4, including
+  both fee tokens, reship accounting, signer threshold and replay rejection, cross-Safe isolation, revoke after
+  disabling the module, and a blocked fill during a live price pump. Mock token supply and time-warped oracle
+  history are **SYNTHETIC**.
+- Verification on Nov 6: `MAINNET_RPC_URL=https://eth.drpc.org forge test` from `contracts/` passed **104 tests**,
+  with **0 failures and 0 skips**, including all 11 Safe-module fork tests. The offline suite passes 81 tests.
+
+## 10. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.
