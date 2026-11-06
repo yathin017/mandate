@@ -13,7 +13,11 @@ export interface PreparedCall {
   readonly to: Address;
   readonly data: Hex;
   readonly value: 0n;
-  readonly operation: 0;
+  /**
+   * Safe operation: 0 = CALL. 1 = DELEGATECALL, produced only for issuer-Safe batches through the chain's canonical
+   * MultiSendCallOnly (see liquidity.ts); wallet flows must refuse any other delegatecall target.
+   */
+  readonly operation: 0 | 1;
   /** Who must send it: the issuer Safe (via owners), the MM, either, a taker, anyone, or a mock token's owner. */
   readonly role: "issuer-safe" | "market-maker" | "either" | "taker" | "anyone" | "token-owner";
 }
