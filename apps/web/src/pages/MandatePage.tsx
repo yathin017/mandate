@@ -141,7 +141,7 @@ function Gauges({ snapshot, mandate, base, quote, series }: { snapshot: Snapshot
         </CardHeader>
         <CardContent>
           {series.length > 1 ? <ReleaseChart series={series} base={base} /> : <Skeleton className="h-[220px]" />}
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Stat label="Unlocked" value={<Source {...src("released")}>{formatUnits(snapshot.released, base.decimals, 0)}</Source>} />
             <Stat label="Net sold" value={formatUnits(snapshot.totalNetSold, base.decimals, 0)} />
             <Stat label="Sellable now" value={<Source {...src("sellableNow")}>{formatUnits(snapshot.sellableNow, base.decimals, 0)}</Source>} />
