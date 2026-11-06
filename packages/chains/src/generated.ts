@@ -61,7 +61,7 @@ export const deploymentData = [
     "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     "environment": "local-mainnet-fork",
     "forkBlock": 26355000,
-    "hook": "0xB45AF9b69157cbf5Ccc82EE8D2366eB187C15080",
+    "hook": "0xA33aEFd4A6886B118C1343089fcD765515849880",
     "liquidityRouter": "0xb10D1449D9506472C1DD8099e52dcb4bACfef927",
     "mm": "0xE99cf700591F3605ad4494E166D2f447F0F50a71",
     "module": "0x032b31cfe4B1bF841A08C6d5e04Dbdf450E7B455",
@@ -77,37 +77,20 @@ export const deploymentData = [
     "traditionalAnchor": "0x9156C7041f6743bf4aAF9f2B5737d6DD5a59F6A4",
     "traditionalMm": "0xEEaE62ce626c6A27b431A7f9670B7F209ab148F7",
     "traditionalSafe": "0x05B251A300F20ad990ADAb84d10acffa950b4C99",
-    "mandates": {
-      "act1": "0x180c2c1a162390bbb4adcc41b19771f18eb1599fcaedb2b331ccaf447e368811",
-      "act2": "0x6e9875e5d5664dc79ca29a9032b12c3b9327fe8ecfc6b16972ff1ceaec5ed43c",
-      "act3": "0x1e6ac1ba9df5380836e38f0880f2d99a1757bf1594fd674b9bba29afe9a9bea1"
+    "policies": {
+      "act1": "0xd7e0f52d3b1d7569dc88461e39cc918b89a92e7035243177cef13049da1d1b15",
+      "act2": "0xcb2a81f19cffff168ec3ba99eeb9fbdf97bee2805e4386046c525d1918543e31",
+      "act3": "0x37a47e022063e55360baaf1cd68f6c902039208a1e2e2ac0a7ccb00e8b73312b"
+    },
+    "strategies": {
+      "act1": "0xee5e59e75e8f5b47104f2410984e894c5369514d88fcdef995361ff34bfe8e31",
+      "act2": "0xcd1e96bc3435dd0ba2a5e8c93b4832674675374c5821a7c96a2b305e29275a4a",
+      "act3": "0xf5a673a85788861ed4afa6f8e7f0ed535d8e596dd44c0c5da26ae5e9dc816ef7"
     },
     "forkBlockHash": "0x289c2cbba1a950342537bebceb566995949821882a05a247570ad91f36606a71",
     "syntheticTokens": true,
     "syntheticOracleHistory": true,
-    "lastBlock": 26355230,
+    "lastBlock": 26355234,
     "replay": "replay/data/acts.json"
-  },
-  {
-    "anchor": "0x9B78f6553A921D1bea0722CAd111CDAE4299522B",
-    "anchorLauncher": "0x5551b2f6a48f86328981EEFD78138dec340C29fB",
-    "base": "0x66e185Dd1a99B36E955b8966fd8BbC430Cc64e8a",
-    "chainId": 8453,
-    "deployBlock": 53927227,
-    "deployer": "0x54f75F0E0da2b43b3a6AC0a0e5c4f5Df6B73308e",
-    "environment": "live",
-    "hook": "0x30Ff096F8582363807a9b5Cb15b84E7d98371080",
-    "liquidityRouter": "0xFa6C04ACed680109C374B25241FaD4AA86a92fF1",
-    "mandate": "0xb699954439ee4a37cde5dc2b21f8bcfe8458d78977cc7d4e99a2b16886a2bde8",
-    "mm": "0xbDafcA30260a4a5550cAD1F11928b26f1B063126",
-    "module": "0xC10ED38aDfB53c5E1262194d4Db420f6Fa82544d",
-    "owner2": "0x6a4fb4561051dD5B25619ab997152892008C7bF6",
-    "quote": "0x6f0f1764A727E1e160D4735cc656ddaeBE2879C9",
-    "quoter": "0xBb259F8DB3A9d3A48989cfb9B970D0B481aEd6D8",
-    "safe": "0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d",
-    "sourceChainId": 8453,
-    "swapRouter": "0x247590442AA5f45fb4740D873Ea259b93EE5a1c4",
-    "syntheticTokens": true,
-    "tokenFactory": "0x32feE1f159E80eE007B0d750d4eb47A513e40311"
   }
 ] as const;

@@ -53,17 +53,26 @@ test("invalid addresses, RPC secrets and unsafe explorer URLs are rejected", () 
 
 test("fork parser preserves runtime identity and synthetic-data disclosures", () => {
   assert.deepEqual(parseLocalForkDeployment(manifest), getLocalForkDeployment());
+  assert.throws(() => parseLocalForkDeployment({ ...manifest, policies: undefined }), /config object/);
   assert.throws(() => parseLocalForkDeployment({ ...manifest, chainId: 1 }), /runtime chain/);
   assert.throws(() => parseLocalForkDeployment({ ...manifest, syntheticTokens: false }), /synthetic labels/);
   assert.throws(() => parseLocalForkDeployment({ ...manifest, forkBlockHash: "0xabc" }), /forkBlockHash/);
 });
 
-test("live Base deployment is registered with explorer links and disclosed mock tokens", async () => {
-  const live = JSON.parse(await readFile(new URL("../../../deployments/8453.json", import.meta.url), "utf8"));
-  const deployment = getDeployment(8453);
+/** A v2 live manifest in the shape DeployBase writes (addresses are placeholders, not a real deployment). */
+const live = {
+  environment: "live", chainId: 8453, sourceChainId: 8453, deployBlock: 1, syntheticTokens: true,
+  ...Object.fromEntries(["module", "quoter", "anchor", "hook", "base", "quote", "deployer", "owner2", "mm", "safe",
+    "swapRouter", "liquidityRouter", "anchorLauncher", "tokenFactory"].map((field, i) =>
+    [field, `0x${(i + 1).toString(16).padStart(40, "0")}`])),
+  policy: `0x${"0a".repeat(32)}`, strategy: `0x${"0b".repeat(32)}`,
+};
+
+test("live deployments carry their policy and strategy, and disclose mock tokens", () => {
+  const deployment = parseDeployment(live);
   assert.ok(isLiveDeployment(deployment));
-  assert.equal(deployment.module, getAddress(live.module));
-  assert.equal(deployment.mandate, live.mandate);
+  assert.equal(deployment.policy, live.policy);
+  assert.equal(deployment.strategy, live.strategy);
   assert.equal(deployment.syntheticTokens, true);
   const tx = `0x${"ab".repeat(32)}` as Hash;
   assert.equal(getTransactionUrl(8453, tx), `https://basescan.org/tx/${tx}`);
@@ -72,4 +81,10 @@ test("live Base deployment is registered with explorer links and disclosed mock 
   assert.throws(() => parseDeployment({ ...live, syntheticTokens: false }), /mock tokens/);
   assert.throws(() => parseDeployment({ ...live, environment: "staging" }), /Unknown deployment environment/);
   assert.throws(() => parseDeployment({ ...live, anchorLauncher: "0x1234" }), /anchorLauncher|address/i);
+  assert.throws(() => parseDeployment({ ...live, strategy: undefined }), /strategy/);
+});
+
+test("a v1 manifest (single mandate id) is rejected rather than misread", () => {
+  const { policy: _p, strategy: _s, ...v1 } = live;
+  assert.throws(() => parseDeployment({ ...v1, mandate: `0x${"0c".repeat(32)}` }), /policy/);
 });

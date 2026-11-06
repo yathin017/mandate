@@ -48,7 +48,9 @@ export interface LocalForkDeployment extends MandateDeployment {
   readonly stateReader: Address;
   readonly swapRouter: Address;
   readonly liquidityRouter: Address;
-  readonly mandates: Readonly<Record<"act1" | "act2" | "act3", Hash>>;
+  /** Each act's Safe has one policy with one market-making strategy. */
+  readonly policies: Readonly<Record<"act1" | "act2" | "act3", Hash>>;
+  readonly strategies: Readonly<Record<"act1" | "act2" | "act3", Hash>>;
   readonly syntheticTokens: true;
   readonly syntheticOracleHistory: true;
   readonly lastBlock: number;
@@ -78,7 +80,9 @@ export interface LiveDeployment extends MandateDeployment {
   readonly safe: Address;
   readonly swapRouter: Address;
   readonly liquidityRouter: Address;
-  readonly mandate: Hash;
+  /** The demo Safe's treasury policy and its market-making strategy. */
+  readonly policy: Hash;
+  readonly strategy: Hash;
   /** AnchorLauncher for self-serve anchors, when deployed on this chain. */
   readonly anchorLauncher?: Address;
   /** TokenFactory for self-serve token launches, once deployed on this chain. */
@@ -144,13 +148,17 @@ export function parseLocalForkDeployment(value: unknown): LocalForkDeployment {
   if (d.syntheticTokens !== true || d.syntheticOracleHistory !== true) throw new Error("Fork demo must retain synthetic labels");
   const sourceChainId = integer(d.sourceChainId, "sourceChainId");
   if (sourceChainId !== 1) throw new Error("Only the mainnet fork is currently supported");
-  const mandates = object(d.mandates);
+  const acts = (value: unknown, field: string) => {
+    const source = object(value);
+    return Object.freeze({ act1: hash(source.act1, `${field}.act1`), act2: hash(source.act2, `${field}.act2`),
+      act3: hash(source.act3, `${field}.act3`) });
+  };
   return Object.freeze({
     environment: "local-mainnet-fork", chainId: 31337, sourceChainId,
     forkBlock: integer(d.forkBlock, "forkBlock"), forkBlockHash: hash(d.forkBlockHash, "forkBlockHash"),
     ...addresses(d, ["module", "quoter", "anchor", "hook", "base", "quote", "deployer", "safe1", "safe2", "safe3",
       "traditionalSafe", "traditionalMm", "traditionalAnchor", "mm", "taker", "stateReader", "swapRouter", "liquidityRouter"] as const),
-    mandates: Object.freeze({ act1: hash(mandates.act1, "act1"), act2: hash(mandates.act2, "act2"), act3: hash(mandates.act3, "act3") }),
+    policies: acts(d.policies, "policies"), strategies: acts(d.strategies, "strategies"),
     syntheticTokens: true, syntheticOracleHistory: true, lastBlock: integer(d.lastBlock, "lastBlock"), replay: text(d.replay, "replay"),
   });
 }
@@ -166,7 +174,7 @@ export function parseLiveDeployment(value: unknown): LiveDeployment {
     environment: "live", chainId, sourceChainId: chainId, deployBlock: integer(d.deployBlock, "deployBlock"),
     ...addresses(d, ["module", "quoter", "anchor", "hook", "base", "quote", "deployer", "owner2", "mm", "safe",
       "swapRouter", "liquidityRouter"] as const),
-    mandate: hash(d.mandate, "mandate"),
+    policy: hash(d.policy, "policy"), strategy: hash(d.strategy, "strategy"),
     ...(d.anchorLauncher === undefined ? {} : { anchorLauncher: address(d.anchorLauncher, "anchorLauncher") }),
     ...(d.tokenFactory === undefined ? {} : { tokenFactory: address(d.tokenFactory, "tokenFactory") }),
     syntheticTokens: true,
