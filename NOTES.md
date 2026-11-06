@@ -354,7 +354,7 @@ wallet flows; demo MM created through the Issuer console (existing demo MMs are 
 - **Trust boundary.** Transaction targets come from `@mandate/chains`; API data (mandate ids, params) only fills
   arguments that the contracts validate.
 - **Findings (fixed):** (1) the create payload used the latest block's time, so owner 1's `approveHash` tx changed
-  owner 2's calldata and hash; release start is now day-rounded. (2) Views refreshed before the indexer had the new
+  owner 2's calldata and hash; release start is now day-rounded (later replaced by an absolute UTC date, §16). (2) Views refreshed before the indexer had the new
   block; `useTx` now waits for the indexer head. (3) An executed Safe action re-armed itself at the next nonce; the
   panel now locks.
 - **Verification.** `apps/web/test/safe-flow.test.ts` (3 tests) runs approve → execute → new mandate → MM reship in
@@ -403,7 +403,7 @@ for Safe owner 2 and the MM (gitignored .env only); contracts first, then app wi
 - **Indexer RPC:** `mainnet.base.org` refuses every `eth_getLogs` (-32011); the Tenderly public gateway serves logs up
   to ~1000-block ranges (2000 hangs). `.env` uses it with 15 s polling, concurrency 1, 500-block ranges.
 
-## 16. Self-serve onboarding (Segment 11, in progress)
+## 16. Self-serve onboarding (Segment 11)
 
 Decisions (user): launcher creates pool + anchor only (no liquidity custody); in-app Safe creation; canonical
 quote list (Base USDC/WETH) + custom with impersonation warnings; demo-only mock-token helper.
@@ -418,6 +418,33 @@ quote list (Base USDC/WETH) + custom with impersonation warnings; demo-only mock
 - **Token check:** `code.length > 0` is not enough. A fork test hit an address with code that is not a token
   (EIP-7702 delegation). Tokens must answer `totalSupply()` with one word.
 - **History:** the init observation counts, so the anchor prices 30 minutes after launch even with no swaps.
+- **Wizard** (`/onboard`, `apps/web/src/onboarding/`): Safe → tokens → module → anchor → mandate, each step's
+  completion read from the chain (no indexer needed). Choices live in the URL.
+- **Terms module** (`apps/web/src/issuer/terms.ts`, pure, unit-tested): one conversion from typed terms to
+  `createMandate` arguments for the wizard, the Issuer Console and the CLI, so all owners build identical calldata.
+  Release start is an absolute UTC date: the earlier "days ago, day-rounded" input changed the Safe tx hash when
+  owners approved on different days.
+- **Shared terms:** reviewed terms go into the URL (`terms=`, JSON of known string fields only, ≤4 KB). A link can
+  come from anyone, so the review step reads back every signed value (MM, pair, anchor, amounts, dates).
+- **Starting price (finding):** fills are constant-product over the shipped balances, so `shippedQuote/shippedBase`
+  is where trading starts. A first wizard run shipped 1,000,000 base against 10,000 quote (0.01 vs a 0.40 pool):
+  every fill would fail `AnchorDeviation` and every sell `BelowFloor`. The form now refuses a ratio below the floor
+  or outside the anchor tolerance of the pool price and suggests matching amounts.
+- **Depth vs fill size:** with 25,000 base shipped, a 1,000-base buy moves the curve ~4%; with the 0.8% spread it
+  leaves the 3% band and is refused. 100 base fills. Shipped inventory bounds the largest fill the anchor allows.
+- **Balances:** shipping more than the Safe holds is refused (Aqua balances are virtual; fills would fail at
+  transfer). An allotment above the balance and an MM who is also a Safe owner are warnings only.
+- **Creation before readiness:** `createMandate` does not consult the anchor, so the mandate can be created during
+  the 30-minute window; quotes fail until it passes.
+- **Co-owner CLI** (`apps/web/scripts/approve-terms.ts`): rebuilds the call from a wizard link, prints all terms
+  and the Safe tx hash, `--broadcast` sends `approveHash`; `--nonce` pre-approves behind a pending Safe transaction.
+- **Live run (Base):** `OnboardPair.s.sol` (Owner 1: dNOVA/dUSD, 2-of-2 Safe `0xB88E…5456`, anchor `0xC4C9…8e7a`
+  with 6e17 full-range liquidity, approval of `enableModule` at nonce 0; 12 txs from block 53973676, ~0.00006 ETH),
+  then the CLI approved `createMandate` at nonce 1. Owner 2 executed both from the wizard in a browser wallet:
+  mandate `0xeb3a5ead…c2a648`. Rehearsed first on an Anvil fork of Base (Owner 2 impersonated) with the real UI.
+- **Public RPC staleness:** `mainnet.base.org` is load-balanced; two reads seconds apart returned Safe nonces 1 and
+  2. A wallet flow that reads a stale nonce shows the wrong approvals until it refreshes. Open item: point wallet
+  reads at a consistent RPC and say why **Execute** is disabled.
 
 ## 17. Infra
 
