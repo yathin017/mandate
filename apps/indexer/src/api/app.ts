@@ -1,5 +1,4 @@
 import { getConnInfo } from "@hono/node-server/conninfo";
-import { readFile } from "node:fs/promises";
 
 import { zValidator } from "@hono/zod-validator";
 import { sql } from "drizzle-orm";
@@ -44,8 +43,6 @@ export interface AppDeps {
   readonly chain?: () => Promise<ChainContext>;
   /** Client identity for rate limiting. Defaults to the socket address; proxy headers are never trusted. */
   readonly clientIp?: (c: Context) => string;
-  /** Path of the committed replay export served at /v1/replay (optional). */
-  readonly replayPath?: string;
   /** Max concurrent SSE streams per process (default 500). */
   readonly maxStreams?: number;
   /** SSE heartbeat interval (default 15s). */
@@ -242,29 +239,6 @@ export function createApp(deps: AppDeps) {
       );
     },
   );
-
-  /**
-   * Committed demo evidence (`replay/data/acts.json`): both sides of each act, including the traditional-loan
-   * side that is not mandate history. Static per deployment, so it is read once and cached by browsers.
-   */
-  let replay: Promise<unknown> | undefined;
-  app.get("/v1/replay", async (c) => {
-    if (!deps.replayPath) return c.json({ error: "no replay configured" }, 404);
-    replay ??= readFile(deps.replayPath, "utf8").then((text) => {
-      const parsed = JSON.parse(text) as { schemaVersion?: number; environment?: string };
-      if (parsed.schemaVersion !== 1 || typeof parsed.environment !== "string") throw new Error("unexpected replay format");
-      return parsed;
-    });
-    try {
-      const body = await replay;
-      c.header("cache-control", "public, max-age=300");
-      return c.json(body as object);
-    } catch (error) {
-      replay = undefined;
-      log(`replay unavailable: ${error instanceof Error ? error.message : String(error)}`);
-      return c.json({ error: "replay unavailable" }, 503);
-    }
-  });
 
   let openStreams = 0;
   const maxStreams = deps.maxStreams ?? 500;

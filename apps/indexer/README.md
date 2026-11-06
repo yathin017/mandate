@@ -59,7 +59,6 @@ includes `head: { number, hash }`, the block it reflects.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/health` | DB, Redis and head |
-| GET | `/v1/replay` | Committed demo evidence (`replay/data/acts.json`, both sides of each act; `REPLAY_PATH` overrides) |
 | GET | `/v1/chains/:chainId/mandates?safe=&mm=` | Mandate projections with token symbol/decimals |
 | GET | `/v1/chains/:chainId/mandates/:id` | Terms, latest snapshot, environment disclosure |
 | GET | `/v1/chains/:chainId/mandates/:id/activity?limit=&before=` | Fills + blocked/simulated attempts, newest first, keyset cursor in `next` |
