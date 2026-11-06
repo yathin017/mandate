@@ -4,6 +4,16 @@
 
 Built for ETHGlobal Mumbai 2026.
 
+**One place for new token issuers and market makers on Base:**
+
+| Issuers | Market makers |
+|---|---|
+| Launch a fixed-supply token straight into a Safe (TokenFactory) | Publish a profile in the marketplace |
+| Open a Uniswap v4 pool and a TWAP anchor (AnchorLauncher) | Are ranked by an onchain-only score (availability, price quality, volume, reliability, responsiveness) |
+| Pick a market maker by score and propose terms | Accept terms by signing them exactly (EIP-712, no gas) |
+| Owners execute the mandate through the Safe; pause or revoke any time | Operate inside the rails; claim their fee share directly |
+| Track sold vs released, daily cap, fills, MM pay, refused trades | Track volume, earned and claimable fees, refused trades |
+
 - Product spec: [`.agents/README.md`](.agents/README.md)
 - Verified facts and decisions: [`NOTES.md`](NOTES.md)
 
@@ -39,6 +49,13 @@ MAINNET_RPC_URL=https://eth.drpc.org pnpm contracts:test
 The module fork suite creates a 2-of-2 Safe through the canonical factory and signs issuer transactions with
 generated test keys. It verifies token transfers, direct MM fee claims, reshipping, pause/revoke, cross-Safe
 isolation and the live-price circuit breaker. Token supply and oracle history in these tests are synthetic.
+
+## Platform lifecycle test
+
+`apps/indexer/test/lifecycle.test.ts` runs the whole platform on the local fork with the real contracts, API, indexer
+and prober: a TokenFactory launch into a new 2-of-2 Safe, the module, an anchor with history, a listed market maker, a
+proposal, the market maker's signed acceptance, execution through the Safe, a taker trade, then both sides' analytics
+and a scored market maker. Run it with the indexer suite (`pnpm indexer:test`, see `apps/indexer/README.md`).
 
 ## Scenario replay
 

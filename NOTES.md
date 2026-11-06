@@ -446,7 +446,7 @@ quote list (Base USDC/WETH) + custom with impersonation warnings; demo-only mock
   2. A wallet flow that reads a stale nonce shows the wrong approvals until it refreshes. Open item: point wallet
   reads at a consistent RPC and say why **Execute** is disabled.
 
-## 17. Platform: issuers and market makers (Segment 12, in progress)
+## 17. Platform: issuers and market makers (Segment 12)
 
 Goal (user): one place on Base where anyone launches a token, onboards it, picks a market maker from a marketplace
 with scores, creates and manages mandates; market makers get their own flows and analytics. Replay page goes.
@@ -503,6 +503,14 @@ Replay) → issuer flow → MM flow → E2E + docs.
   Found while building it: snapshot `fees*` are the *total* spread fees, while the market maker is paid
   `fees × mmFeeShareBps` (`MandateModule._claimable`); the issuer page had been showing total fees as MM pay. Summaries
   now return `mmEarned*`. Radix tabs switch on mousedown, so scripted `.click()` does not change tabs (real clicks do).
+- **E2E (done):** `apps/indexer/test/lifecycle.test.ts` (4 tests). Found: `evm_increaseTime` does not move this Anvil's
+  clock (the scoring test's "10 minutes per round" never happened); fork tests now mine with explicit timestamps.
+- **RPC follow-up:** the "stuck Execute" on Base was not proven to be stale reads: the nonce jump I saw matched the
+  owner's own execution landing. 30 samples each from `mainnet.base.org` and the Tenderly gateway never went backwards;
+  both allow browser CORS. Instead of switching RPCs, the Safe panel now says why Execute is disabled.
+  `VITE_RPC_URL` still overrides the app's RPC.
+- **Header:** the environment tag ("BASE · MOCK TOKENS") was removed at the user's request; mandate pages keep their
+  mock/synthetic disclosure.
 
 ## 18. Infra
 
