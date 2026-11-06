@@ -37,5 +37,18 @@ The module fork suite creates a 2-of-2 Safe through the canonical factory and si
 generated test keys. It verifies token transfers, direct MM fee claims, reshipping, pause/revoke, cross-Safe
 isolation and the live-price circuit breaker. Token supply and oracle history in these tests are synthetic.
 
-The quoter, v4 anchor and Safe module are implemented. Next: deterministic scenario scripts and replay JSON
-(Acts 1–3 in the product spec), followed by the Replay Theater.
+## Scenario replay
+
+```sh
+pnpm replay:run
+pnpm replay:test
+pnpm replay:verify
+```
+
+This starts a fresh local Anvil fork, deploys the demo, broadcasts Acts 1–3 and exports
+[`replay/data/acts.json`](replay/data/acts.json) plus actual transaction receipts. The generated
+[`deployments/1.json`](deployments/1.json) describes a **local fork of mainnet**, with runtime chain id 31337.
+See [`replay/README.md`](replay/README.md) for the scenario inputs, evidence format and synthetic-data disclosures.
+
+Segments 1–5 are implemented: quoter, v4 anchor, Safe module, deployment scripts and replay export.
+Next: `packages/chains` and `packages/sdk` (ABIs and error mapping); indexer and web follow at their own gates.

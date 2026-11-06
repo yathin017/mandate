@@ -3,7 +3,7 @@
 Verified facts, decisions and spec conflicts. Every entry names its source. If this file and
 `.agents/README.md` disagree, this file reflects what the code/chain actually does.
 
-Last verified: Nov 6, 2026. Fork tests pin mainnet block 26,355,000. Updated through Segment 4.
+Last verified: Nov 6, 2026. Fork tests pin mainnet block 26,355,000. Updated through Segment 5.
 
 ---
 
@@ -94,7 +94,7 @@ Source: `aqua/src/Aqua.sol`, `swap-vm/src/SwapVM.sol`. Verified on fork.
 - Shipping an existing hash reverts (`StrategiesMustBeImmutable`); `dock` must list all tokens.
 - Maker only approves Aqua. On fill Aqua `pull`s `tokenOut` from the maker wallet straight to the taker.
 - Taker pays `tokenIn` by calling `Aqua.push(maker, router, orderHash, tokenIn, amount)` inside
-  `preTransferInCallback` (see `test/utils/AquaTaker.sol`), or via the `useTransferFromAndAquaPush` trait.
+  `preTransferInCallback` (see `src/mocks/AquaTaker.sol`), or via the `useTransferFromAndAquaPush` trait.
 
 ## 6. Taker gating
 
@@ -198,7 +198,7 @@ Code: `contracts/src/module/MandateModule.sol`, `src/libraries/MandateStrategy.s
   `0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67`. Verified against Safe's
   [SafeL2 deployment manifest](https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.4.1/safe_l2.json)
   and [factory manifest](https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.4.1/safe_proxy_factory.json).
-- Test-only ABI and EIP-712 signing helper are in `test/utils/SafeTransactions.sol`, verified against
+- Fork/test ABI and EIP-712 signing helper are in `script/lib/SafeTransactions.sol`, verified against
   [Safe v1.4.1](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/Safe.sol),
   [ModuleManager](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/base/ModuleManager.sol), and
   [SafeProxyFactory](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/proxies/SafeProxyFactory.sol).
@@ -211,7 +211,45 @@ Code: `contracts/src/module/MandateModule.sol`, `src/libraries/MandateStrategy.s
 - Verification on Nov 6: `MAINNET_RPC_URL=https://eth.drpc.org forge test` from `contracts/` passed **104 tests**,
   with **0 failures and 0 skips**, including all 11 Safe-module fork tests. The offline suite passes 81 tests.
 
-## 10. Infra
+## 10. Deployment and replay (Segment 5)
+
+- `DeployFork.s.sol` broadcasts normal contract creations to chain 31337. The hook uses a salt mined with the
+  pinned v4-periphery `HookMiner` and the standard CREATE2 deployer proxy `0x4e59b44847b379578588920cA78FbF26c0B4956C`.
+  The broadcast verifies its predicted address; no code injection is used. `SeedV4Pool.s.sol` seeds separate
+  anchor and traditional-loan pools on the canonical PoolManager.
+- Four canonical Safe proxies require two signatures each. Three hold independent mandate inventories for
+  Acts 1–3; the fourth transfers a traditional 10M token loan to its MM through a signed Safe transaction.
+  All scripts use Anvil's public development mnemonic and reject runtime chains other than 31337.
+- **Manifest semantics:** `deployments/1.json` is a generated demo manifest for a fork **of** chain 1. It explicitly
+  records `environment: local-mainnet-fork`, `chainId: 31337`, `sourceChainId: 1`, the pinned block and its hash.
+  These are not deployed mainnet addresses or Etherscan transaction hashes.
+- The zero-dependency Node 24 runner `replay/export.ts` owns its Anvil process, refuses an occupied loopback port,
+  invokes the scripts, advances synthetic history and exports confirmed receipts and block-specific snapshots.
+  General ABIs/client wrappers remain Segment 6 work.
+- **Verified time-control detail:** Anvil's fixed block timestamp interval overrides `evm_increaseTime` in this
+  workflow. The runner temporarily changes `anvil_setBlockTimestampInterval`, mines a block and checks the actual
+  timestamp delta. It warms an hour of history initially and a full 1801 seconds after the crash/recovery phases.
+  Source: the executed local RPC workflow and [Anvil's timestamp API](https://foundry-rs.github.io/foundry/anvil/eth/api/struct.EthApi.html).
+- **Synthetic scenarios:** Act 1 uses a 50,000-LAUNCH cap so price impact stays in the 3% anchor band. Five 10,000
+  fills succeed and the sixth is capped. Act 2 uses 150 equal 894,000-token intents totaling 134.1M LAUNCH, a
+  separate 134.1M allocation and 1.341M epoch cap. One fills; the next full intent exceeds the remaining 447,000.
+  This is not verified FUN transaction data, historical timing/routing or a reproduction of 111.5 ETH proceeds.
+  Quote amounts are in synthetic 6-decimal sUSDC. The export uses explicit SYNTHETIC labels throughout.
+- **Blocked-attempt evidence:** `ScenarioActor` catches an actual inner-call revert, verifies its selector and
+  emits the complete bytes. Its outer transaction succeeds. Exported `outerReceiptStatus` and the top-level
+  disclosure make this distinction explicit. Unexpected outcomes stop the scenario rather than create a row.
+- Each replay snapshot is read from `DemoState.snapshot` at its attempt's receipt block, with block hash and
+  function provenance. Raw receipts retain `Attempted`, `Filled`, Safe and ERC20 `Transfer` logs. Release, sell
+  caps, custody, parameter changes and claims remain auditable after the runner stops its node.
+- The end-to-end run produces **178 steps, including 156 blocked inner calls**. The complete Solidity suite
+  passes **111 tests, 0 failures, 0 skips**. New unit tests ensure mismatched outcomes cannot be recorded as a
+  success or expected block. **All 7 Node replay tests pass** and reconcile receipts, transfer amounts, Safe
+  balances and sell counters. Two consecutive fresh-node runs produced byte-identical `acts.json`,
+  `receipts.json` and `deployments/1.json`.
+- `replay/README.md` documents commands, the draft export format and demo limitations. Segment 6 is next; no
+  indexer schema, Redis implementation or web application is included in this segment.
+
+## 11. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.
