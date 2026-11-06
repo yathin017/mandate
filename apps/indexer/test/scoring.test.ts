@@ -41,8 +41,9 @@ describe("market-maker scoring on the demo chain", { skip }, () => {
     let written = 0;
     for (let round = 0; round < 6; round++) {
       // Ten minutes of chain time per round, as the worker would see it.
-      await rpc(config.INDEXER_RPC_URL, "evm_increaseTime", [600]);
-      await rpc(config.INDEXER_RPC_URL, "evm_mine");
+      // Explicit timestamp: evm_increaseTime does not move this Anvil's clock.
+      const now = (await indexed.ctx.client.getBlock()).timestamp;
+      await rpc(config.INDEXER_RPC_URL, "evm_mine", [`0x${(now + 600n).toString(16)}`]);
       while (await indexed.indexer.step()) {
         /* index the new block */
       }
