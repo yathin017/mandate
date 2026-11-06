@@ -143,18 +143,19 @@ export async function activity(
 
 /**
  * Per-mandate figures for an issuer Safe's overview or a market maker's desk, from indexed rows only: the latest
- * snapshot (sold, released, today's sales, fees), fill count and quote volume, and refused attempts. Amounts are raw
- * token units.
+ * snapshot (sold, released, today's sales, total spread fees and the market maker's share of them), fill count and
+ * quote volume, and refused attempts. Amounts are raw token units.
  */
 export async function mandateSummary(db: Db, chainId: number, filter: { safe: string } | { mm: string }) {
   const party = "safe" in filter ? sql`m.safe = ${filter.safe}` : sql`m.mm = ${filter.mm}`;
   const rows = await db.execute<{
     mandate_id: string; status: number; mm: string; base: string; quote: string;
-    allotment: string; total_net_sold: string | null; released: string | null; net_sold_this_epoch: string | null;
+    allotment: string; mm_fee_share_bps: string; total_net_sold: string | null; released: string | null; net_sold_this_epoch: string | null;
     epoch_cap: string | null; fees_base: string | null; fees_quote: string | null; claimed_base: string | null;
     claimed_quote: string | null; anchor_status: string | null; fills: number; quote_volume: string; refused: number;
   }>(sql`
     SELECT m.mandate_id, m.status, m.mm, m.base, m.quote, m.bounds->>'allotment' AS allotment,
+           m.bounds->>'mmFeeShareBps' AS mm_fee_share_bps,
            s.total_net_sold::text, s.released::text, s.net_sold_this_epoch::text, s.epoch_cap::text,
            s.fees_base::text, s.fees_quote::text, s.claimed_base::text, s.claimed_quote::text, s.anchor_status::text,
            coalesce(f.fills, 0)::int AS fills, coalesce(f.quote_volume, 0)::text AS quote_volume,
@@ -173,6 +174,8 @@ export async function mandateSummary(db: Db, chainId: number, filter: { safe: st
     ) a ON true
     WHERE m.chain_id = ${chainId} AND ${party}
     ORDER BY m.created_block DESC`);
+  // Snapshot fees are the total spread fees; the market maker earns its fixed share (MandateModule._claimable).
+  const share = (fees: string | null, bps: string) => ((BigInt(fees ?? "0") * BigInt(bps)) / 10_000n).toString();
   return rows.map((r) => ({
     mandateId: r.mandate_id,
     status: r.status,
@@ -188,6 +191,9 @@ export async function mandateSummary(db: Db, chainId: number, filter: { safe: st
     feesQuote: r.fees_quote ?? "0",
     claimedBase: r.claimed_base ?? "0",
     claimedQuote: r.claimed_quote ?? "0",
+    mmFeeShareBps: Number(r.mm_fee_share_bps),
+    mmEarnedBase: share(r.fees_base, r.mm_fee_share_bps),
+    mmEarnedQuote: share(r.fees_quote, r.mm_fee_share_bps),
     anchorStatus: r.anchor_status,
     fills: r.fills,
     quoteVolume: r.quote_volume,

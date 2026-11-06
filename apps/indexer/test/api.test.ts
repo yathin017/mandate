@@ -140,6 +140,10 @@ describe("read API over the indexed demo chain", { skip }, () => {
       const detail = (await (await get(`${base}/mandates/${m.mandateId}`)).json()).data;
       assert.equal(row.totalNetSold, detail.snapshot.totalNetSold);
       assert.equal(row.tokens.base.symbol, "LAUNCH");
+      // The market maker's share of the spread fees, as MandateModule._claimable computes it.
+      const share = BigInt(row.mmFeeShareBps);
+      assert.equal(row.mmEarnedQuote, ((BigInt(row.feesQuote) * share) / 10_000n).toString());
+      assert.ok(BigInt(row.claimedQuote) <= BigInt(row.mmEarnedQuote));
     }
     assert.deepEqual((await (await get(`${base}/safes/0x000000000000000000000000000000000000beef/summary`)).json()).data, []);
     // The market maker's view lists the same mandates, keyed by their market maker.
