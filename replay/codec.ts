@@ -1,0 +1,79 @@
+// Narrow ABI decoding for this segment's fixed snapshot and event formats.
+// General contract ABIs and client wrappers belong to the SDK in Segment 6.
+export function words(data: string): bigint[] {
+  if (!/^0x(?:[0-9a-fA-F]{64})*$/.test(data)) throw new Error("Malformed ABI words");
+  return data.slice(2).match(/.{64}/g)?.map((word) => BigInt(`0x${word}`)) ?? [];
+}
+
+function dynamicBytes(data: string, offset: bigint): string {
+  const start = Number(offset) * 2;
+  const payload = data.slice(2);
+  if (!Number.isSafeInteger(start) || start < 0 || start + 64 > payload.length) throw new Error("Invalid ABI offset");
+  const length = Number(BigInt(`0x${payload.slice(start, start + 64)}`));
+  if (!Number.isSafeInteger(length) || start + 64 + length * 2 > payload.length) throw new Error("Truncated ABI bytes");
+  return `0x${payload.slice(start + 64, start + 64 + length * 2)}`;
+}
+
+export function decodeAttempt(data: string) {
+  const fields = words(data);
+  if (fields.length < 4 || fields[0] >= 1n << 160n || fields[1] > 1n || fields[2] !== 96n) {
+    throw new Error("Malformed Attempted event");
+  }
+  return {
+    target: `0x${fields[0].toString(16).padStart(40, "0")}`,
+    success: fields[1] === 1n,
+    result: dynamicBytes(data, fields[2]),
+  };
+}
+
+export const SNAPSHOT_FIELDS = [
+  "safeBase", "safeQuote", "epochNetSold", "totalNetSold", "traditionalBase", "traditionalQuote",
+  "v4SpotX36", "twapX36", "claimedBase", "claimedQuote", "released", "remainingThisEpoch", "traditionalSpotX36",
+  "spreadBps", "epochCap", "strategyNonce", "status",
+] as const;
+
+export function decodeSnapshot(data: string): Record<string, string> {
+  const values = words(data);
+  if (values.length !== SNAPSHOT_FIELDS.length) throw new Error("Snapshot ABI does not match schema");
+  return Object.fromEntries(SNAPSHOT_FIELDS.map((name, i) => [name, values[i].toString()]));
+}
+
+export const ERROR_SIGNATURES = {
+  EpochCapReached: "EpochCapReached(uint256,uint256,uint256)",
+  SpotTwapDivergence: "SpotTwapDivergence(uint256,uint256,uint256,uint256)",
+  AnchorDeviation: "AnchorDeviation(uint256,uint256,uint256,uint256)",
+  ParamsOutOfBounds: "ParamsOutOfBounds(string)",
+  SafeError: "Error(string)",
+  MandatePaused: "MandatePaused()",
+  MandateIsRevoked: "MandateIsRevoked()",
+} as const;
+
+export function decodeFailure(data: string, selectors: Record<string, string>) {
+  const selector = data.slice(0, 10).toLowerCase();
+  const name = selectors[selector];
+  if (!name) throw new Error(`Unmapped scenario error ${selector}`);
+  const body = `0x${data.slice(10)}`;
+  const args = name === "ParamsOutOfBounds" || name === "SafeError"
+    ? [Buffer.from(dynamicBytes(body, words(body)[0]).slice(2), "hex").toString("utf8")]
+    : words(body).map(String);
+  const messages: Record<string, string> = {
+    EpochCapReached: "Blocked by Mandate · The requested sale exceeds the current epoch sell limit.",
+    SpotTwapDivergence: "Blocked by Mandate · The live Uniswap price differs too far from its average. Possible manipulation.",
+    AnchorDeviation: "Blocked by Mandate · The execution price differs too far from the Uniswap average.",
+    ParamsOutOfBounds: `Blocked by Mandate · ${args[0]} exceeds the issuer's bounds.`,
+    SafeError: `Blocked by Safe · ${args[0]}: the MM is not an enabled Safe module.`,
+    MandatePaused: "Blocked by Mandate · This mandate is paused.",
+    MandateIsRevoked: "Blocked by Mandate · This mandate has been permanently revoked.",
+  };
+  if (name === "SafeError" && args[0] !== "GS104") throw new Error(`Unexpected Safe error ${args[0]}`);
+  return { selector, name, args, message: messages[name] };
+}
+
+export function assertLocalRpc(value: string): URL {
+  const url = new URL(value);
+  if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)
+      || !url.port || Number(url.port) < 1024 || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("Replay requires a loopback HTTP RPC URL with an explicit unprivileged port");
+  }
+  return url;
+}

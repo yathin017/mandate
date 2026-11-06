@@ -9,6 +9,9 @@
   "scripts": {
     "contracts:build": "cd contracts && forge build",
     "contracts:test": "set -a; [ -f .env ] && . ./.env; set +a; cd contracts && forge test",
-    "fork": "set -a; . ./.env; set +a; anvil --fork-url \"$MAINNET_RPC_URL\" --fork-block-number $(jq -r .forkBlock config/chains/1.json)"
+    "fork": "set -a; . ./.env; set +a; anvil --fork-url \"$MAINNET_RPC_URL\" --fork-block-number $(jq -r .forkBlock config/chains/1.json)",
+    "replay:run": "node --env-file-if-exists=.env replay/export.ts",
+    "replay:test": "node --test replay/replay.test.ts",
+    "replay:verify": "node replay/verify.ts"
   }
 }

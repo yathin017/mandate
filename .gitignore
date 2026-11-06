@@ -8,6 +8,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Local replay node logs and run lock
+.local/
+
 # Foundry
 contracts/out/
 contracts/cache/
