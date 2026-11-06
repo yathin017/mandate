@@ -53,7 +53,7 @@ export function ConnectButton() {
 }
 
 /** Proves the connected address to the API (profiles, proposals). Disconnecting the wallet also signs out. */
-function SignInButton() {
+export function SignInButton() {
   const { signedIn } = useSession();
   const signIn = useSignIn();
   const signOut = useSignOut();
