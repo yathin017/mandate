@@ -3,6 +3,7 @@ pragma solidity 0.8.30;
 
 import { Test } from "forge-std/Test.sol";
 
+import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -10,18 +11,23 @@ import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 
 import { UniswapV4TwapAnchor } from "../../src/anchor/UniswapV4TwapAnchor.sol";
 
+import { MockSlot0PoolManager } from "../utils/MockSlot0PoolManager.sol";
 import { MockTickObserver } from "../utils/MockTickObserver.sol";
 
 contract UniswapV4TwapAnchorTest is Test {
     address internal constant TOKEN_LO = address(0x1000);
     address internal constant TOKEN_HI = address(0x2000);
 
+    uint16 internal constant MAX_SPOT_DEV = 200; // 2%
+
     MockTickObserver internal observer;
+    MockSlot0PoolManager internal manager;
     UniswapV4TwapAnchor internal baseIs0; // base = currency0
     UniswapV4TwapAnchor internal baseIs1; // base = currency1
 
     function setUp() public {
         observer = new MockTickObserver();
+        manager = new MockSlot0PoolManager();
         PoolKey memory key = PoolKey({
             currency0: Currency.wrap(TOKEN_LO),
             currency1: Currency.wrap(TOKEN_HI),
@@ -29,8 +35,9 @@ contract UniswapV4TwapAnchorTest is Test {
             tickSpacing: 60,
             hooks: IHooks(address(observer))
         });
-        baseIs0 = new UniswapV4TwapAnchor(key, TOKEN_LO, TOKEN_HI);
-        baseIs1 = new UniswapV4TwapAnchor(key, TOKEN_HI, TOKEN_LO);
+        IPoolManager pm = IPoolManager(address(manager));
+        baseIs0 = new UniswapV4TwapAnchor(pm, key, TOKEN_LO, TOKEN_HI, MAX_SPOT_DEV);
+        baseIs1 = new UniswapV4TwapAnchor(pm, key, TOKEN_HI, TOKEN_LO, MAX_SPOT_DEV);
     }
 
     function test_tickZero_isParity() public view {
@@ -74,6 +81,7 @@ contract UniswapV4TwapAnchorTest is Test {
 
     function test_consult_returnsTwapPrice() public {
         observer.set(1000, 1000 + int56(-285_488) * 1800);
+        manager.setTick(-285_488);
         assertEq(baseIs0.consult(TOKEN_LO, TOKEN_HI, 1800), baseIs0.priceAtTick(-285_488));
     }
 
@@ -96,7 +104,45 @@ contract UniswapV4TwapAnchorTest is Test {
             hooks: IHooks(address(observer))
         });
         vm.expectRevert(abi.encodeWithSelector(UniswapV4TwapAnchor.PairNotInPool.selector, TOKEN_LO, address(0xBEEF)));
-        new UniswapV4TwapAnchor(key, TOKEN_LO, address(0xBEEF));
+        new UniswapV4TwapAnchor(IPoolManager(address(manager)), key, TOKEN_LO, address(0xBEEF), MAX_SPOT_DEV);
+    }
+
+    function test_constructor_revertsOnZeroDeviationLimit() public {
+        PoolKey memory key = PoolKey({
+            currency0: Currency.wrap(TOKEN_LO),
+            currency1: Currency.wrap(TOKEN_HI),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(observer))
+        });
+        vm.expectRevert(UniswapV4TwapAnchor.ZeroDeviationLimit.selector);
+        new UniswapV4TwapAnchor(IPoolManager(address(manager)), key, TOKEN_LO, TOKEN_HI, 0);
+    }
+
+    // ---------------------------------------------------------------- circuit breaker
+
+    /// @notice 150 ticks ~ 1.5% stays inside the 2% band; 250 ticks ~ 2.5% trips it.
+    function test_circuitBreaker_tripsWhenSpotDivergesFromTwap() public {
+        observer.set(0, int56(-285_488) * 1800);
+
+        manager.setTick(-285_488 + 150);
+        baseIs0.consult(TOKEN_LO, TOKEN_HI, 1800);
+
+        manager.setTick(-285_488 + 250);
+        vm.expectPartialRevert(UniswapV4TwapAnchor.SpotTwapDivergence.selector);
+        baseIs0.consult(TOKEN_LO, TOKEN_HI, 1800);
+
+        manager.setTick(-285_488 - 250);
+        vm.expectPartialRevert(UniswapV4TwapAnchor.SpotTwapDivergence.selector);
+        baseIs0.consult(TOKEN_LO, TOKEN_HI, 1800);
+    }
+
+    function test_snapshot_reportsWithoutReverting() public {
+        observer.set(0, int56(-285_488) * 1800);
+        manager.setTick(-285_488 + 1000); // ~10.5% above
+        (uint256 spot, uint256 twap, uint256 dev) = baseIs0.snapshot(1800);
+        assertGt(spot, twap);
+        assertApproxEqAbs(dev, 1052, 2);
     }
 
     function test_priceMonotonicAcrossRealisticRange() public view {
@@ -109,6 +155,7 @@ contract UniswapV4TwapAnchorTest is Test {
     /// @notice An unrepresentable price must revert, never reach the quoter as 0.
     function test_consult_revertsWhenPriceRoundsToZero() public {
         observer.set(0, int56(TickMath.MIN_TICK) * 1800);
+        manager.setTick(TickMath.MIN_TICK);
         vm.expectRevert(abi.encodeWithSelector(UniswapV4TwapAnchor.PriceOutOfRange.selector, TickMath.MIN_TICK));
         baseIs0.consult(TOKEN_LO, TOKEN_HI, 1800);
     }

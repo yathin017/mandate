@@ -60,16 +60,27 @@ contract V4AnchorForkTest is V4AnchorSetup {
         assertEq(usdc.balanceOf(safe), SHIP_USDC + usdcIn);
     }
 
-    /// @notice A same-block pump moves v4 spot but not the TWAP, so it cannot move the anchor.
-    function test_flashPump_doesNotMoveAnchor() public {
+    /// @notice A same-block pump moves v4 spot but not the TWAP. The circuit breaker sees spot diverge and halts
+    ///         treasury fills; once arbitrage restores spot, the same fill goes through.
+    function test_flashPump_tripsCircuitBreaker_thenRecovers() public {
         moveV4PriceTo(PRICE_060);
-        assertApproxEqRel(v4Anchor.consult(address(launch), address(usdc), TWAP_WINDOW), PRICE_040, 1e15);
-        _buyLaunch(order, 10_000e18); // treasury keeps quoting its own fair price
+        (uint256 spot, uint256 twap, uint256 dev) = v4Anchor.snapshot(TWAP_WINDOW);
+        assertApproxEqRel(twap, PRICE_040, 1e15, "TWAP unmoved");
+        assertApproxEqRel(spot, PRICE_060, 1e15, "spot pumped");
+        assertGt(dev, MAX_SPOT_DEVIATION_BPS);
+
+        vm.expectPartialRevert(UniswapV4TwapAnchor.SpotTwapDivergence.selector);
+        taker.quote(order, address(usdc), address(launch), 10_000e18, false);
+
+        moveV4PriceTo(PRICE_040);
+        _buyLaunch(order, 10_000e18);
     }
 
     /// @notice After a sustained crash, dumpers cannot exit into the treasury at its stale 0.40 price.
     ///         Once the market recovers, the same trade fills.
     function test_sustainedCrash_blocksStaleExit_thenRecovers() public {
+        // While the crash is fresh the circuit breaker halts fills; once it has lasted a full window the TWAP
+        // agrees with spot and the anchor check itself is what refuses the stale price.
         moveV4PriceTo(PRICE_030);
         _nextBlock(TWAP_WINDOW);
         assertApproxEqRel(v4Anchor.consult(address(launch), address(usdc), TWAP_WINDOW), PRICE_030, 1e15);
@@ -91,7 +102,8 @@ contract V4AnchorForkTest is V4AnchorSetup {
     function test_insufficientHistory_haltsTrading() public {
         PoolKey memory fresh = _poolKey(500, 10);
         poolManager.initialize(fresh, sqrtPriceX96For(PRICE_040));
-        UniswapV4TwapAnchor freshAnchor = new UniswapV4TwapAnchor(fresh, address(launch), address(usdc));
+        UniswapV4TwapAnchor freshAnchor =
+            new UniswapV4TwapAnchor(poolManager, fresh, address(launch), address(usdc), MAX_SPOT_DEVIATION_BPS);
         registry.setAnchor(ID, address(freshAnchor));
 
         vm.expectPartialRevert(Oracle.TargetPredatesOldestObservation.selector);

@@ -31,6 +31,8 @@ abstract contract V4AnchorSetup is MandateVenueSetup {
     uint24 internal constant POOL_FEE = 3000;
     int24 internal constant TICK_SPACING = 60;
     uint32 internal constant TWAP_WINDOW = 30 minutes;
+    /// @dev Circuit breaker: spot more than 2% from the TWAP halts treasury fills.
+    uint16 internal constant MAX_SPOT_DEVIATION_BPS = 200;
     /// @dev >= blocks per TWAP window (1800s / 12s = 150) with margin; see NOTES.md.
     uint16 internal constant OBSERVATION_CARDINALITY = 300;
     /// @dev Truncation is unused by the anchor; max tick delta keeps the truncated series non-binding.
@@ -72,7 +74,7 @@ abstract contract V4AnchorSetup is MandateVenueSetup {
             ""
         );
 
-        v4Anchor = new UniswapV4TwapAnchor(poolKey, address(launch), address(usdc));
+        v4Anchor = new UniswapV4TwapAnchor(pm, poolKey, address(launch), address(usdc), MAX_SPOT_DEVIATION_BPS);
     }
 
     /// @dev Places the hook at an address whose low bits encode exactly afterInitialize + beforeSwap.
