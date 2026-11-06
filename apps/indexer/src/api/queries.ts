@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 
 import type { Db } from "../db/client.ts";
-import { chains, mandates, snapshots, syncCursors, tokens } from "../db/schema.ts";
+import { chains, launchedTokens, mandates, snapshots, syncCursors, tokens } from "../db/schema.ts";
 import type { ActivityCursor } from "./params.ts";
 
 /** Read-only queries behind the API. All bigint/numeric values come back as strings or bigint. */
@@ -21,6 +21,14 @@ export async function listMandates(db: Db, chainId: number, filter: { safe?: str
   if (filter.safe) conditions.push(eq(mandates.safe, filter.safe));
   if (filter.mm) conditions.push(eq(mandates.mm, filter.mm));
   return db.select().from(mandates).where(and(...conditions)).orderBy(asc(mandates.createdBlock)).limit(500);
+}
+
+/** Tokens launched through the chain's TokenFactory, newest first. */
+export async function listLaunchedTokens(db: Db, chainId: number, filter: { creator?: string | undefined; recipient?: string | undefined }) {
+  const conditions: SQL[] = [eq(launchedTokens.chainId, chainId)];
+  if (filter.creator) conditions.push(eq(launchedTokens.creator, filter.creator));
+  if (filter.recipient) conditions.push(eq(launchedTokens.recipient, filter.recipient));
+  return db.select().from(launchedTokens).where(and(...conditions)).orderBy(desc(launchedTokens.blockNumber)).limit(500);
 }
 
 /** Display metadata for the given token addresses, keyed by lowercase address. */

@@ -27,6 +27,7 @@ import {
   decodeCursor,
   encodeCursor,
   listQuery,
+  launchedQuery,
   mandateParam,
   mmParam,
   seriesQuery,
@@ -178,6 +179,14 @@ export function createApp(deps: AppDeps) {
     const { scores } = result.body.data as { scores: { mm: string }[] };
     const score = scores.find((s) => s.mm === address.toLowerCase());
     return score ? c.json({ head: result.body.head, data: { weights: WEIGHTS, ...score } }) : c.json({ error: "no mandates for this market maker" }, 404);
+  });
+
+  app.get("/v1/chains/:chainId/tokens/launched", zValidator("param", chainParam, invalid), zValidator("query", launchedQuery, invalid), async (c) => {
+    const { chainId } = c.req.valid("param");
+    const filter = c.req.valid("query");
+    return cached(c, chainId, `launched?creator=${filter.creator ?? ""}&recipient=${filter.recipient ?? ""}`, () =>
+      q.listLaunchedTokens(db, chainId, filter),
+    );
   });
 
   app.get("/v1/chains/:chainId/mandates/:mandateId", zValidator("param", mandateParam, invalid), async (c) => {

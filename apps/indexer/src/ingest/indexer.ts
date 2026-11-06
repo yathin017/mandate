@@ -15,6 +15,7 @@ import {
   type AttemptRow,
   type BlockRow,
   type FillRow,
+  type LaunchedTokenRow,
   type MandateRow,
   type RawEventRow,
   type SnapshotRow,
@@ -160,12 +161,13 @@ export class Indexer {
   private async readRange(from: bigint, to: bigint) {
     const { client, deployment, chainId } = this.ctx;
     const toHeader = await client.getBlock({ blockNumber: to });
+    const { actor, tokenFactory } = this.ctx;
     const logs = await client.getLogs({
-      address: [deployment.module, deployment.quoter, ...(this.ctx.actor ? [this.ctx.actor] : [])],
+      address: [deployment.module, deployment.quoter, ...(actor ? [actor] : []), ...(tokenFactory ? [tokenFactory] : [])],
       fromBlock: from,
       toBlock: to,
     });
-    const events = decodeLogs(logs, { module: deployment.module, quoter: deployment.quoter, actor: this.ctx.actor });
+    const events = decodeLogs(logs, { module: deployment.module, quoter: deployment.quoter, actor, tokenFactory });
 
     // Headers for every block with events, each checked against the logs' block hash.
     const headers = new Map<bigint, Awaited<ReturnType<typeof client.getBlock>>>([[to, toHeader]]);
@@ -194,6 +196,7 @@ export class Indexer {
       snapshotsByKey.set(`${id}:${block}`, await this.ctx.sdk.readSnapshot(id, block));
     });
 
+    const launchedRows: LaunchedTokenRow[] = [];
     const fillRows: FillRow[] = [];
     const attemptRows: AttemptRow[] = [];
     const pendingFees = new Map<string, { token: string; amount: bigint }>();
@@ -206,6 +209,21 @@ export class Indexer {
         });
       } else if (event.eventName === "Filled") {
         fillRows.push(this.fillRow(event, ts, pendingFees));
+      } else if (event.eventName === "TokenLaunched") {
+        const a = event.args;
+        launchedRows.push({
+          chainId,
+          token: lower(String(a.token)),
+          factory: lower(event.address),
+          creator: lower(String(a.creator)),
+          recipient: lower(String(a.recipient)),
+          name: String(a.name),
+          symbol: String(a.symbol),
+          supply: (a.supply as bigint).toString(),
+          blockNumber: event.blockNumber,
+          timestamp: ts,
+          txHash: lower(event.txHash),
+        });
       } else if (event.eventName === "Attempted") {
         const row = await this.attemptRow(event, ts, snapshotsByKey);
         if (row) attemptRows.push(row);
@@ -221,13 +239,13 @@ export class Indexer {
       if (!previous || previous.updatedBlock < block) mandateRows.set(id, this.mandateRow(id, snapshot));
     }
 
+    // Display metadata for every token a mandate uses or the factory launched.
     const tokenRows = new Map<string, TokenRow>();
-    for (const row of mandateRows.values()) {
-      for (const address of [row.base, row.quote]) {
-        if (tokenRows.has(address)) continue;
-        const display = await this.ctx.tokenDisplay(address as Hex);
-        tokenRows.set(address, { chainId, address, symbol: display.symbol, decimals: display.decimals });
-      }
+    const tokenAddresses = [...[...mandateRows.values()].flatMap((row) => [row.base, row.quote]), ...launchedRows.map((r) => r.token)];
+    for (const address of tokenAddresses) {
+      if (tokenRows.has(address)) continue;
+      const display = await this.ctx.tokenDisplay(address as Hex);
+      tokenRows.set(address, { chainId, address, symbol: display.symbol, decimals: display.decimals });
     }
 
     // The range end must still be canonical after all reads.
@@ -242,6 +260,7 @@ export class Indexer {
       snapshots: snapshotRows,
       mandates: [...mandateRows.values()],
       tokens: [...tokenRows.values()],
+      launchedTokens: launchedRows,
       cursor: { number: to, hash: lower(toHeader.hash!) as Hash },
     };
   }

@@ -1,8 +1,8 @@
-import { mandateModuleAbi, mandateQuoterAbi, scenarioActorAbi } from "@mandate/sdk";
+import { mandateModuleAbi, mandateQuoterAbi, scenarioActorAbi, tokenFactoryAbi } from "@mandate/sdk";
 import { parseEventLogs, type Address, type Hash, type Hex, type Log } from "viem";
 
 /** ABI fragments of every event we index. */
-const eventAbi = [...mandateModuleAbi, ...mandateQuoterAbi, ...scenarioActorAbi].filter(
+const eventAbi = [...mandateModuleAbi, ...mandateQuoterAbi, ...scenarioActorAbi, ...tokenFactoryAbi].filter(
   (item) => item.type === "event",
 );
 
@@ -21,10 +21,13 @@ export interface EventSources {
   readonly quoter: Address;
   /** Demo ScenarioActor; absent on live chains. */
   readonly actor?: Address | undefined;
+  /** TokenFactory, when one is indexed. */
+  readonly tokenFactory?: Address | undefined;
 }
 
 const QUOTER_EVENTS = new Set(["Filled", "FeeAccrued"]);
 const ACTOR_EVENTS = new Set(["Attempted"]);
+const FACTORY_EVENTS = new Set(["TokenLaunched"]);
 
 /**
  * Decodes logs and drops any whose emitter is not the contract that defines the event: an attacker contract
@@ -42,7 +45,9 @@ export function decodeLogs(logs: readonly Log[], sources: EventSources): Decoded
       ? sources.quoter
       : ACTOR_EVENTS.has(log.eventName)
         ? sources.actor
-        : sources.module;
+        : FACTORY_EVENTS.has(log.eventName)
+          ? sources.tokenFactory
+          : sources.module;
     if (!expected || emitter !== expected.toLowerCase()) continue;
     out.push({
       eventName: log.eventName,

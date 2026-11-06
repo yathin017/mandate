@@ -16,6 +16,7 @@ export const mandateParam = chainParam.extend({ mandateId: hash });
 export const mmParam = chainParam.extend({ address });
 
 export const listQuery = z.object({ safe: address.optional(), mm: address.optional() });
+export const launchedQuery = z.object({ creator: address.optional(), recipient: address.optional() });
 
 /** Opaque keyset cursor: `${blockNumber}.${ord}.${key}`, base64url-encoded. */
 export const activityQuery = z.object({
