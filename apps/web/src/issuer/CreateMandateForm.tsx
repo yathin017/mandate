@@ -176,9 +176,21 @@ export function CreateMandateForm({
 
 /**
  * Read-back of the exact values that will be signed, decoded from the built call rather than the typed strings.
- * Terms may arrive in a link from someone else, so every party and amount is shown in full before approval.
+ * Terms may arrive in a link or a proposal from someone else, so every party and amount is shown in full.
  */
-function ReviewTerms({ built, base, quote, anchor, now }: { built: BuiltTerms; base: TokenRef; quote: TokenRef; anchor: Address; now?: bigint }) {
+export function ReviewTerms({
+  built,
+  base,
+  quote,
+  anchor,
+  now,
+}: {
+  built: Pick<BuiltTerms, "marketMaker" | "bounds" | "params">;
+  base: TokenRef;
+  quote: TokenRef;
+  anchor: Address;
+  now?: bigint | undefined;
+}) {
   const b = built.bounds;
   const p = built.params;
   const amount = (raw: bigint, t: TokenRef) => `${formatUnits(raw, t.decimals, t.decimals)} ${t.symbol}`;

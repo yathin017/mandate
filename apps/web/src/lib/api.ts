@@ -79,6 +79,9 @@ export const api = {
   mmProfiles: () => request<{ data: MmProfile[] }>("/v1/mms"),
   mmProfile: (address: string) => request<{ data: MmProfile }>(`/v1/mms/${address}`),
   mmScores: () => request<Envelope<{ weights: Record<string, number>; scores: MmScore[] }>>(`${chainPath}/mms/scores`),
+  mmSummary: (address: string) => request<Envelope<SafeMandateSummary[]>>(`${chainPath}/mms/${address}/summary`),
+  saveProfile: (profile: Omit<MmProfile, "address" | "updatedAt">) =>
+    request<{ data: MmProfile }>("/v1/mms/me", { method: "PUT", body: JSON.stringify(profile) }),
   safeSummary: (safe: string) => request<Envelope<SafeMandateSummary[]>>(`${chainPath}/safes/${safe}/summary`),
   // Proposals: owners of the issuer Safe draft and send; the named market maker accepts with a signature.
   proposalsForSafe: (safe: string) => request<{ data: Proposal[] }>(`/v1/proposals?safe=${safe}`),
