@@ -1,10 +1,12 @@
 import type { ErrorContext, PreparedCall } from "@mandate/sdk";
 import { Check, Circle } from "lucide-react";
 import type { Address } from "viem";
+import { useConnection } from "wagmi";
 
 import { Button } from "@/components/ui/button";
 import { Hex } from "@/components/status";
 
+import { demoChain } from "./config";
 import { useSafeAction } from "./useSafe";
 import { TxStatus } from "./TxStatus";
 
@@ -27,6 +29,7 @@ export function SafeActionPanel({
 }) {
   const action = useSafeAction(safe, call, context);
   const { info, approvals, threshold, approvedCount, isOwner, hasApproved, canExecute, tx, executed } = action;
+  const connection = useConnection();
 
   if (executed) {
     return (
@@ -58,7 +61,13 @@ export function SafeActionPanel({
           </li>
         ))}
       </ul>
-      {!isOwner && <p className="text-xs text-muted-foreground">Connect one of the Safe's owners to approve or execute.</p>}
+      <ExecuteHint
+        wrongChain={connection.status === "connected" && connection.chainId !== demoChain.id}
+        loading={!info.owners || !action.safeTxHash}
+        isOwner={isOwner}
+        busy={tx.busy}
+        missing={Math.max(0, threshold - approvedCount - (hasApproved ? 0 : 1))}
+      />
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" disabled={!isOwner || hasApproved || tx.busy} onClick={() => void action.approve()}>
           {hasApproved ? "Approved" : "Approve as owner"}
@@ -76,4 +85,18 @@ export function SafeActionPanel({
       <TxStatus state={tx.state} />
     </div>
   );
+}
+
+/**
+ * Says why the buttons are disabled, in the order a user would fix it. Execute counts the executor's own signature,
+ * so it needs `threshold − 1` prior approvals from the other owners.
+ */
+function ExecuteHint({ wrongChain, loading, isOwner, busy, missing }: { wrongChain: boolean; loading: boolean; isOwner: boolean; busy: boolean; missing: number }) {
+  let text: string | null = null;
+  if (wrongChain) text = `Switch your wallet to ${demoChain.name} to approve or execute.`;
+  else if (loading) text = "Reading the Safe's owners, nonce and approvals…";
+  else if (!isOwner) text = "Connect one of the Safe's owners to approve or execute.";
+  else if (busy) text = "A transaction is in progress; the buttons come back once it is confirmed.";
+  else if (missing > 0) text = `Execute needs ${missing} more owner approval${missing === 1 ? "" : "s"} first: another owner clicks Approve.`;
+  return text ? <p className="text-xs text-muted-foreground">{text}</p> : null;
 }
