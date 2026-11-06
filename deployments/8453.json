@@ -17,5 +17,6 @@
   "safe": "0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d",
   "sourceChainId": 8453,
   "swapRouter": "0x247590442AA5f45fb4740D873Ea259b93EE5a1c4",
-  "syntheticTokens": true
+  "syntheticTokens": true,
+  "tokenFactory": "0x32feE1f159E80eE007B0d750d4eb47A513e40311"
 }

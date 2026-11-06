@@ -86,6 +86,7 @@ PoolManager and Safe 1.4.1. Source of truth: [`deployments/8453.json`](deploymen
 | MandateOracleHook | [`0x30Ff096F8582363807a9b5Cb15b84E7d98371080`](https://basescan.org/address/0x30Ff096F8582363807a9b5Cb15b84E7d98371080) |
 | UniswapV4TwapAnchor | [`0x9B78f6553A921D1bea0722CAd111CDAE4299522B`](https://basescan.org/address/0x9B78f6553A921D1bea0722CAd111CDAE4299522B) |
 | AnchorLauncher | [`0x5551b2f6a48f86328981EEFD78138dec340C29fB`](https://basescan.org/address/0x5551b2f6a48f86328981EEFD78138dec340C29fB) |
+| TokenFactory | [`0x32feE1f159E80eE007B0d750d4eb47A513e40311`](https://basescan.org/address/0x32feE1f159E80eE007B0d750d4eb47A513e40311) |
 | Issuer Safe (2-of-2) | [`0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d`](https://basescan.org/address/0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d) |
 | mLAUNCH / mUSD | [`0x66e185Dd1a99B36E955b8966fd8BbC430Cc64e8a`](https://basescan.org/token/0x66e185Dd1a99B36E955b8966fd8BbC430Cc64e8a) / [`0x6f0f1764A727E1e160D4735cc656ddaeBE2879C9`](https://basescan.org/token/0x6f0f1764A727E1e160D4735cc656ddaeBE2879C9) |
 | Active mandate | `0xb699954439ee4a37cde5dc2b21f8bcfe8458d78977cc7d4e99a2b16886a2bde8` |
@@ -137,5 +138,5 @@ from the wizard's shared link with `apps/web/scripts/approve-terms.ts`. Owner 2 
 [enableModule](https://basescan.org/tx/0x48ede66d8d0289ca70cd7f8f3de287a6b095a369b7b45d3ed60aa54703f90e23) and
 [createMandate](https://basescan.org/tx/0xf3745211cf11f308d8400d6e894cd5aa2205b5940fabaa6c59cf8ab138f1a4f3) from the wizard.
 
-Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`, `RotateRoles`, `DeployLauncher`, `OnboardPair`). Run the
-Base stack with `pnpm base:worker`, `pnpm base:server` and `pnpm base:web`.
+Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`, `RotateRoles`, `DeployLauncher`, `OnboardPair`,
+`DeployTokenFactory`). Run the Base stack with `pnpm base:worker`, `pnpm base:server` and `pnpm base:web`.
