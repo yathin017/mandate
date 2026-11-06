@@ -55,21 +55,24 @@ export async function checkRedis(url: string, warn: (message: string) => void): 
 }
 
 export async function checkRpc(url: string, expectedChainId: number): Promise<void> {
-  let chainId: number;
+  let body: { result?: string; error?: { message?: string } };
   try {
     const response = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }),
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(5000),
     });
-    const body = (await response.json()) as { result?: string };
-    chainId = Number(body.result);
+    body = (await response.json()) as typeof body;
   } catch {
     throw new PreflightError(
       `Cannot reach the chain RPC at ${redact(url)}. For the demo, start the fork with \`pnpm replay:serve\` and keep it running.`,
     );
   }
+  if (body.result === undefined) {
+    throw new PreflightError(`RPC at ${redact(url)} refused eth_chainId: ${body.error?.message ?? "no result"}. Try again later or use another RPC.`);
+  }
+  const chainId = Number(body.result);
   if (chainId !== expectedChainId) {
     throw new PreflightError(`RPC at ${redact(url)} is chain ${chainId}, but INDEXER_CHAIN_ID is ${expectedChainId}.`);
   }

@@ -5,6 +5,10 @@ import { createApp } from "../src/api/app.ts";
 import { Cache } from "../src/cache/cache.ts";
 import type { ChainContext } from "../src/chain.ts";
 import { indexDemoChain, skip, testConfig } from "./helpers.ts";
+import { getLocalForkDeployment } from "@mandate/chains";
+
+/** These suites run against the local demo fork; its manifest supplies the fork-only addresses. */
+const fork = getLocalForkDeployment();
 
 /** Reads SSE text until `predicate` matches the accumulated buffer or the timeout passes. */
 async function readUntil(body: ReadableStream<Uint8Array>, predicate: (text: string) => boolean, ms = 3000) {
@@ -48,7 +52,7 @@ describe("live mandate stream", { skip }, () => {
     await close();
   });
 
-  const path = () => `/v1/chains/31337/mandates/${ctx.deployment.mandates.act2}/stream`;
+  const path = () => `/v1/chains/31337/mandates/${fork.mandates.act2}/stream`;
 
   test("sends ready, then a change when the worker publishes", async () => {
     const app = createApp({ db, cache, config, log: () => {} });
@@ -61,7 +65,7 @@ describe("live mandate stream", { skip }, () => {
     assert.match(await readUntil(body, (t) => t.includes("event: ready")), /event: ready/);
     await cache.publish({
       chainId: 31337,
-      mandateId: ctx.deployment.mandates.act2.toLowerCase(),
+      mandateId: fork.mandates.act2.toLowerCase(),
       blockNumber: "1",
       blockHash: "0xfeed",
       reorg: false,

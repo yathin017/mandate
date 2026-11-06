@@ -19,7 +19,8 @@ export interface DecodedEvent {
 export interface EventSources {
   readonly module: Address;
   readonly quoter: Address;
-  readonly actor: Address;
+  /** Demo ScenarioActor; absent on live chains. */
+  readonly actor?: Address | undefined;
 }
 
 const QUOTER_EVENTS = new Set(["Filled", "FeeAccrued"]);
@@ -42,7 +43,7 @@ export function decodeLogs(logs: readonly Log[], sources: EventSources): Decoded
       : ACTOR_EVENTS.has(log.eventName)
         ? sources.actor
         : sources.module;
-    if (emitter !== expected.toLowerCase()) continue;
+    if (!expected || emitter !== expected.toLowerCase()) continue;
     out.push({
       eventName: log.eventName,
       args: log.args as Record<string, unknown>,

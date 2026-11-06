@@ -1,4 +1,4 @@
-import { getDeployment, type LocalForkDeployment } from "@mandate/chains";
+import { getDeployment, isLiveDeployment, type Deployment } from "@mandate/chains";
 import { createMandateClient, erc20MetadataAbi, type ErrorContext, type MandateClient } from "@mandate/sdk";
 import { createPublicClient, getAddress, http, type Address, type Hash, type PublicClient } from "viem";
 
@@ -12,13 +12,19 @@ type TokenDisplay = NonNullable<ErrorContext["base"]>;
  */
 export interface ChainContext {
   readonly chainId: number;
-  readonly deployment: LocalForkDeployment;
+  readonly deployment: Deployment;
   readonly client: PublicClient;
   readonly sdk: MandateClient;
-  /** First block to index (the block the deployment forked from / was deployed after). */
-  readonly startBlock: { readonly number: bigint; readonly hash: Hash };
-  /** Demo evidence: the ScenarioActor acting as the mandates' market maker, and its act -> mandate map. */
-  readonly actor: Address;
+  /**
+   * First block to index: the fork block (hash pinned by the manifest) or, on a live chain, the block before
+   * deployment (hash read from the chain at startup).
+   */
+  readonly startBlock: { readonly number: bigint; readonly hash?: Hash };
+  /**
+   * Local-fork demo evidence only: the ScenarioActor acting as the mandates' MM and its act -> mandate map.
+   * Live deployments have wallet MMs, so blocked attempts come only from server simulations.
+   */
+  readonly actor?: Address;
   readonly actMandates: ReadonlyMap<bigint, Hash>;
   /** Actor targets that are not mandate actions (v4 market moves, token approvals). */
   readonly nonMandateTargets: ReadonlySet<string>;
@@ -29,7 +35,8 @@ export async function createChainContext(config: Config): Promise<ChainContext> 
   const deployment = getDeployment(config.INDEXER_CHAIN_ID);
   // cacheTime 0: viem otherwise caches the block number for 4s, and reorg checks must never use a stale head.
   const client = createPublicClient({
-    transport: http(config.INDEXER_RPC_URL, { retryCount: 3 }),
+    // Back off on rate limits (public RPCs return 429 on bursts): ~1s, 2s, 4s, 8s, 16s.
+    transport: http(config.INDEXER_RPC_URL, { retryCount: 5, retryDelay: 1000 }),
     cacheTime: 0,
   }) as PublicClient;
   const sdk = await createMandateClient(client, deployment);
@@ -52,6 +59,18 @@ export async function createChainContext(config: Config): Promise<ChainContext> 
     return display;
   };
 
+  if (isLiveDeployment(deployment)) {
+    return {
+      chainId: deployment.chainId,
+      deployment,
+      client,
+      sdk,
+      startBlock: { number: BigInt(deployment.deployBlock) },
+      actMandates: new Map(),
+      nonMandateTargets: new Set(),
+      tokenDisplay,
+    };
+  }
   return {
     chainId: deployment.chainId,
     deployment,

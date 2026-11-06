@@ -8,6 +8,10 @@ import { createDb } from "../src/db/client.ts";
 import { attempts, fills, mandates, snapshots, syncCursors } from "../src/db/schema.ts";
 import { Indexer, type BatchCommitted } from "../src/ingest/indexer.ts";
 import { loadReplay, resetDatabase, rpc, skip, testConfig, testDatabaseUrl } from "./helpers.ts";
+import { getLocalForkDeployment } from "@mandate/chains";
+
+/** These suites run against the local demo fork; its manifest supplies the fork-only addresses. */
+const fork = getLocalForkDeployment();
 
 const NON_MANDATE_KINDS = new Set(["approval", "traditional-sell", "market-move"]);
 const TRADE_KINDS = new Set(["treasury-sell", "treasury-buyback"]);
@@ -77,14 +81,14 @@ describe("indexer against the live demo chain", { skip }, () => {
     const [row] = await db
       .select({ n: count() })
       .from(attempts)
-      .where(sql`${attempts.request}->>'target' = ${ctx.deployment.swapRouter.toLowerCase()}`);
+      .where(sql`${attempts.request}->>'target' = ${fork.swapRouter.toLowerCase()}`);
     assert.equal(row!.n, 0);
   });
 
   test("projections and snapshots exist for all three mandates", async () => {
     const rows = await db.select().from(mandates);
     assert.equal(rows.length, 3);
-    const act3 = rows.find((m) => m.mandateId === ctx.deployment.mandates.act3.toLowerCase())!;
+    const act3 = rows.find((m) => m.mandateId === fork.mandates.act3.toLowerCase())!;
     assert.equal(act3.status, 3, "act 3 ends revoked");
     const [snap] = await db.select({ n: count() }).from(snapshots);
     assert.ok(snap!.n > 0);
@@ -112,7 +116,7 @@ describe("indexer against the live demo chain", { skip }, () => {
       // blocks would be byte-identical; a transaction in the first replacement block changes its hash.
       await rpc(url, "evm_revert", [snapshotId]);
       await rpc(url, "eth_sendTransaction", [
-        { from: ctx.deployment.deployer, to: ctx.deployment.deployer, value: "0x1" },
+        { from: fork.deployer, to: fork.deployer, value: "0x1" },
       ]);
       await rpc(url, "anvil_mine", ["0x1"]);
       committed.length = 0;

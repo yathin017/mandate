@@ -33,8 +33,6 @@ export interface BatchCommitted {
 
 export class ReorgDuringRead extends Error {}
 
-const SNAPSHOT_CONCURRENCY = 8;
-
 /**
  * Pulls Mandate logs in block ranges, derives fills/attempts/snapshots and commits each range atomically.
  * Reorgs are detected by comparing the stored cursor hash with the canonical chain; the worker then rolls back
@@ -64,7 +62,7 @@ export class Indexer {
 
   async init(): Promise<void> {
     const start = await this.ctx.client.getBlock({ blockNumber: this.ctx.startBlock.number });
-    if (lower(start.hash) !== lower(this.ctx.startBlock.hash)) {
+    if (this.ctx.startBlock.hash && lower(start.hash) !== lower(this.ctx.startBlock.hash)) {
       throw new Error(
         `RPC block ${start.number} is ${start.hash}, deployment expects ${this.ctx.startBlock.hash}: wrong chain or fork`,
       );
@@ -163,7 +161,7 @@ export class Indexer {
     const { client, deployment, chainId } = this.ctx;
     const toHeader = await client.getBlock({ blockNumber: to });
     const logs = await client.getLogs({
-      address: [deployment.module, deployment.quoter, this.ctx.actor],
+      address: [deployment.module, deployment.quoter, ...(this.ctx.actor ? [this.ctx.actor] : [])],
       fromBlock: from,
       toBlock: to,
     });
@@ -192,7 +190,7 @@ export class Indexer {
     for (const read of [...reads.values()]) if (read.block !== to) want(read.id, to);
 
     const snapshotsByKey = new Map<string, MandateSnapshot>();
-    await forEachLimited([...reads.values()], SNAPSHOT_CONCURRENCY, async ({ id, block }) => {
+    await forEachLimited([...reads.values()], this.config.INDEXER_SNAPSHOT_CONCURRENCY, async ({ id, block }) => {
       snapshotsByKey.set(`${id}:${block}`, await this.ctx.sdk.readSnapshot(id, block));
     });
 
@@ -323,7 +321,7 @@ export class Indexer {
 
   private targetKind(target: string, snapshot: MandateSnapshot | undefined): string {
     const { deployment } = this.ctx;
-    if (target === lower(deployment.taker)) return "trade";
+    if (deployment.environment === "local-mainnet-fork" && target === lower(deployment.taker)) return "trade";
     if (target === lower(deployment.module)) return "module";
     if (snapshot && target === lower(snapshot.mandate.safe)) return "safe";
     return "other";

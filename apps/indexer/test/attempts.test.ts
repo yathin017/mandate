@@ -8,6 +8,10 @@ import { Cache } from "../src/cache/cache.ts";
 import type { ChainContext } from "../src/chain.ts";
 import { attempts } from "../src/db/schema.ts";
 import { indexDemoChain, skip, testConfig } from "./helpers.ts";
+import { getLocalForkDeployment } from "@mandate/chains";
+
+/** These suites run against the local demo fork; its manifest supplies the fork-only addresses. */
+const fork = getLocalForkDeployment();
 
 type JsonResponse = Omit<Response, "json"> & { json(): Promise<any> };
 
@@ -41,15 +45,15 @@ describe("simulated attempts", { skip }, () => {
     }) as Promise<JsonResponse>;
 
   const sell = () => ({
-    taker: ctx.deployment.deployer,
-    tokenIn: ctx.deployment.quote,
-    tokenOut: ctx.deployment.base,
+    taker: fork.deployer,
+    tokenIn: fork.quote,
+    tokenOut: fork.base,
     amount: "100000000", // 100 sUSDC
     isExactIn: true,
   });
 
   test("a sell past Act 1's epoch cap is blocked with the real reason", async () => {
-    const res = await post(app, ctx.deployment.mandates.act1, sell());
+    const res = await post(app, fork.mandates.act1, sell());
     assert.equal(res.status, 201);
     const { data } = await res.json();
     assert.equal(data.simulated, true);
@@ -59,13 +63,13 @@ describe("simulated attempts", { skip }, () => {
   });
 
   test("the revoked Act 3 mandate refuses every fill", async () => {
-    const { data } = await (await post(app, ctx.deployment.mandates.act3, sell())).json();
+    const { data } = await (await post(app, fork.mandates.act3, sell())).json();
     assert.equal(data.outcome, "blocked");
     assert.ok(data.errorName);
   });
 
   test("simulated rows appear in the feed immediately and repeats are deduped", async () => {
-    const id = ctx.deployment.mandates.act1;
+    const id = fork.mandates.act1;
     const feedPath = `/v1/chains/31337/mandates/${id}/activity?limit=5`;
     await app.request(feedPath); // warm the cache
     const first = await (await post(app, id, { ...sell(), amount: "123000000" })).json();
@@ -84,7 +88,7 @@ describe("simulated attempts", { skip }, () => {
   });
 
   test("clients cannot supply outcomes or malformed amounts", async () => {
-    const id = ctx.deployment.mandates.act1;
+    const id = fork.mandates.act1;
     assert.equal((await post(app, id, { ...sell(), outcome: "allowed" })).status, 400);
     assert.equal((await post(app, id, { ...sell(), amount: "-1" })).status, 400);
     assert.equal((await post(app, id, { ...sell(), amount: "1".repeat(80) })).status, 400);
@@ -102,14 +106,14 @@ describe("simulated attempts", { skip }, () => {
       log: () => {},
     });
     const statuses = [];
-    for (let i = 0; i < 5; i++) statuses.push((await post(limited, ctx.deployment.mandates.act1, sell())).status);
+    for (let i = 0; i < 5; i++) statuses.push((await post(limited, fork.mandates.act1, sell())).status);
     assert.deepEqual(statuses, [201, 201, 201, 429, 429]);
   });
 
   test("fails closed when the rate limiter is unavailable", async () => {
     const dead = await Cache.connect("redis://127.0.0.1:1");
     const degraded = createApp({ db, cache: dead, config, chain: async () => ctx, log: () => {} });
-    assert.equal((await post(degraded, ctx.deployment.mandates.act1, sell())).status, 503);
+    assert.equal((await post(degraded, fork.mandates.act1, sell())).status, 503);
     await dead.close();
   });
 });

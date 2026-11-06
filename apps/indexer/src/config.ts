@@ -15,6 +15,8 @@ const schema = z.object({
   INDEXER_POLL_INTERVAL_MS: z.coerce.number().int().min(100).max(60_000).default(1000),
   /** Max blocks fetched per eth_getLogs request; public RPCs often cap the range. */
   INDEXER_LOG_RANGE: z.coerce.number().int().min(1).max(10_000).default(500),
+  /** Parallel snapshot reads. Public RPCs rate-limit bursts; use 1 for them. */
+  INDEXER_SNAPSHOT_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(8),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(8787),
   API_CORS_ORIGINS: z
     .string()

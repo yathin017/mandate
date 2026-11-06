@@ -5,6 +5,10 @@ import { createApp } from "../src/api/app.ts";
 import { Cache } from "../src/cache/cache.ts";
 import type { ChainContext } from "../src/chain.ts";
 import { indexDemoChain, loadReplay, skip, testConfig } from "./helpers.ts";
+import { getLocalForkDeployment } from "@mandate/chains";
+
+/** These suites run against the local demo fork; its manifest supplies the fork-only addresses. */
+const fork = getLocalForkDeployment();
 
 // Response bodies are asserted field by field, so tests read them untyped.
 type JsonResponse = Omit<Response, "json"> & { json(): Promise<any> };
@@ -55,17 +59,17 @@ describe("read API over the indexed demo chain", { skip }, () => {
   test("lists all mandates and filters by safe", async () => {
     const all = await (await get(`${base}/mandates`)).json();
     assert.equal(all.data.length, 3);
-    const one = await (await get(`${base}/mandates?safe=${ctx.deployment.safe1}`)).json();
+    const one = await (await get(`${base}/mandates?safe=${fork.safe1}`)).json();
     assert.equal(one.data.length, 1);
-    assert.equal(one.data[0].safe, ctx.deployment.safe1.toLowerCase());
+    assert.equal(one.data[0].safe, fork.safe1.toLowerCase());
   });
 
   test("mandate detail carries snapshot and provenance, then hits the cache", async () => {
-    const path = `${base}/mandates/${ctx.deployment.mandates.act1}`;
+    const path = `${base}/mandates/${fork.mandates.act1}`;
     const first = await get(path);
     assert.equal(first.status, 200);
     const body = await first.json();
-    assert.equal(body.data.mandate.mandateId, ctx.deployment.mandates.act1.toLowerCase());
+    assert.equal(body.data.mandate.mandateId, fork.mandates.act1.toLowerCase());
     assert.equal(body.data.chain.environment, "local-mainnet-fork");
     assert.equal(body.data.snapshot.blockNumber, body.head.number);
     assert.match(body.data.snapshot.totalNetSold, /^\d+$/, "uint256 as decimal string");
@@ -78,8 +82,8 @@ describe("read API over the indexed demo chain", { skip }, () => {
     assert.equal((await get(`${base}/mandates/0x1234`)).status, 400);
     assert.equal((await get(`${base}/mandates/${"0x" + "ab".repeat(32)}`)).status, 404);
     assert.equal((await get(`/v1/chains/999/mandates`)).status, 404);
-    assert.equal((await get(`${base}/mandates/${ctx.deployment.mandates.act1}/activity?before=%%%`)).status, 400);
-    assert.equal((await get(`${base}/mandates/${ctx.deployment.mandates.act1}/activity?limit=100000`)).status, 400);
+    assert.equal((await get(`${base}/mandates/${fork.mandates.act1}/activity?before=%%%`)).status, 400);
+    assert.equal((await get(`${base}/mandates/${fork.mandates.act1}/activity?limit=100000`)).status, 400);
   });
 
   test("activity paginates through every fill and blocked attempt exactly once, newest first", async () => {
@@ -111,7 +115,7 @@ describe("read API over the indexed demo chain", { skip }, () => {
   });
 
   test("mandates carry token display metadata", async () => {
-    const body = await (await get(`${base}/mandates/${ctx.deployment.mandates.act1}`)).json();
+    const body = await (await get(`${base}/mandates/${fork.mandates.act1}`)).json();
     assert.deepEqual(body.data.tokens, { base: { symbol: "LAUNCH", decimals: 18 }, quote: { symbol: "sUSDC", decimals: 6 } });
   });
 
@@ -125,7 +129,7 @@ describe("read API over the indexed demo chain", { skip }, () => {
   });
 
   test("series returns snapshots in block order", async () => {
-    const body = await (await get(`${base}/mandates/${ctx.deployment.mandates.act2}/series?limit=2000`)).json();
+    const body = await (await get(`${base}/mandates/${fork.mandates.act2}/series?limit=2000`)).json();
     assert.ok(body.data.length > 1);
     for (let i = 1; i < body.data.length; i++) {
       assert.ok(BigInt(body.data[i].blockNumber) > BigInt(body.data[i - 1].blockNumber));
@@ -143,7 +147,7 @@ describe("read API over the indexed demo chain", { skip }, () => {
   test("serves from Postgres when Redis is down", async () => {
     const deadCache = await Cache.connect("redis://127.0.0.1:1");
     const degraded = createApp({ db, cache: deadCache, config, log: () => {} });
-    const res = (await degraded.request(`${base}/mandates/${ctx.deployment.mandates.act3}`)) as JsonResponse;
+    const res = (await degraded.request(`${base}/mandates/${fork.mandates.act3}`)) as JsonResponse;
     assert.equal(res.status, 200);
     assert.equal(res.headers.get("x-cache"), "miss");
     assert.equal((await res.json()).data.mandate.status, 3);
