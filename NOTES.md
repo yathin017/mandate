@@ -492,7 +492,13 @@ Replay) → issuer flow → MM flow → E2E + docs.
   (user); header sign-in (SIWE, session only counts for the connected wallet, disconnect signs out); Explore (mandates +
   launched tokens), marketplace list ranked by score, market-maker page with score evidence; new landing. `/mandates`
   and `/onboard` redirect. Still to come: the wizard's market-maker picker and proposal flow (step 6), profile editor
-  and proposal inbox on the desk (step 7). "Propose a mandate" links to `/launch?mm=…`, which step 6 will read.
+  and proposal inbox on the desk (step 7). "Propose a mandate" links to `/launch?mm=…`.
+- **Issuer flow (done):** wizard step 5 defaults to proposing (marketplace picker ranked by score, or any address;
+  note + expiry), "Create directly" kept for off-platform deals. `ProposalList` drives send/withdraw/execute and links
+  the mandate; before showing the execute panel it tries to link an existing match, so a failed link cannot lead to a
+  duplicate `createMandate`. Issuer page rebuilt on `GET /v1/chains/:id/safes/:safe/summary` (no new tables). A Safe
+  with a live mandate for the pair can propose another. Fork run: proposal from the wizard → MM accepted via API →
+  owner #0 approved, owner #1 executed from `/issuer` → "Executed". The MM-side accept UI is step 7.
 
 ## 18. Infra
 

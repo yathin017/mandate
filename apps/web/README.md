@@ -34,8 +34,8 @@ for issuers, Desk for market makers).
 | `/explore` | Mandates (cards) and tokens launched through the TokenFactory (`?tab=tokens`) |
 | `/market-makers` | Listed market makers ranked by onchain score |
 | `/market-makers/:address` | Profile, score with each component's weight, value and evidence, and the market maker's mandates |
-| `/launch` | Self-serve wizard: treasury Safe → token pair (launch a new token) → enable Mandate → price anchor → create the mandate (see below) |
-| `/issuer` | Issuer console: pick a Safe, see owners/threshold/module, pause/unpause/revoke, create-mandate form; every action is a Safe transaction approved onchain by its owners |
+| `/launch` | Self-serve wizard: treasury Safe → token pair (launch a new token) → enable Mandate → price anchor → mandate: propose to a market maker from the marketplace (default) or create directly |
+| `/issuer` | One Safe at a glance: Safe-wide counts, proposals with their next step (send, withdraw, execute once the market maker signed), each mandate's progress (sold of released, today vs cap, fills, volume, MM fees, refused trades) and pause/unpause/revoke as Safe transactions |
 | `/desk` | MM desk: mandates where the connected wallet is the MM; spread and daily-cap sliders clamped to the issuer's bounds, inventory caps, live vs new preview, re-ship, pause, claim fees, and a simulate-only "exceed the cap" probe |
 | `/mandates/:id` | Public mandate page: sell-limit ring, release curve vs sold, spot/TWAP band and floor, anchor health, MM pay, live activity feed, server-simulated "try a trade", numbered term sheet |
 
@@ -45,6 +45,15 @@ for issuers, Desk for market makers).
 **Sign in** in the header: an EIP-4361 message for this site, no gas. The session is an HttpOnly cookie, so the API
 must be served from the same site as the app (the dev proxy does this); a session only counts for the wallet that is
 connected, and disconnecting signs out.
+
+## Proposing to a market maker
+
+1. In `/launch` step 5 (or from a market maker's page, which opens it with `?mm=`), pick a market maker, set the
+   terms and **Send proposal** (signed-in Safe owner).
+2. The market maker accepts on its desk by signing the exact terms (EIP-712; no gas).
+3. Any owner opens the proposal (wizard or `/issuer`): one approves, another executes `createMandate`; the app then
+   links the new mandate to the proposal. It re-checks for an existing match first, so a retry never creates a second
+   mandate from the same terms.
 
 ## Wallet demo on Base (live deployment)
 
