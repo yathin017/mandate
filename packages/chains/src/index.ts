@@ -53,6 +53,38 @@ export interface LocalForkDeployment extends MandateDeployment {
   readonly replay: string;
 }
 
+/**
+ * A deployment on a real chain (e.g. Base mainnet). Tokens are still mocks (`syntheticTokens`), but blocks,
+ * history and transaction hashes are real and have explorer links.
+ */
+export interface LiveDeployment extends MandateDeployment {
+  readonly environment: "live";
+  readonly chainId: number;
+  /** Equal to chainId: a live deployment is its own source chain. */
+  readonly sourceChainId: number;
+  /** Block before the first deployment transaction; indexing starts here. */
+  readonly deployBlock: number;
+  readonly module: Address;
+  readonly quoter: Address;
+  readonly anchor: Address;
+  readonly hook: Address;
+  readonly base: Address;
+  readonly quote: Address;
+  readonly deployer: Address;
+  readonly owner2: Address;
+  readonly mm: Address;
+  readonly safe: Address;
+  readonly swapRouter: Address;
+  readonly liquidityRouter: Address;
+  readonly mandate: Hash;
+  readonly syntheticTokens: true;
+}
+
+export type Deployment = LocalForkDeployment | LiveDeployment;
+
+export const isLiveDeployment = (deployment: Deployment): deployment is LiveDeployment =>
+  deployment.environment === "live";
+
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Expected a config object");
   return value as Record<string, unknown>;
@@ -117,8 +149,36 @@ export function parseLocalForkDeployment(value: unknown): LocalForkDeployment {
   });
 }
 
+export function parseLiveDeployment(value: unknown): LiveDeployment {
+  const d = object(value);
+  if (d.environment !== "live") throw new Error("Expected a live deployment");
+  const chainId = integer(d.chainId, "chainId");
+  if (d.sourceChainId !== chainId) throw new Error("A live deployment's source chain must be its own chain");
+  if (chainId === 31337) throw new Error("Chain 31337 is reserved for the local fork");
+  if (d.syntheticTokens !== true) throw new Error("Live demo must disclose its mock tokens");
+  return Object.freeze({
+    environment: "live", chainId, sourceChainId: chainId, deployBlock: integer(d.deployBlock, "deployBlock"),
+    ...addresses(d, ["module", "quoter", "anchor", "hook", "base", "quote", "deployer", "owner2", "mm", "safe",
+      "swapRouter", "liquidityRouter"] as const),
+    mandate: hash(d.mandate, "mandate"), syntheticTokens: true,
+  });
+}
+
+/** Dispatches on `environment`; unknown environments are rejected. */
+export function parseDeployment(value: unknown): Deployment {
+  const environment = object(value).environment;
+  if (environment === "local-mainnet-fork") return parseLocalForkDeployment(value);
+  if (environment === "live") return parseLiveDeployment(value);
+  throw new Error(`Unknown deployment environment: ${String(environment)}`);
+}
+
 export const chains: readonly ChainConfig[] = Object.freeze(chainData.map(parseChainConfig));
-export const deployments: readonly LocalForkDeployment[] = Object.freeze(deploymentData.map(parseLocalForkDeployment));
+export const deployments: readonly Deployment[] = Object.freeze(deploymentData.map(parseDeployment));
+for (const deployment of deployments) {
+  if (isLiveDeployment(deployment) && !chains.some((chain) => chain.chainId === deployment.chainId)) {
+    throw new Error(`Live deployment on chain ${deployment.chainId} has no chain config`);
+  }
+}
 
 export function getChainConfig(chainId: number): ChainConfig {
   const config = chains.find((chain) => chain.chainId === chainId);
@@ -127,22 +187,24 @@ export function getChainConfig(chainId: number): ChainConfig {
 }
 
 /** Lookup uses the runtime chain id. A file named deployments/1.json does not register a mainnet deployment. */
-export function getDeployment(chainId: number): LocalForkDeployment {
+export function getDeployment(chainId: number): Deployment {
   const deployment = deployments.find((item) => item.chainId === chainId);
   if (!deployment) throw new Error(`No Mandate deployment registered for runtime chain ${chainId}`);
   return deployment;
 }
 
 export function getLocalForkDeployment(sourceChainId = 1): LocalForkDeployment {
-  const deployment = deployments.find((item) => item.sourceChainId === sourceChainId);
+  const deployment = deployments.find(
+    (item): item is LocalForkDeployment => item.environment === "local-mainnet-fork" && item.sourceChainId === sourceChainId,
+  );
   if (!deployment) throw new Error(`No local fork deployment for source chain ${sourceChainId}`);
   return deployment;
 }
 
-/** Returns no explorer link for local hashes; callers can show their saved receipt instead. */
+/** Explorer link for real chains; none for local-fork hashes (callers show their saved receipt instead). */
 export function getTransactionUrl(chainId: number, transactionHash: Hash): string | undefined {
   hash(transactionHash, "transactionHash");
-  if (deployments.some((item) => item.chainId === chainId)) return undefined;
+  if (deployments.some((item) => item.chainId === chainId && item.environment === "local-mainnet-fork")) return undefined;
   const config = chains.find((item) => item.chainId === chainId);
   return config ? `${config.explorer}/tx/${transactionHash}` : undefined;
 }

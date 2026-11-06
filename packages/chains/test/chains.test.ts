@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { getAddress, type Hash } from "viem";
-import { chains, getChainConfig, getDeployment, getLocalForkDeployment, getTransactionUrl,
-  parseChainConfig, parseLocalForkDeployment } from "@mandate/chains";
+import { chains, getChainConfig, getDeployment, getLocalForkDeployment, getTransactionUrl, isLiveDeployment,
+  parseChainConfig, parseDeployment, parseLocalForkDeployment } from "@mandate/chains";
 
 const config = JSON.parse(await readFile(new URL("../../../config/chains/1.json", import.meta.url), "utf8"));
 const baseConfig = JSON.parse(await readFile(new URL("../../../config/chains/8453.json", import.meta.url), "utf8"));
@@ -56,4 +56,19 @@ test("fork parser preserves runtime identity and synthetic-data disclosures", ()
   assert.throws(() => parseLocalForkDeployment({ ...manifest, chainId: 1 }), /runtime chain/);
   assert.throws(() => parseLocalForkDeployment({ ...manifest, syntheticTokens: false }), /synthetic labels/);
   assert.throws(() => parseLocalForkDeployment({ ...manifest, forkBlockHash: "0xabc" }), /forkBlockHash/);
+});
+
+test("live Base deployment is registered with explorer links and disclosed mock tokens", async () => {
+  const live = JSON.parse(await readFile(new URL("../../../deployments/8453.json", import.meta.url), "utf8"));
+  const deployment = getDeployment(8453);
+  assert.ok(isLiveDeployment(deployment));
+  assert.equal(deployment.module, getAddress(live.module));
+  assert.equal(deployment.mandate, live.mandate);
+  assert.equal(deployment.syntheticTokens, true);
+  const tx = `0x${"ab".repeat(32)}` as Hash;
+  assert.equal(getTransactionUrl(8453, tx), `https://basescan.org/tx/${tx}`);
+  assert.equal(getTransactionUrl(31337, tx), undefined);
+  assert.throws(() => parseDeployment({ ...live, sourceChainId: 1 }), /own chain/);
+  assert.throws(() => parseDeployment({ ...live, syntheticTokens: false }), /mock tokens/);
+  assert.throws(() => parseDeployment({ ...live, environment: "staging" }), /Unknown deployment environment/);
 });

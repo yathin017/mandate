@@ -81,5 +81,25 @@ export const deploymentData = [
     "syntheticOracleHistory": true,
     "lastBlock": 26355230,
     "replay": "replay/data/acts.json"
+  },
+  {
+    "anchor": "0x9B78f6553A921D1bea0722CAd111CDAE4299522B",
+    "base": "0x66e185Dd1a99B36E955b8966fd8BbC430Cc64e8a",
+    "chainId": 8453,
+    "deployBlock": 53927227,
+    "deployer": "0x54f75F0E0da2b43b3a6AC0a0e5c4f5Df6B73308e",
+    "environment": "live",
+    "hook": "0x30Ff096F8582363807a9b5Cb15b84E7d98371080",
+    "liquidityRouter": "0xFa6C04ACed680109C374B25241FaD4AA86a92fF1",
+    "mandate": "0xe41668bb1c64dd8fac4b6289edcdff1505816536fd6f69b4282b4e83a65c58a6",
+    "mm": "0x6D89Aa8c9d28704F4f544E1452Cf2d5abBe96B59",
+    "module": "0xC10ED38aDfB53c5E1262194d4Db420f6Fa82544d",
+    "owner2": "0x7C995B9f42c28b51d20E59B08185Bb431d24B83a",
+    "quote": "0x6f0f1764A727E1e160D4735cc656ddaeBE2879C9",
+    "quoter": "0xBb259F8DB3A9d3A48989cfb9B970D0B481aEd6D8",
+    "safe": "0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d",
+    "sourceChainId": 8453,
+    "swapRouter": "0x247590442AA5f45fb4740D873Ea259b93EE5a1c4",
+    "syntheticTokens": true
   }
 ] as const;
