@@ -13,10 +13,11 @@ evm_version = "prague"
 optimizer = true
 optimizer_runs = 700
 via_ir = true
-# Scripts read per-chain config and write per-chain deployments (see repo README).
+# Scripts read chain config, write deployment manifests, and derive the SDK's Solidity encoding fixtures.
 fs_permissions = [
     { access = "read", path = "../config" },
     { access = "read-write", path = "../deployments" },
+    { access = "read-write", path = "../packages/sdk/test/fixtures" },
 ]
 
 [profile.default.fuzz]

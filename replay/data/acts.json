@@ -711,7 +711,7 @@
               "10000000000000000000000",
               "50000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (50000 LAUNCH / 50000 LAUNCH used). This trade asks for 10000 LAUNCH."
           },
           "returnData": "0x977334f4000000000000000000000000000000000000000000000a968163f0a57b40000000000000000000000000000000000000000000000000021e19e0c9bab2400000000000000000000000000000000000000000000000000a968163f0a57b400000",
           "transactionHash": "0x845e183245d2ab28681451173148969aeed592b92313f1d3a0e857aed60fef42",
@@ -858,7 +858,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xbb3bc6ef3beee522b93a9c038ed12a0cd04ef28d0231ca8c469c337e9e7d0872",
@@ -910,7 +910,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xedd327af992e0e5d3d247e2d601e265b0212bc3f9d10b0f69ccbdab929e1ea95",
@@ -962,7 +962,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x9c2dc833a390d8cc6e28282ffc25104f495d297da64b609fd63e2e355b594268",
@@ -1014,7 +1014,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x8b70f4e737232d7c81c4e8a535fec507142b6fc143d654a4958653108f32dc54",
@@ -1066,7 +1066,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xfae67db00309de81769b8ad599336e1c1eaf140a5ca8de0bd05866557b9c8f66",
@@ -1118,7 +1118,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xe1d57aaa0a55f478317bcd9e5c87d8308e8182cc544e8547beeb15028254d124",
@@ -1170,7 +1170,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xc0ca4b4ae07221e755d7221b3a64ad421eed6a3c3fc26a4cf26668a9da71b51c",
@@ -1222,7 +1222,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xdcd49fc7df8f16e3c12be1c35d8afbbcfe5cf241acdb9dc379d44c68ed9b6a9f",
@@ -1274,7 +1274,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xa8867959e97ab49d2790f235327b7e16b06717ec3e6c81d006b5571f3dacecba",
@@ -1326,7 +1326,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xee1e163419f110f848d68ef10c9f8e47c4a277e37e0f2c647201e5580f15ebd3",
@@ -1378,7 +1378,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x4c23109017daa50b8b030c5eb071e9b1e71b9f4c705dbba86972ddb9d45c9684",
@@ -1430,7 +1430,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x3e51c9cd98dbfcb1f842133242a2f8e5a21289bf6e100bf5ce09828127f79e9c",
@@ -1482,7 +1482,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xea3cf090e1acba1b7302e7b2010e18e6a7bf763991415ab7251d2d5b6fe87f48",
@@ -1534,7 +1534,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xf0efc0a683c21157b3a662f1be0eee69c7eeb7c71c2b7246ab4a782435d5d498",
@@ -1586,7 +1586,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x928f5a9cfd6782fb84c2963f5aa7c131013bc8b8ae3f2ea2af35fc52768c54d7",
@@ -1638,7 +1638,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xcdb9ec2cad9fc0df5d370401b337033883c1a74b2a818526e05fcb77efa3df32",
@@ -1690,7 +1690,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x35473be481d5bb9b7a087798710ace4b2697efeaabd6c26c335367cd05efacff",
@@ -1742,7 +1742,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xedbef5f6f771eb4c00770dbf8c2e7ec6780282b0a4660fb205ae191e16d6e707",
@@ -1794,7 +1794,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xe13cfbf668ac91be09bd5965849c0632c4676bb10f06bd9432545e92aeabc566",
@@ -1846,7 +1846,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x5918908227fd5dc9bfaa8f281cbeb76d81e1a5f3fece18454bbd687152d477f7",
@@ -1898,7 +1898,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x27d0284c3de308a991283ec5cd63ef1e4b44916cfec83148e582dce56ffc0229",
@@ -1950,7 +1950,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x264d806a78aa2aee522a200bceece76c354a3756128c5681bc5e0ac827cc9c67",
@@ -2002,7 +2002,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x559ae7831a48e6bbad022ecf31b5a851736fa43126b5aadbd99be35f0cc05984",
@@ -2054,7 +2054,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xac1e8a2255cb3d6313561039c8b243363f5b6fa247a09a86d727abb625ff6081",
@@ -2106,7 +2106,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x16a8b30414ea265495fac1905eb51a55c81b28de9a752f3fca96ba8a615e058b",
@@ -2158,7 +2158,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x471b68cee4c3e9232e77c53d199ae50f5923be945821b35dc73735f07fa56812",
@@ -2210,7 +2210,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x338582b83b5214cbf8f0460276ef70ac338e9dc0912b3ad0eab12531d6481e8f",
@@ -2262,7 +2262,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xd33d699bae6e37cf2dff1277b44fa5e22537186354109217de9568371d355772",
@@ -2314,7 +2314,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x9aa27dd80c1846d661f8e1138f3f3798ef41c2867bfb5a3a73a0889773a33cae",
@@ -2366,7 +2366,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xb63a6e7b9a417b85b4d2530be90cc42772c124e75dbc72a65341c80c0928e254",
@@ -2418,7 +2418,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xb1e75f2b165b6bd6ff854bc9c75138e1f4301281b730a592094ddf293b03ecf6",
@@ -2470,7 +2470,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x6b09db1ac34ec9709f5b41ce35e9be4353d8740bc7c5bcea81af7f87a2f8c126",
@@ -2522,7 +2522,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x70853a91c7421e4ad0ad1a9dca3f88ab698de16a19633561b42bac10544ad575",
@@ -2574,7 +2574,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xd346991d688504599284b06a093e14a12f7aefdf412d07ba11950d46696b0201",
@@ -2626,7 +2626,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x218c6629edf7b1063c25001e29cdf73bd4c82b3b23d0a4515d22c05b3e52d4e8",
@@ -2678,7 +2678,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x181d44518beb8d18958f5d8bb37945a6e41e8a6aed69944c753a0d9dfc1b35e0",
@@ -2730,7 +2730,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x86ee98c239ae379201b5ae64e9e6e623aa9117643d5f007a0253a8d8bdc31ad7",
@@ -2782,7 +2782,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x72e21079cd5fbdd3a5c3b09fd7070814398e76e10318fdaa2f31070281dd1b53",
@@ -2834,7 +2834,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xaa15ab66467bf5720043b0e0d275fa367c7cede47cedd4345ccea9aa8dda54c5",
@@ -2886,7 +2886,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xf3fc572a6468aad513b868ca9493a2a589015eadf1420116d7c126c6d4de6263",
@@ -2938,7 +2938,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x3f9391c7a9dff3ae5b91fa54152aad541a3eed9886898e6cebad02ec94c57df7",
@@ -2990,7 +2990,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x57b60f675c9520ca45055c3a09356b079f4abe653a259520ec72b151b43229c2",
@@ -3042,7 +3042,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xa213fbc8925c9ce04b0eaf402f1d6a897e77a7b5b6b4157efb0a2e306d14e9e4",
@@ -3094,7 +3094,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x4b162dc885156eedf4cb058d1323acabd726cc6bad29156d044cbf35c4903842",
@@ -3146,7 +3146,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x0546cf1910cfb5751bb041ac0fd64dd14702803902a759cf5775ab39308a8cc0",
@@ -3198,7 +3198,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xb006b329fd267afaf2708e8d0fd5d8349fc5bf7c5289647121deb974b7ef04db",
@@ -3250,7 +3250,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x11864e1d9e43b42e59df474b6938ec3f7a75c6e84f6a55f9ee9392d1a3f48aad",
@@ -3302,7 +3302,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xf33183687aecbb0e6f7f91f745d855e46b69d1993dadb979bf8f4f9d087eb937",
@@ -3354,7 +3354,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xb77a0fe27f5f111abf15f4bfd525ab829eb25083c1ecc26c3a12dccfcf6b0dca",
@@ -3406,7 +3406,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x01759ab751185741592c6024bdc9e1f94bbd232bf8eaeedc18314bd1ee1f36bd",
@@ -3458,7 +3458,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xf67b0c1eccc730d6b1c29e819a724639faea061bb26efe31ba3d65523a23253c",
@@ -3510,7 +3510,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x0104728990f5e238ebdc0b51902f5b1d5bb6ece75219880c3876ff58ffd2225f",
@@ -3562,7 +3562,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x790f1948951939e13352650d5174c12b806c26c031f6604923644004388ead9d",
@@ -3614,7 +3614,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x01c2407f55d5a3aff223aeaf986560e46a5e913782839a3d5df3e843ea50c9a1",
@@ -3666,7 +3666,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xd13f5b4f1acbf858ece581906a1d3ec39d070cf60218e4a029e729b5cd04b380",
@@ -3718,7 +3718,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x368867faed19921767d49fcc975f8803eded5dad058832a63882e88369bba7d4",
@@ -3770,7 +3770,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x6598667be08085b8f9edeab06232b7bd530c21b02bc153fc3f1e5e0a4bb5a93c",
@@ -3822,7 +3822,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xe811b0a38eef4c69e4c7e37b030acd1fb39cd3615c569fd220e120b9aa85514e",
@@ -3874,7 +3874,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x6bb118eb02fde0db76bc793e9483fdbabc6061d511f0d7c9882c33cebecbc3a6",
@@ -3926,7 +3926,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xb3fe7c349b6bfd18ce1e12f80f0d0163bed4d6a7f06bfe9fd16d5b959ae1765e",
@@ -3978,7 +3978,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x9e39427a785b77c5c65f9b54076a9422e5ed2150dc4c747be8ad861f417b239b",
@@ -4030,7 +4030,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x01da6b6ed866bda38cb93051d825e8598fc391139654e1d89dad832521816052",
@@ -4082,7 +4082,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xdca0effb9c988dcd7c220e08ba46e1515dc0c140620839f3c65faad986671526",
@@ -4134,7 +4134,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xff533fb9b7fdaa3ea9d06db2675a8cb225672b787ccf2ddd1e9426539b9d518d",
@@ -4186,7 +4186,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x3861e2eee95014c914a79bcd98fe155847498b797af8bebb60b7bdd7151ee5e8",
@@ -4238,7 +4238,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xff773bd561a4e969824480eeb3cc0f79c0ea801e089199566976ce31976e1fc2",
@@ -4290,7 +4290,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x24543260fa7cb0d78cb2c035f6fdfb0853e9666013a2acc2ce43a2128a8dd778",
@@ -4342,7 +4342,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x28ee2147e7259b5fa8497f8dba554acb62dd5c70b06614b11c037d7acefc8673",
@@ -4394,7 +4394,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xb69ff7b297e82a59de17dd0f7ca89c2a1e1971061a5f83ca2cf55fe7b3640f61",
@@ -4446,7 +4446,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xc362ff702ac6bca1f3db2b6673def51063d1b5393a4360058c34ae0275f27e7f",
@@ -4498,7 +4498,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x78ed515a5b43087a2604215401e86c48d1f7e10a3bf9d43a98e467d050c34deb",
@@ -4550,7 +4550,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xf4c41ac8eac064d0580c3d767669b2be4ecf7104c8f57aeb8a7f5ee038ff25f7",
@@ -4602,7 +4602,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x8981e30db5649f277d53dd2bd4fe4ab3b4389765bb3be9022b3c95b6b70160ec",
@@ -4654,7 +4654,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xf18ac37b11d054671ede9e6f4ee0c641cc9961bff2936ba83f6b7ee513f6d392",
@@ -4706,7 +4706,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x72d2c404998f5de5b79f65b3f872e52ee5e113bddc77a81cd8e937644cf7622e",
@@ -4758,7 +4758,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xb5b5c6901e253055b55f9b3f9197dcdf86086f2e68b045893cd779d7a8a45fb1",
@@ -4810,7 +4810,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x91dc8d426e2dac15eef85c8cabc83e88fcbe658bf0f79ed64be8763119b0531a",
@@ -4862,7 +4862,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x49a3579e70a201f26ea570eb8db1abafaaaa9ec0ce88975931961b9d8b298066",
@@ -4914,7 +4914,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x7b9030a0f6dedd5e5b99b9958ced57a7ce1f53ad22166df5c40029da13fac3b8",
@@ -4966,7 +4966,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xc860874286d46af96ae7143f57475a99348ffe4934ee150e44c390f095298160",
@@ -5018,7 +5018,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xb2982e116672d42d6b6f3d52162b13112142cd5eae3e2fa5afd33f253cf74d98",
@@ -5070,7 +5070,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x5318ae674ff1c4eed785586dedf37ae257ea74929bec93941984425693d504e4",
@@ -5122,7 +5122,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x0881520d5818292730d6a76ac9dc551f6d96465902367f59303b3fd17b6f21a3",
@@ -5174,7 +5174,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xd048c341028b2973cd1c1d1865ca17d8e024867c62c695abb5d8eb11919eb668",
@@ -5226,7 +5226,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x342a77e3c9c8b711c5c35b28e4d60f939a7fe4032b97a185efdde95d1257f685",
@@ -5278,7 +5278,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x6c9c4f9f1621c95c27cca755fa8d7319337278487fbd9892f904cf61acbde32f",
@@ -5330,7 +5330,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x042bce1917bf2e9924c67c1d2319981cecfce8ed4798dc635e21805531763aca",
@@ -5382,7 +5382,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x288290929da1cb001534473b056e43d222cba64e99b27665340e38bb8efdb587",
@@ -5434,7 +5434,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x85d0d53cceefe1962ad81d652a2fe9b82657d20cef828e5f1b9edb6d76e4a801",
@@ -5486,7 +5486,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xf458c543dee40eaf9414a62f8abdbdcb223b07cdd6934a27bcf1e9a1c20042ff",
@@ -5538,7 +5538,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x320e1b2c4054cf5578e4fa7bfa031269b50a9ea52d0e09fcb1acabc9c4860b82",
@@ -5590,7 +5590,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xe34f137c6d09232873140325c4284c87f3e0e71fd7580ed27d4ee8b023ad0f68",
@@ -5642,7 +5642,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xeb38421a4a793bac1ab0722e2e0962d2d17a4948b04ae6655196992a52c9f119",
@@ -5694,7 +5694,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x87bcc46927f117ac91d72d9ea2cbe744e202d0c61d4166c60626f6797c37d17c",
@@ -5746,7 +5746,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x13b6d6eabb77dafa82db42b92606e79f15b808489c32f2d1f1a3b351c05fbe0b",
@@ -5798,7 +5798,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x3cf5760aef298ff5d4837ce6bf995bd2ac25860d9f96f5c3b8eac45b9983a3c2",
@@ -5850,7 +5850,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x09bc9b03207c78750d908727d8eebb05e625d71df98418d43bc50931f08c1c8f",
@@ -5902,7 +5902,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x0e7c7ad42fdefc82ea1feebc5207d34ca9cf24768764840595b468409b420cac",
@@ -5954,7 +5954,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xd15228d5b76b3850ff79a62b7b420d6bff407e7c1ee43ce46ef39199d1e5f92d",
@@ -6006,7 +6006,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xc1174747f2d61ceb8a823c04cd9c76ec5c9141d3353801921f5bc3a7f3225e63",
@@ -6058,7 +6058,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xcd513ac7af70e87cd7d654b4b76dbc740fdf0ac763f041c85069d2b3c5e0d3b4",
@@ -6110,7 +6110,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x51f00f53ac624f086a20759fc45dd95f229982e46c68d0a3f54fea2d73766ad5",
@@ -6162,7 +6162,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xafd84337287605a58ad5324a8066b37e6a6c2fd3250cdd4cda7bd18d0aa7cac1",
@@ -6214,7 +6214,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x2dbbc659aac7c150213c7a25e31899953f80123044a12c6a1fd3780a3c043474",
@@ -6266,7 +6266,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x773377e67213775fe6c2db4422074632f8bfbd4c87c5f2e6a16650c8266ce048",
@@ -6318,7 +6318,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xa3897771f9af0f415dc154a721e95d0f3406c46f17f109811d76da997c3eb432",
@@ -6370,7 +6370,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x133dd7b6fabdd1df1d03f73b8b7f2122ef308b686f49583b94652fd3803a4915",
@@ -6422,7 +6422,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x9b2a826d083fd851bac5d8c86d95b1942276c2d7c18d86e5a642cc034346f96e",
@@ -6474,7 +6474,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x6e346437d44c77768e170b071f1f6e50ad3a22af6c61c50c57a143cf40e7bd5f",
@@ -6526,7 +6526,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x01fe83a28334813a6f246cd82c48be57688ed055b779a40e968332050eaec6ba",
@@ -6578,7 +6578,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x89bfd68c9ecaa0437c8a5aad30c70412fec333c6621fa66647cf6f9ad712f413",
@@ -6630,7 +6630,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xddbb6db6424f72c51674a5d5bde1ef7210bb8ba812fcdb6851a47b188e5c0b20",
@@ -6682,7 +6682,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xc53f51715e77541f3173cfaedb563d070d23ea9ee399031cd78cd080c01a1d4f",
@@ -6734,7 +6734,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x2e995274f8cb0d7bdeac717535ae70b0f599aaa224ec0eb02fcfeb51e9f22936",
@@ -6786,7 +6786,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x9c6c5954254e44a16e1a45d91911b905af9b5bba793cd5f400b8bae412a2dfbf",
@@ -6838,7 +6838,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x01321e9ab0a623f6f69468734fe89a02bbcfbdc10a01f417f73c4af96e6a4afd",
@@ -6890,7 +6890,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xfd723b5f2d4c461f986f49593ddf259ff96708d1638caaa0767db17eb6ec2c1f",
@@ -6942,7 +6942,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x20c0f28782f1547aa8562df7c66f9faccfd1f4d8f914056decfd033cea25091d",
@@ -6994,7 +6994,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x5fdd890aba4e7387518071732a628eb28effa5b0141f5e672256da3f8ccd6797",
@@ -7046,7 +7046,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x779c6335066547f683612a1d8ef40e078c361b265f76e32539e1882b94846976",
@@ -7098,7 +7098,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xa9662cabfee96c40ea52a4124c2a8083d0ff6ff42c018bace536820ebd6550c5",
@@ -7150,7 +7150,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x9bbe485dda84d0d2561a9ab187d7e20f3cabf05b7b14b98da211a96559ba5c6b",
@@ -7202,7 +7202,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x7d7f17de613aa481c4f3c0143eebf2905e6c892087eaec87f34abac695378356",
@@ -7254,7 +7254,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x1f2f2d6eb3a27ea9657273dd77f9bf8ed7f2f7290cd39c24740a5e1387c3bab9",
@@ -7306,7 +7306,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x58e1e008c063375381a9ad3ad957d929dc8614beb120ae50820fed36255fe58a",
@@ -7358,7 +7358,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x5b2f47814d5200832e181ad5aa2f59589b09700afca48dd56dad30f34b1cc7e8",
@@ -7410,7 +7410,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xa7de7f6391efe02b4c0f670997126478707910a3ec098f13b5138674f6047784",
@@ -7462,7 +7462,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x7294344315f8798d1e4363ada65f46c067dd8fa9923d07e257f30e7b70be1aff",
@@ -7514,7 +7514,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xaac8742573412ad13298e003c7c4abb1fc0c355d431b73c20ae32b1509356588",
@@ -7566,7 +7566,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x35edff39ac4cbc39f367d53a0919bf3ff63c0f5b87dd30636ab61c57cd469239",
@@ -7618,7 +7618,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x17f53a9214d6ef92c41496340468ff267ede59dd5c904bf7d034c18ef2c863be",
@@ -7670,7 +7670,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xae2f3b595bbc94c807e4ae0dae3b8a877f1e33bc742384800a79b0067fb66c43",
@@ -7722,7 +7722,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x76ef937be4a65dfd263827732c11ba5dc1526be63a830b7fa0863d35fa2128c1",
@@ -7774,7 +7774,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x3eaee8e52cc4d0934adb3ae96ae7fa4d96cc69647922a74c2b4aa947fafa18bb",
@@ -7826,7 +7826,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x2532400cd080d530fd9d419ccfc46545fa96d82a67492277d95f25f046953ac2",
@@ -7878,7 +7878,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x9bf71ca65c40d75cd9d9ea010887b6b89db212b421d2e328f4061fdc251e93c7",
@@ -7930,7 +7930,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xf44b36534c2f86d8278a80709f4a4f2eba9bbc4610a72da13fd0c71d61be4928",
@@ -7982,7 +7982,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x37b266474f245d2ec16b1c6f7958f3008b88e00a34a7f16f7b77d28ec00da9f4",
@@ -8034,7 +8034,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x7c48224bfeb09deeb91b331ef153988d5274c015fc629002055a901f5737698e",
@@ -8086,7 +8086,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x68b0472308f1d5acc6e40d2c3276dc46d75cbf3566e88c0c639bbc9fd1c42d40",
@@ -8138,7 +8138,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x4e9b06e63757cac2a429a2db4bfec1ff14371edc6047045d8250b7607d0b0367",
@@ -8190,7 +8190,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x15572ea358875af651d9e71cb7800661096e0a7cb27d21eed9e1d3febb85d615",
@@ -8242,7 +8242,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x009258f413c379febb9fd8c831a9cddf5e1da2c97bb803f9e2063f8e58717b50",
@@ -8294,7 +8294,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x4abe7a1f2402123bb97a5c75cb1bf4f529c74a0d33a170e5aa4204eefb570c51",
@@ -8346,7 +8346,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x9a0ebd5325f0e024b23c493e8d57c6b6415a0448b41d856b8e93837ea281ec35",
@@ -8398,7 +8398,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0xe7738e3d3b56faba3dfcab7ed8073004bbea14a9e5350fbd507791dac451095e",
@@ -8450,7 +8450,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x1cbec04427ed8595a6066ad8576327526eb465f6839f85fa71e084198debd341",
@@ -8502,7 +8502,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x92a79037667666ac57ce4687b9509039b7729ee9d7a56405e94064615728d4c3",
@@ -8554,7 +8554,7 @@
               "894000000000000000000000",
               "1341000000000000000000000"
             ],
-            "message": "Blocked by Mandate · The requested sale exceeds the current epoch sell limit."
+            "message": "Blocked by Mandate · The epoch sell limit would be exceeded (894000 LAUNCH / 1341000 LAUNCH used). This trade asks for 894000 LAUNCH."
           },
           "returnData": "0x977334f400000000000000000000000000000000000000000000bd4fd64cd8ff72c0000000000000000000000000000000000000000000000000bd4fd64cd8ff72c00000000000000000000000000000000000000000000000011bf7c173457f2c200000",
           "transactionHash": "0x8fe06ce30b526bf2f33f9f3a53760b87f013f6c24798ee22a5b5285f2f4cdc12",
@@ -8664,7 +8664,7 @@
               "4992",
               "200"
             ],
-            "message": "Blocked by Mandate · The live Uniswap price differs too far from its average. Possible manipulation."
+            "message": "Blocked by Mandate · The live Uniswap price is 49.92% away from its average (limit 2%). Possible manipulation."
           },
           "returnData": "0x159cb0c7000000000000000000000000000000000000000000007f0fd0b8854f6474e84a0000000000000000000000000000000000000000000054c1e84b81252dcc5634000000000000000000000000000000000000000000000000000000000000138000000000000000000000000000000000000000000000000000000000000000c8",
           "transactionHash": "0x1863c989b628595a6d65642e43012a5739a2d4ff5e43f2f5dd0853c053d416e1",
@@ -8889,7 +8889,7 @@
               "3406",
               "300"
             ],
-            "message": "Blocked by Mandate · The execution price differs too far from the Uniswap average."
+            "message": "Blocked by Mandate · The execution price is 34.06% away from the Uniswap average (limit 3%). Possible manipulation or a stale treasury quote."
           },
           "returnData": "0x802cf1c50000000000000000000000000000000000000000000055299c5e053886c98000000000000000000000000000000000000000000000003f879cbe583ffdbc27f80000000000000000000000000000000000000000000000000000000000000d4e000000000000000000000000000000000000000000000000000000000000012c",
           "transactionHash": "0x27d68758d8ba5ea7ccdd28eb8d113055b8a9fddf0ee97da94c0bfe2228290c0c",
@@ -9190,7 +9190,7 @@
             "args": [
               "epochCap"
             ],
-            "message": "Blocked by Mandate · epochCap exceeds the issuer's bounds."
+            "message": "Blocked by Mandate · The epoch sell limit is outside the issuer's bounds."
           },
           "returnData": "0xee6cd5a10000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000865706f6368436170000000000000000000000000000000000000000000000000",
           "transactionHash": "0x3aa7263b5bdde7999b6f71ced3db5065e73b5df99649e5c31bd7eca14619d5f5",
@@ -9239,7 +9239,7 @@
             "args": [
               "GS104"
             ],
-            "message": "Blocked by Safe · GS104: the MM is not an enabled Safe module."
+            "message": "The caller is not an enabled Safe module. The MM cannot transfer Safe tokens directly."
           },
           "returnData": "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000054753313034000000000000000000000000000000000000000000000000000000",
           "transactionHash": "0x3125ea0a000bc790ffefc62e4dc69037e9a46fef45356eb0c8e9a6bd7a94992d",
@@ -9379,7 +9379,7 @@
             "selector": "0x089ee7df",
             "name": "MandatePaused",
             "args": [],
-            "message": "Blocked by Mandate · This mandate is paused."
+            "message": "Blocked by Mandate · This mandate is paused. Only the issuer Safe can resume it."
           },
           "returnData": "0x089ee7df",
           "transactionHash": "0x1791564c0e55d7478b9db42c5439e9706bbbd219c8fbe97789905c07107256d0",

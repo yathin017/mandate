@@ -29,13 +29,14 @@ async function rpc(method: string, params: unknown[] = [], timeoutMs = 60_000) {
   return body.result;
 }
 
-async function command(program: string, args: string[], cwd = root) {
-  const child = spawn(program, args, { cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+async function command(program: string, args: string[], cwd = root, env: NodeJS.ProcessEnv = process.env) {
+  const child = spawn(program, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
   let output = "";
   child.stdout.on("data", (chunk) => { output += chunk; });
   child.stderr.on("data", (chunk) => { output += chunk; });
   const [code] = await once(child, "close");
   if (code !== 0) throw new Error(`${program} failed (${code}):\n${output.slice(-18_000)}`);
+  if (args.includes("--test")) process.stdout.write(output);
   for (const line of output.split("\n")) if (/Act [123]:|Created 3 mandates/.test(line)) console.log(line.trim());
   return output.trim();
 }
@@ -179,6 +180,12 @@ async function main() {
     const summary = verifyReplay(replay);
     manifest.lastBlock = Number(BigInt(await rpc("eth_blockNumber")));
     manifest.replay = "replay/data/acts.json";
+    if (process.argv.includes("--test-sdk")) {
+      const sdkManifest = join(localDir, "sdk-manifest.json");
+      await writeFile(sdkManifest, JSON.stringify(manifest));
+      await command(process.execPath, ["--test", "packages/sdk/integration/fork.test.ts"], root,
+        { ...process.env, SDK_RPC_URL: local.href, SDK_MANIFEST_PATH: sdkManifest });
+    }
     await mkdir(join(root, "replay/data"), { recursive: true });
     // Publish only after receipt checks and scenario invariants succeed. Previous output survives a failed run.
     await writeFile(join(localDir, "acts.json"), JSON.stringify(replay, null, 2) + "\n");

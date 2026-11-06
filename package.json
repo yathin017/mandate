@@ -10,8 +10,19 @@
     "contracts:build": "cd contracts && forge build",
     "contracts:test": "set -a; [ -f .env ] && . ./.env; set +a; cd contracts && forge test",
     "fork": "set -a; . ./.env; set +a; anvil --fork-url \"$MAINNET_RPC_URL\" --fork-block-number $(jq -r .forkBlock config/chains/1.json)",
-    "replay:run": "node --env-file-if-exists=.env replay/export.ts",
-    "replay:test": "node --test replay/replay.test.ts",
-    "replay:verify": "node replay/verify.ts"
+    "replay:run": "pnpm packages:build && node --env-file-if-exists=.env replay/export.ts",
+    "replay:test": "pnpm packages:build && node --test replay/replay.test.ts",
+    "replay:verify": "node replay/verify.ts",
+    "generate": "pnpm contracts:build && cd contracts && RUST_LOG=error forge script script/GenerateSdkFixtures.s.sol:GenerateSdkFixtures --quiet && cd .. && node scripts/generate.ts",
+    "generate:check": "pnpm contracts:build && cd contracts && SDK_FIXTURES_CHECK=true RUST_LOG=error forge script script/GenerateSdkFixtures.s.sol:GenerateSdkFixtures --quiet && cd .. && node scripts/generate.ts --check",
+    "packages:build": "pnpm generate && tsc -b packages/chains packages/sdk",
+    "packages:test": "node --test packages/chains/test/*.test.ts packages/sdk/test/*.test.ts",
+    "sdk:test:fork": "pnpm packages:build && node --env-file-if-exists=.env replay/export.ts --test-sdk",
+    "packages:typecheck": "tsc -p packages/chains/tsconfig.test.json && tsc -p packages/sdk/tsconfig.test.json"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
   }
 }

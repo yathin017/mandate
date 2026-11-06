@@ -1,5 +1,6 @@
-// Narrow ABI decoding for this segment's fixed snapshot and event formats.
-// General contract ABIs and client wrappers belong to the SDK in Segment 6.
+import { explainError } from "@mandate/sdk";
+
+// Fixed replay snapshot/event decoding. Custom error decoding is shared with the SDK.
 export function words(data: string): bigint[] {
   if (!/^0x(?:[0-9a-fA-F]{64})*$/.test(data)) throw new Error("Malformed ABI words");
   return data.slice(2).match(/.{64}/g)?.map((word) => BigInt(`0x${word}`)) ?? [];
@@ -52,21 +53,11 @@ export function decodeFailure(data: string, selectors: Record<string, string>) {
   const selector = data.slice(0, 10).toLowerCase();
   const name = selectors[selector];
   if (!name) throw new Error(`Unmapped scenario error ${selector}`);
-  const body = `0x${data.slice(10)}`;
-  const args = name === "ParamsOutOfBounds" || name === "SafeError"
-    ? [Buffer.from(dynamicBytes(body, words(body)[0]).slice(2), "hex").toString("utf8")]
-    : words(body).map(String);
-  const messages: Record<string, string> = {
-    EpochCapReached: "Blocked by Mandate · The requested sale exceeds the current epoch sell limit.",
-    SpotTwapDivergence: "Blocked by Mandate · The live Uniswap price differs too far from its average. Possible manipulation.",
-    AnchorDeviation: "Blocked by Mandate · The execution price differs too far from the Uniswap average.",
-    ParamsOutOfBounds: `Blocked by Mandate · ${args[0]} exceeds the issuer's bounds.`,
-    SafeError: `Blocked by Safe · ${args[0]}: the MM is not an enabled Safe module.`,
-    MandatePaused: "Blocked by Mandate · This mandate is paused.",
-    MandateIsRevoked: "Blocked by Mandate · This mandate has been permanently revoked.",
-  };
+  const decoded = explainError(data, { base: { symbol: "LAUNCH", decimals: 18 }, quote: { symbol: "sUSDC", decimals: 6 } });
+  if ((decoded.errorName === "Error" ? "SafeError" : decoded.errorName) !== name) throw new Error(`Scenario error ABI drift: ${selector}`);
+  const args = decoded.args.map(String);
   if (name === "SafeError" && args[0] !== "GS104") throw new Error(`Unexpected Safe error ${args[0]}`);
-  return { selector, name, args, message: messages[name] };
+  return { selector, name, args, message: decoded.message };
 }
 
 export function assertLocalRpc(value: string): URL {
