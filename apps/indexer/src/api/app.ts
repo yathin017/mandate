@@ -29,6 +29,7 @@ import {
   launchedQuery,
   mandateParam,
   mmParam,
+  safeParam,
   seriesQuery,
 } from "./params.ts";
 import * as q from "./queries.ts";
@@ -176,6 +177,15 @@ export function createApp(deps: AppDeps) {
     const { scores } = result.body.data as { scores: { mm: string }[] };
     const score = scores.find((s) => s.mm === address.toLowerCase());
     return score ? c.json({ head: result.body.head, data: { weights: WEIGHTS, ...score } }) : c.json({ error: "no mandates for this market maker" }, 404);
+  });
+
+  app.get("/v1/chains/:chainId/safes/:safe/summary", zValidator("param", safeParam, invalid), async (c) => {
+    const { chainId, safe } = c.req.valid("param");
+    return cached(c, chainId, `safe-summary:${safe}`, async () => {
+      const rows = await q.safeSummary(db, chainId, safe);
+      const tokens = await q.tokenMap(db, chainId, rows.flatMap((row) => [row.base, row.quote]));
+      return rows.map((row) => ({ ...row, tokens: { base: tokens[row.base] ?? null, quote: tokens[row.quote] ?? null } }));
+    });
   });
 
   app.get("/v1/chains/:chainId/tokens/launched", zValidator("param", chainParam, invalid), zValidator("query", launchedQuery, invalid), async (c) => {

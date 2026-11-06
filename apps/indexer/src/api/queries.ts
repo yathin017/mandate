@@ -140,3 +140,55 @@ export async function activity(
   `);
   return [...result] as ActivityRow[];
 }
+
+/**
+ * Per-mandate figures for an issuer Safe's overview, from indexed rows only: the latest snapshot (sold, released,
+ * today's sales, fees), fill count and quote volume, and refused attempts. Amounts are raw token units.
+ */
+export async function safeSummary(db: Db, chainId: number, safe: string) {
+  const rows = await db.execute<{
+    mandate_id: string; status: number; mm: string; base: string; quote: string;
+    allotment: string; total_net_sold: string | null; released: string | null; net_sold_this_epoch: string | null;
+    epoch_cap: string | null; fees_base: string | null; fees_quote: string | null; claimed_base: string | null;
+    claimed_quote: string | null; anchor_status: string | null; fills: number; quote_volume: string; refused: number;
+  }>(sql`
+    SELECT m.mandate_id, m.status, m.mm, m.base, m.quote, m.bounds->>'allotment' AS allotment,
+           s.total_net_sold::text, s.released::text, s.net_sold_this_epoch::text, s.epoch_cap::text,
+           s.fees_base::text, s.fees_quote::text, s.claimed_base::text, s.claimed_quote::text, s.anchor_status::text,
+           coalesce(f.fills, 0)::int AS fills, coalesce(f.quote_volume, 0)::text AS quote_volume,
+           coalesce(a.refused, 0)::int AS refused
+    FROM mandates m
+    LEFT JOIN LATERAL (
+      SELECT * FROM snapshots s WHERE s.chain_id = m.chain_id AND s.mandate_id = m.mandate_id ORDER BY s.block_number DESC LIMIT 1
+    ) s ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS fills, sum(CASE WHEN f.is_sell THEN f.amount_in ELSE f.amount_out END) AS quote_volume
+      FROM fills f WHERE f.chain_id = m.chain_id AND f.mandate_id = m.mandate_id
+    ) f ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS refused FROM attempts a
+      WHERE a.chain_id = m.chain_id AND a.mandate_id = m.mandate_id AND a.outcome = 'blocked'
+    ) a ON true
+    WHERE m.chain_id = ${chainId} AND m.safe = ${safe}
+    ORDER BY m.created_block DESC`);
+  return rows.map((r) => ({
+    mandateId: r.mandate_id,
+    status: r.status,
+    mm: r.mm,
+    base: r.base,
+    quote: r.quote,
+    allotment: r.allotment,
+    totalNetSold: r.total_net_sold ?? "0",
+    released: r.released ?? "0",
+    soldToday: r.net_sold_this_epoch ?? "0",
+    dailyCap: r.epoch_cap ?? "0",
+    feesBase: r.fees_base ?? "0",
+    feesQuote: r.fees_quote ?? "0",
+    claimedBase: r.claimed_base ?? "0",
+    claimedQuote: r.claimed_quote ?? "0",
+    anchorStatus: r.anchor_status,
+    fills: r.fills,
+    quoteVolume: r.quote_volume,
+    refused: r.refused,
+  }));
+}

@@ -118,6 +118,32 @@ describe("read API over the indexed demo chain", { skip }, () => {
     assert.deepEqual(body.data.tokens, { base: { symbol: "LAUNCH", decimals: 18 }, quote: { symbol: "sUSDC", decimals: 6 } });
   });
 
+  test("a Safe's summary matches its fills, refusals and latest snapshot", async () => {
+    const all = (await (await get(`${base}/mandates`)).json()).data as { mandateId: string; safe: string }[];
+    for (const m of all) {
+      const summary = (await (await get(`${base}/safes/${m.safe}/summary`)).json()).data as any[];
+      const row = summary.find((r) => r.mandateId === m.mandateId);
+      assert.ok(row, "the Safe's mandate is in its summary");
+      let fills = 0;
+      let refused = 0;
+      let cursor: string | null = null;
+      do {
+        const page: any = await (await get(`${base}/mandates/${m.mandateId}/activity?limit=100${cursor ? `&before=${cursor}` : ""}`)).json();
+        for (const item of page.data.items) {
+          if (item.kind === "fill") fills++;
+          else if (item.outcome === "blocked") refused++;
+        }
+        cursor = page.data.next;
+      } while (cursor);
+      assert.equal(row.fills, fills);
+      assert.equal(row.refused, refused);
+      const detail = (await (await get(`${base}/mandates/${m.mandateId}`)).json()).data;
+      assert.equal(row.totalNetSold, detail.snapshot.totalNetSold);
+      assert.equal(row.tokens.base.symbol, "LAUNCH");
+    }
+    assert.deepEqual((await (await get(`${base}/safes/0x000000000000000000000000000000000000beef/summary`)).json()).data, []);
+  });
+
   test("series returns snapshots in block order", async () => {
     const body = await (await get(`${base}/mandates/${fork.mandates.act2}/series?limit=2000`)).json();
     assert.ok(body.data.length > 1);
