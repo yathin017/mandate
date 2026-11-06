@@ -3,11 +3,21 @@ import { concatHex, encodeAbiParameters, encodeFunctionData, getAbiItem, keccak2
 import { getChainConfig, type MandateDeployment } from "@mandate/chains";
 import { erc20Abi, mandateModuleAbi, swapVmAbi } from "./abis.ts";
 
-export type Mandate = ContractFunctionReturnType<typeof mandateModuleAbi, "view", "getMandate">;
-export type MandateBounds = Mandate["bounds"];
-export type MandateParams = Mandate["params"];
-export type IssuerBounds = Omit<MandateBounds, "quoter">;
+export type Policy = ContractFunctionReturnType<typeof mandateModuleAbi, "view", "getPolicy">;
+export type PolicyConfig = Policy["config"];
+export type Strategy = ContractFunctionReturnType<typeof mandateModuleAbi, "view", "getStrategy">;
+export type StrategyBounds = Strategy["bounds"];
+export type StrategyParams = Strategy["params"];
 export type SwapOrder = ContractFunctionReturnType<typeof mandateModuleAbi, "view", "activeOrder">;
+
+/** Onchain enums (MandateTypes.sol), in declaration order. */
+export const STATUS = { none: 0, active: 1, paused: 2, revoked: 3 } as const;
+export const STRATEGY_KIND = { marketMaking: 0, buyback: 1 } as const;
+export const RISK_MODE = { normal: 0, defensive: 1, paused: 2 } as const;
+export const RISK_REASONS = ["None", "Unpriced", "PoolTooYoung", "DepthBelowMinimum", "MoveBeyondPause",
+  "VolatilityBeyondPause", "MoveDefensive", "VolatilityDefensive", "DepthDefensive"] as const;
+export type RiskReason = (typeof RISK_REASONS)[number];
+
 export interface PreparedCall {
   readonly chainId: number;
   readonly to: Address;
@@ -26,31 +36,57 @@ function call(deployment: MandateDeployment, data: Hex, role: PreparedCall["role
   return { chainId: deployment.chainId, to, data, value: 0n, operation: 0, role };
 }
 
+// ---------------------------------------------------------------- issuer (executed by the Safe)
+
 /** Issuer payloads must be executed by the Safe. These builders never sign or submit transactions. */
-export function buildCreateMandateCall(deployment: MandateDeployment, input: {
-  marketMaker: Address; base: Address; quote: Address; bounds: IssuerBounds; params: MandateParams;
+export function buildCreatePolicyCall(deployment: MandateDeployment, input: {
+  base: Address; quote: Address; config: PolicyConfig;
 }): PreparedCall {
-  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "createMandate",
-    args: [input.marketMaker, input.base, input.quote, { ...input.bounds, quoter: deployment.quoter }, input.params] }), "issuer-safe");
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "createPolicy",
+    args: [input.base, input.quote, input.config] }), "issuer-safe");
 }
-export function buildUpdateBoundsCall(deployment: MandateDeployment, id: Hash, bounds: IssuerBounds): PreparedCall {
-  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "updateBounds",
-    args: [id, { ...bounds, quoter: deployment.quoter }] }), "issuer-safe");
+export function buildUpdatePolicyCall(deployment: MandateDeployment, policyId: Hash, config: PolicyConfig): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "updatePolicy",
+    args: [policyId, config] }), "issuer-safe");
 }
-export function buildReshipCall(deployment: MandateDeployment, id: Hash, params: MandateParams): PreparedCall {
-  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "reship", args: [id, params] }), "market-maker");
+export function buildPausePolicyCall(deployment: MandateDeployment, policyId: Hash): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "pausePolicy", args: [policyId] }), "issuer-safe");
 }
-export function buildPauseCall(deployment: MandateDeployment, id: Hash): PreparedCall {
-  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "pause", args: [id] }), "either");
+export function buildUnpausePolicyCall(deployment: MandateDeployment, policyId: Hash): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "unpausePolicy", args: [policyId] }), "issuer-safe");
 }
-export function buildUnpauseCall(deployment: MandateDeployment, id: Hash): PreparedCall {
-  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "unpause", args: [id] }), "issuer-safe");
+/** Ends the policy and revokes every strategy under it. */
+export function buildRevokePolicyCall(deployment: MandateDeployment, policyId: Hash): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "revokePolicy", args: [policyId] }), "issuer-safe");
 }
-export function buildRevokeCall(deployment: MandateDeployment, id: Hash): PreparedCall {
-  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "revoke", args: [id] }), "issuer-safe");
+export function buildAddStrategyCall(deployment: MandateDeployment, input: {
+  policyId: Hash; marketMaker: Address; kind: number; bounds: StrategyBounds; params: StrategyParams;
+}): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "addStrategy",
+    args: [input.policyId, input.marketMaker, input.kind, input.bounds, input.params] }), "issuer-safe");
 }
-export function buildClaimFeesCall(deployment: MandateDeployment, id: Hash): PreparedCall {
-  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "claimFees", args: [id] }), "market-maker");
+export function buildUpdateStrategyBoundsCall(deployment: MandateDeployment, strategyId: Hash, bounds: StrategyBounds): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "updateStrategyBounds",
+    args: [strategyId, bounds] }), "issuer-safe");
+}
+export function buildUnpauseStrategyCall(deployment: MandateDeployment, strategyId: Hash): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "unpauseStrategy", args: [strategyId] }), "issuer-safe");
+}
+export function buildRevokeStrategyCall(deployment: MandateDeployment, strategyId: Hash): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "revokeStrategy", args: [strategyId] }), "issuer-safe");
+}
+
+// ---------------------------------------------------------------- market maker / either
+
+export function buildReshipCall(deployment: MandateDeployment, strategyId: Hash, params: StrategyParams): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "reship", args: [strategyId, params] }), "market-maker");
+}
+export function buildClaimFeesCall(deployment: MandateDeployment, strategyId: Hash): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "claimFees", args: [strategyId] }), "market-maker");
+}
+/** The issuer Safe or the strategy's market maker may pause; only the issuer resumes. */
+export function buildPauseStrategyCall(deployment: MandateDeployment, strategyId: Hash): PreparedCall {
+  return call(deployment, encodeFunctionData({ abi: mandateModuleAbi, functionName: "pauseStrategy", args: [strategyId] }), "either");
 }
 
 function uint(value: bigint, bits: number, name: string): bigint {

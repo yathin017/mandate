@@ -1,12 +1,14 @@
 import { decodeErrorResult, formatUnits, isHex, type Abi, type Hex } from "viem";
-import { mandateModuleAbi, mandateQuoterAbi, uniswapV4TwapAnchorAbi, mandateOracleHookAbi,
+import { mandateModuleAbi, mandateQuoterAbi, uniswapV4MarketOracleAbi, mandateOracleHookAbi,
   aquaAbi, aquaSwapVmRouterAbi, erc20Abi, erc20ErrorsAbi } from "./abis.ts";
+import { RISK_REASONS } from "./transactions.ts";
 import { formatPriceX36, formatTokenAmount, type TokenDisplay } from "./units.ts";
 
 export interface ErrorContext {
   readonly base?: TokenDisplay;
   readonly quote?: TokenDisplay;
-  readonly epochResetsAt?: bigint;
+  /** End of the policy's current period (from policyCounters), to say when caps reset. */
+  readonly periodEndsAt?: bigint;
   readonly now?: bigint;
 }
 export interface ExplainedError {
@@ -19,7 +21,7 @@ export interface ExplainedError {
 }
 
 type OwnErrorName = Extract<(typeof mandateModuleAbi | typeof mandateQuoterAbi
-  | typeof uniswapV4TwapAnchorAbi | typeof mandateOracleHookAbi)[number], { type: "error" }>["name"];
+  | typeof uniswapV4MarketOracleAbi | typeof mandateOracleHookAbi)[number], { type: "error" }>["name"];
 type Renderer = (args: readonly unknown[], context: ErrorContext) => string;
 const n = (args: readonly unknown[], i: number) => BigInt(String(args[i]));
 const token = (args: readonly unknown[], i: number, context: ErrorContext) => formatTokenAmount(n(args, i), context.base);
@@ -30,73 +32,104 @@ const percent = (args: readonly unknown[], i: number) => `${formatUnits(n(args, 
 const blocked = (text: string) => `Blocked by Mandate · ${text}`;
 
 const FIELDS: Record<string, string> = {
-  allotment: "token allocation", releaseStart: "release start", releaseDuration: "release duration",
-  epochLength: "epoch length", maxEpochCap: "maximum epoch sell limit", maxShippedQuote: "buyback inventory limit",
-  floorPriceX36: "price floor", maxAnchorDeviationBps: "anchor tolerance", twapWindow: "TWAP window",
-  spreadBpsMin: "minimum spread", spreadBpsMax: "maximum spread", mmFeeShareBps: "MM fee share",
-  anchor: "price anchor", quoter: "quoter", spreadBps: "spread", epochCap: "epoch sell limit",
-  shippedBase: "shipped token inventory", shippedQuote: "shipped buyback inventory",
+  allotment: "token allotment", releaseDuration: "release duration", periodLength: "period length",
+  grossSellCap: "gross sell limit", netSellCap: "net sell limit", maxQuoteDeviationBps: "quote tolerance",
+  maxImpactBps: "price impact allowance", oracle: "market oracle", twapWindow: "TWAP window",
+  shortWindow: "short TWAP window", depthBandBps: "depth band", defensiveMoveBps: "defensive move threshold",
+  defensiveVolatilityBps: "defensive volatility threshold", defensiveDepth: "defensive depth threshold",
+  "normal.maxFillBase": "normal-mode fill limit", "normal.maxFillDepthBps": "normal-mode share of depth",
+  "normal.minSpreadBps": "normal-mode minimum spread", "defensive.maxFillBase": "defensive-mode fill limit",
+  "defensive.maxFillDepthBps": "defensive-mode share of depth", "defensive.minSpreadBps": "defensive-mode minimum spread",
+  "defensive.buybacksAllowed": "defensive-mode buybacks", spreadBps: "spread", maxShipped: "maximum shipped inventory",
+  mmFeeShareBps: "MM fee share", maxBuyPriceX36: "maximum buyback price",
+  shippedBase: "shipped token inventory", shippedQuote: "shipped quote inventory",
 };
 const field = (value: unknown) => FIELDS[String(value)] ?? "requested setting";
+const reset = (c: ErrorContext) => c.periodEndsAt !== undefined && c.now !== undefined
+  ? ` Resets in ${c.periodEndsAt > c.now ? c.periodEndsAt - c.now : 0n} seconds.` : "";
+const REASONS: Record<string, string> = {
+  None: "the market is calm",
+  Unpriced: "the oracle has no price yet (not enough pool history)",
+  PoolTooYoung: "the anchor pool is younger than the issuer's minimum age",
+  DepthBelowMinimum: "the pool's trusted liquidity is below the issuer's minimum",
+  MoveBeyondPause: "the live price has moved past the issuer's pause threshold",
+  VolatilityBeyondPause: "short-term volatility is past the issuer's pause threshold",
+  MoveDefensive: "the live price has moved past the issuer's defensive threshold",
+  VolatilityDefensive: "short-term volatility is past the issuer's defensive threshold",
+  DepthDefensive: "the pool's trusted liquidity is below the issuer's defensive threshold",
+};
+/** Plain-language reason for a risk mode, from its onchain index. */
+export const riskReasonText = (index: number | bigint) => REASONS[RISK_REASONS[Number(index)] ?? ""] ?? "an unknown reason";
+const MODES = ["Normal", "Defensive", "Paused"];
 
 /** Every custom error in our production contract ABIs is required here at compile time. */
 export const ERROR_MESSAGES = {
   NotIssuer: () => "Only the issuer Safe can authorize this action. Its owners must sign a Safe transaction.",
-  NotMarketMaker: () => "Only this mandate's market maker can perform this action.",
-  NotIssuerOrMarketMaker: () => "Only the issuer Safe or its market maker can pause this mandate.",
-  ModuleNotEnabled: () => "Enable the Mandate module on the issuer Safe before creating a mandate.",
+  NotMarketMaker: () => "Only this strategy's market maker can perform this action.",
+  NotIssuerOrMarketMaker: () => "Only the issuer Safe or the strategy's market maker can pause it.",
+  ModuleNotEnabled: () => "Enable the Mandate module on the issuer Safe before creating a policy.",
   InvalidParties: () => "Choose a valid market maker and two distinct token addresses.",
-  InvalidBounds: (a) => `The issuer's ${field(a[0])} is invalid. Review the mandate terms.`,
+  PolicyAlreadyActive: () => "This Safe already has a live policy for this token. Update it, or revoke it first.",
+  InvalidPolicy: (a) => `The policy's ${field(a[0])} is invalid. Review the policy settings.`,
+  InvalidStrategy: (a) => `The strategy's ${field(a[0])} is invalid for its kind. Review the strategy bounds.`,
   ParamsOutOfBounds: (a) => blocked(`The ${field(a[0])} is outside the issuer's bounds.`),
-  FeeShareIsFixed: () => "The MM fee share was fixed at creation and cannot be changed.",
-  MandateIsRevoked: () => blocked("This mandate has been permanently revoked."),
-  MandateRevoked: () => blocked("This mandate has been permanently revoked."),
-  MandateNotActive: () => "Only an active mandate can be paused.",
-  MandateNotPaused: () => "Only a paused mandate can be resumed; revocation is permanent.",
+  FeeShareIsFixed: () => "The MM fee share was fixed when the strategy was added and cannot be changed.",
+  TooManyStrategies: (a) => `At most ${n(a, 0)} strategies are allowed here. Revoke one first.`,
+  InsufficientBacking: (a) => blocked(`The Safe's strategies would promise ${n(a, 1)} of a token it holds only ${n(a, 2)} of (raw units). Ship less.`),
+  PolicyNotActive: () => "Strategies can only be added to an active policy.",
+  IsRevoked: () => blocked("This has been permanently revoked."),
+  NotActive: () => "Only an active policy or strategy can be paused.",
+  NotPaused: () => "Only a paused policy or strategy can be resumed; revocation is permanent.",
   NothingToClaim: () => "No earned MM fees are currently available to claim.",
   SafeCallFailed: () => "The Safe could not execute the requested action.",
   ReentrancyGuardReentrantCall: () => "The contract blocked a nested call to an action already in progress.",
   NotRouter: () => "This call must come through the 1inch Aqua router.",
-  InvalidArgs: () => "The strategy has invalid mandate data. Use its active order from the module.",
-  MandateNotFound: () => "No mandate exists with this id on the selected network.",
-  WrongMaker: () => "The strategy's maker must be the mandate's issuer Safe.",
-  InactiveStrategy: () => "This strategy is no longer active. Refresh the order after a reship.",
-  WrongPair: () => "These tokens do not match the mandate's trading pair.",
-  AmountAlreadyComputed: () => "This strategy already computed an amount before reaching the quoter.",
-  MandatePaused: () => blocked("This mandate is paused. Only the issuer Safe can resume it."),
-  AnchorDeviation: (a, c) => blocked(`The execution price is ${percent(a, 2)} away from the Uniswap average (limit ${percent(a, 3)}). Possible manipulation or a stale treasury quote.`),
+  InvalidArgs: () => "The order has invalid strategy data. Use the strategy's active order from the module.",
+  StrategyNotFound: () => "No strategy exists with this id on the selected network.",
+  WrongMaker: () => "The order's maker must be the policy's issuer Safe.",
+  InactiveStrategy: () => "This order is no longer active. Refresh the order after a reship.",
+  WrongPair: () => "These tokens do not match the policy's trading pair.",
+  AmountAlreadyComputed: () => "This order already computed an amount before reaching the quoter.",
+  PolicyRevoked: () => blocked("The treasury policy has been permanently revoked."),
+  PolicyPaused: () => blocked("The treasury policy is paused. Only the issuer Safe can resume it."),
+  StrategyRevoked: () => blocked("This strategy has been permanently revoked."),
+  StrategyPaused: () => blocked("This strategy is paused. Only the issuer Safe can resume it."),
+  RiskPaused: (a) => blocked(`The treasury is paused because ${riskReasonText(n(a, 0))}. Trading resumes when the market recovers.`),
+  QuoteOffMarket: (a, c) => blocked(`The strategy's price ${price(a, 0, c)} is ${percent(a, 2)} away from the Uniswap average ${price(a, 1, c)} (limit ${percent(a, 3)}). The order needs repricing.`),
+  PriceImpactTooHigh: (a) => blocked(`This trade would move the price ${percent(a, 2)} (limit ${percent(a, 3)}). Trade a smaller amount.`),
+  FillTooLarge: (a, c) => blocked(`This trade asks for ${token(a, 0, c)}; the current limit per trade is ${token(a, 1, c)}.`),
+  SellsNotAllowed: () => blocked("This is a buyback strategy: it only buys tokens back."),
   BelowFloor: (a, c) => blocked(`Price ${price(a, 0, c)} is below the ${price(a, 1, c)} floor.`),
-  EpochCapReached: (a, c) => {
-    const reset = c.epochResetsAt !== undefined && c.now !== undefined
-      ? ` Resets in ${c.epochResetsAt > c.now ? c.epochResetsAt - c.now : 0n} seconds.` : "";
-    return blocked(`The epoch sell limit would be exceeded (${token(a, 0, c)} / ${token(a, 2, c)} used). This trade asks for ${token(a, 1, c)}.${reset}`);
-  },
+  GrossSellCapReached: (a, c) => blocked(`The gross sell limit would be exceeded (${token(a, 0, c)} / ${token(a, 2, c)} sold this period). This trade asks for ${token(a, 1, c)}.${reset(c)}`),
+  NetSellCapReached: (a, c) => blocked(`The net sell limit would be exceeded (${token(a, 0, c)} / ${token(a, 2, c)} net sold this period). This trade asks for ${token(a, 1, c)}.${reset(c)}`),
   ReleaseExceeded: (a, c) => blocked(`Only ${token(a, 2, c)} has unlocked so far; ${token(a, 0, c)} is already net sold and this trade asks for ${token(a, 1, c)}.`),
+  BuybacksNotAllowed: (a) => blocked(`Buybacks are not allowed in ${MODES[Number(n(a, 0))] ?? "the current"} mode.`),
+  AboveMaxBuyPrice: (a, c) => blocked(`The buyback price ${price(a, 0, c)} is above the strategy's ${price(a, 1, c)} limit.`),
+  QuoteSpendCapReached: (a, c) => {
+    const q = (i: number) => formatTokenAmount(n(a, i), c.quote);
+    return blocked(`The buyback budget would be exceeded (${q(0)} / ${q(2)} spent this period). This trade needs ${q(1)}.${reset(c)}`);
+  },
   ZeroAddress: () => "The contract configuration contains a missing address.",
   ZeroAmount: () => "Enter a non-zero trade amount and use a valid reference price.",
   ZeroBalance: () => "The strategy needs inventory in both tokens before it can quote.",
   InsufficientLiquidity: () => "The requested output would exhaust this strategy's virtual inventory. Reduce the trade size.",
   InvalidSpread: () => "The spread must be less than 100% and stay within the issuer's bounds.",
-  InvalidEpochLength: () => "The epoch length must be greater than zero.",
+  InvalidEpochLength: () => "The period length must be greater than zero.",
   InstructionArgsTooLong: () => "The strategy instruction is too large for this router version.",
   SafeCastOverflowedUintDowncast: () => "This value exceeds the contract's supported numeric range.",
   MakerTraitsMissingHasPostTransferInFlag: () => "The strategy's incoming-token hook configuration is inconsistent.",
   MakerTraitsMissingHasPostTransferOutFlag: () => "The strategy's outgoing-token hook configuration is inconsistent.",
   MakerTraitsMissingHasPreTransferInFlag: () => "The strategy's incoming-token hook configuration is inconsistent.",
   MakerTraitsMissingHasPreTransferOutFlag: () => "The strategy's outgoing-token hook configuration is inconsistent.",
-  ZeroHook: () => "This pool needs an oracle hook before it can anchor a mandate.",
-  PairNotInPool: () => "The selected pool does not contain the mandate's two tokens.",
-  ZeroWindow: () => "Choose a TWAP window greater than zero.",
-  PriceOutOfRange: () => blocked("The anchor price is too small to represent safely. Trading is unavailable."),
-  ZeroDeviationLimit: () => "The live-price circuit breaker needs a non-zero tolerance.",
-  SpotTwapDivergence: (a) => blocked(`The live Uniswap price is ${percent(a, 2)} away from its average (limit ${percent(a, 3)}). Possible manipulation.`),
+  ZeroHook: () => "This pool needs an oracle hook before it can anchor a policy.",
+  PairNotInPool: () => "The selected pool does not contain the policy's two tokens.",
   HookNotImplemented: () => "This operation is not supported by the pool's oracle hook.",
   NotPoolManager: () => "Only the configured Uniswap PoolManager can call this hook.",
   PoolNotInitialized: () => "Initialize the Uniswap pool before requesting its price.",
-  TargetPredatesOldestObservation: () => blocked("The oracle does not yet have enough history for this TWAP window. Trading waits for sufficient observations."),
+  TargetPredatesOldestObservation: () => "The oracle does not yet have enough history for this TWAP window.",
 } satisfies Record<OwnErrorName, Renderer>;
 
-const errorAbi: Abi = [mandateModuleAbi, mandateQuoterAbi, uniswapV4TwapAnchorAbi, mandateOracleHookAbi,
+const errorAbi: Abi = [mandateModuleAbi, mandateQuoterAbi, uniswapV4MarketOracleAbi, mandateOracleHookAbi,
   aquaAbi, aquaSwapVmRouterAbi, erc20Abi, erc20ErrorsAbi].flatMap((abi) => abi.filter((item) => item.type === "error"));
 const TOKEN_MESSAGES: Record<string, string> = {
   ERC20InsufficientBalance: "The token balance is too low to complete this action.",
@@ -107,7 +140,7 @@ const TOKEN_MESSAGES: Record<string, string> = {
   ERC20InvalidSpender: "The token approval has an invalid spender.",
 };
 const VENUE_MESSAGES: Record<string, string> = {
-  SafeBalancesForTokenNotInActiveStrategy: "This strategy is docked or does not include the requested token. Refresh the mandate's status and active order.",
+  SafeBalancesForTokenNotInActiveStrategy: "This strategy is docked or does not include the requested token. Refresh the strategy's status and active order.",
   StrategiesMustBeImmutable: "This strategy hash was already shipped. Reship through the module to use a fresh nonce.",
   TakerTraitsDeadlineExpired: "This swap request has expired. Request a fresh quote.",
   TakerTraitsExceedingMaxInputAmount: "This fill would cost more than your maximum input amount.",

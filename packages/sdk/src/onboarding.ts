@@ -23,8 +23,6 @@ import type { PreparedCall } from "./transactions.ts";
 /** Pool parameters every AnchorLauncher pool uses (mirrors AnchorLauncher.FEE / TICK_SPACING onchain). */
 export const ANCHOR_POOL_FEE = 3000;
 export const ANCHOR_POOL_TICK_SPACING = 60;
-/** Mandate's default TWAP window; an anchor can price once its pool has this much history. */
-export const DEFAULT_TWAP_WINDOW = 1800;
 
 const PRICE_SCALE = 10n ** 36n;
 const Q64 = 1n << 64n;
@@ -88,11 +86,18 @@ export interface AnchorStatus {
   readonly spotPriceX36: bigint;
   /** In-range liquidity; an anchor on a thin pool is cheap to move. */
   readonly liquidity: bigint;
+  /**
+   * Liquidity the hook trusts: recent additions do not count until they have settled, so a just-in-time deposit
+   * cannot inflate the depth the policy's risk checks see.
+   */
+  readonly trustedLiquidity: bigint;
+  /** When the pool was initialized (hook record), or null if it does not exist. */
+  readonly initializedAt: number | null;
   readonly cardinality: number;
   readonly cardinalityNext: number;
   /** Timestamp of the oldest stored observation, or null without history. */
   readonly oldestObservation: number | null;
-  /** When the TWAP window is first fully covered. */
+  /** When the issuer's TWAP window is first fully covered. */
   readonly readyAt: number | null;
   readonly ready: boolean;
   readonly source: { readonly blockNumber: bigint; readonly timestamp: bigint };
@@ -100,7 +105,9 @@ export interface AnchorStatus {
 
 /** Everything the onboarding UI shows about a pair's anchor, read at one block. */
 export async function readAnchorStatus(client: PublicClient, input: {
-  chainId: number; launcher: Address; base: Address; quote: Address; window?: number;
+  chainId: number; launcher: Address; base: Address; quote: Address;
+  /** The policy's TWAP window in seconds; it decides when the anchor is ready. */
+  window: number;
 }): Promise<AnchorStatus> {
   const block = await client.getBlock({ blockTag: "latest" });
   if (block.number === null) throw new Error("A confirmed block is required");
@@ -110,12 +117,14 @@ export async function readAnchorStatus(client: PublicClient, input: {
   const poolKey = anchorPoolKey(hook, input.base, input.quote);
   const poolId = poolIdOf(poolKey);
 
-  const [anchor, predictedAnchor, slot0, liquidity, state] = await Promise.all([
+  const [anchor, predictedAnchor, slot0, liquidity, state, trustedLiquidity, initializedAt] = await Promise.all([
     client.readContract({ address: input.launcher, abi: anchorLauncherAbi, functionName: "anchorOf", args: [input.base, input.quote], ...at }),
     client.readContract({ address: input.launcher, abi: anchorLauncherAbi, functionName: "predictAnchor", args: [input.base, input.quote], ...at }),
     client.readContract({ address: stateView, abi: stateViewAbi, functionName: "getSlot0", args: [poolId], ...at }),
     client.readContract({ address: stateView, abi: stateViewAbi, functionName: "getLiquidity", args: [poolId], ...at }),
     client.readContract({ address: hook, abi: mandateOracleHookAbi, functionName: "stateById", args: [poolId], ...at }),
+    client.readContract({ address: hook, abi: mandateOracleHookAbi, functionName: "trustedLiquidity", args: [poolId], ...at }),
+    client.readContract({ address: hook, abi: mandateOracleHookAbi, functionName: "initializedAt", args: [poolId], ...at }),
   ]);
   const [sqrtPriceX96, tick] = slot0;
   const [index, cardinality, cardinalityNext] = state;
@@ -129,7 +138,8 @@ export async function readAnchorStatus(client: PublicClient, input: {
       functionName: "observationsById", args: [poolId, 0n], ...at });
     if (oldest[4]) oldestObservation = oldest[0];
   }
-  const window = input.window ?? DEFAULT_TWAP_WINDOW;
+  if (!Number.isInteger(input.window) || input.window <= 0) throw new Error("TWAP window must be a positive number of seconds");
+  const window = input.window;
   const readyAt = oldestObservation === null ? null : oldestObservation + window;
   const baseIsCurrency0 = getAddress(input.base) === poolKey.currency0;
 
@@ -139,7 +149,8 @@ export async function readAnchorStatus(client: PublicClient, input: {
     predictedAnchor: getAddress(predictedAnchor),
     poolExists: sqrtPriceX96 > 0n, sqrtPriceX96, tick,
     spotPriceX36: priceX36FromSqrtPrice(sqrtPriceX96, baseIsCurrency0),
-    liquidity, cardinality, cardinalityNext, oldestObservation, readyAt,
+    liquidity, trustedLiquidity, initializedAt: initializedAt === 0 ? null : initializedAt,
+    cardinality, cardinalityNext, oldestObservation, readyAt,
     ready: readyAt !== null && BigInt(readyAt) <= block.timestamp,
     source: { blockNumber: block.number, timestamp: block.timestamp },
   };

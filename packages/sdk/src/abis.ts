@@ -34,6 +34,32 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_LIVE_STRATEGIES_PER_SAFE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_STRATEGIES_PER_POLICY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "QUOTER",
     "inputs": [],
     "outputs": [
@@ -63,7 +89,7 @@ export const mandateModuleAbi = [
     "name": "activeOrder",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -96,10 +122,122 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
+    "name": "activePolicyOf",
+    "inputs": [
+      {
+        "name": "safe",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "base",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "addStrategy",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "mm",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "kind",
+        "type": "uint8",
+        "internalType": "enum StrategyKind"
+      },
+      {
+        "name": "bounds",
+        "type": "tuple",
+        "internalType": "struct StrategyBounds",
+        "components": [
+          {
+            "name": "spreadBpsMin",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "spreadBpsMax",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxShippedBase",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxShippedQuote",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "mmFeeShareBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxBuyPriceX36",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct StrategyParams",
+        "components": [
+          {
+            "name": "spreadBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "shippedBase",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "shippedQuote",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "strategyId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "claimFees",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -123,7 +261,7 @@ export const mandateModuleAbi = [
     "name": "claimable",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -147,7 +285,7 @@ export const mandateModuleAbi = [
     "name": "claimed",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -168,13 +306,8 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
-    "name": "createMandate",
+    "name": "createPolicy",
     "inputs": [
-      {
-        "name": "mm",
-        "type": "address",
-        "internalType": "address"
-      },
       {
         "name": "base",
         "type": "address",
@@ -186,113 +319,203 @@ export const mandateModuleAbi = [
         "internalType": "address"
       },
       {
-        "name": "bounds",
+        "name": "config",
         "type": "tuple",
-        "internalType": "struct MandateBounds",
+        "internalType": "struct PolicyConfig",
         "components": [
           {
-            "name": "allotment",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "release",
+            "type": "tuple",
+            "internalType": "struct ReleaseLimits",
+            "components": [
+              {
+                "name": "allotment",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "releaseStart",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "releaseDuration",
+                "type": "uint64",
+                "internalType": "uint64"
+              }
+            ]
           },
           {
-            "name": "releaseStart",
-            "type": "uint64",
-            "internalType": "uint64"
+            "name": "period",
+            "type": "tuple",
+            "internalType": "struct PeriodLimits",
+            "components": [
+              {
+                "name": "periodLength",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "grossSellCap",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "netSellCap",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "quoteSpendCap",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
           },
           {
-            "name": "releaseDuration",
-            "type": "uint64",
-            "internalType": "uint64"
+            "name": "price",
+            "type": "tuple",
+            "internalType": "struct PriceRules",
+            "components": [
+              {
+                "name": "floorPriceX36",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxQuoteDeviationBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "maxImpactBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              }
+            ]
           },
           {
-            "name": "epochLength",
-            "type": "uint64",
-            "internalType": "uint64"
+            "name": "oracle",
+            "type": "tuple",
+            "internalType": "struct OracleRules",
+            "components": [
+              {
+                "name": "oracle",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "twapWindow",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "shortWindow",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "depthBandBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minPoolAge",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "minTrustedDepth",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "defensiveMoveBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "pauseMoveBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "defensiveVolatilityBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "pauseVolatilityBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "defensiveDepth",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
           },
           {
-            "name": "maxEpochCap",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "normal",
+            "type": "tuple",
+            "internalType": "struct ModeLimits",
+            "components": [
+              {
+                "name": "maxFillBase",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxFillDepthBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minSpreadBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "buybacksAllowed",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
           },
           {
-            "name": "maxShippedQuote",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "floorPriceX36",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maxAnchorDeviationBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "twapWindow",
-            "type": "uint32",
-            "internalType": "uint32"
-          },
-          {
-            "name": "spreadBpsMin",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "spreadBpsMax",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "mmFeeShareBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "anchor",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "quoter",
-            "type": "address",
-            "internalType": "address"
-          }
-        ]
-      },
-      {
-        "name": "params",
-        "type": "tuple",
-        "internalType": "struct MandateParams",
-        "components": [
-          {
-            "name": "spreadBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "epochCap",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "shippedBase",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "shippedQuote",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "defensive",
+            "type": "tuple",
+            "internalType": "struct ModeLimits",
+            "components": [
+              {
+                "name": "maxFillBase",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxFillDepthBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minSpreadBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "buybacksAllowed",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
           }
         ]
       }
     ],
     "outputs": [
       {
-        "name": "mandateId",
+        "name": "policyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -301,10 +524,10 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
-    "name": "getMandate",
+    "name": "getPolicy",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "policyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -313,15 +536,10 @@ export const mandateModuleAbi = [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct Mandate",
+        "internalType": "struct Policy",
         "components": [
           {
             "name": "safe",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "mm",
             "type": "address",
             "internalType": "address"
           },
@@ -338,7 +556,242 @@ export const mandateModuleAbi = [
           {
             "name": "status",
             "type": "uint8",
-            "internalType": "enum MandateStatus"
+            "internalType": "enum Status"
+          },
+          {
+            "name": "config",
+            "type": "tuple",
+            "internalType": "struct PolicyConfig",
+            "components": [
+              {
+                "name": "release",
+                "type": "tuple",
+                "internalType": "struct ReleaseLimits",
+                "components": [
+                  {
+                    "name": "allotment",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  },
+                  {
+                    "name": "releaseStart",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  },
+                  {
+                    "name": "releaseDuration",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  }
+                ]
+              },
+              {
+                "name": "period",
+                "type": "tuple",
+                "internalType": "struct PeriodLimits",
+                "components": [
+                  {
+                    "name": "periodLength",
+                    "type": "uint64",
+                    "internalType": "uint64"
+                  },
+                  {
+                    "name": "grossSellCap",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  },
+                  {
+                    "name": "netSellCap",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  },
+                  {
+                    "name": "quoteSpendCap",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  }
+                ]
+              },
+              {
+                "name": "price",
+                "type": "tuple",
+                "internalType": "struct PriceRules",
+                "components": [
+                  {
+                    "name": "floorPriceX36",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  },
+                  {
+                    "name": "maxQuoteDeviationBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  },
+                  {
+                    "name": "maxImpactBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  }
+                ]
+              },
+              {
+                "name": "oracle",
+                "type": "tuple",
+                "internalType": "struct OracleRules",
+                "components": [
+                  {
+                    "name": "oracle",
+                    "type": "address",
+                    "internalType": "address"
+                  },
+                  {
+                    "name": "twapWindow",
+                    "type": "uint32",
+                    "internalType": "uint32"
+                  },
+                  {
+                    "name": "shortWindow",
+                    "type": "uint32",
+                    "internalType": "uint32"
+                  },
+                  {
+                    "name": "depthBandBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  },
+                  {
+                    "name": "minPoolAge",
+                    "type": "uint32",
+                    "internalType": "uint32"
+                  },
+                  {
+                    "name": "minTrustedDepth",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  },
+                  {
+                    "name": "defensiveMoveBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  },
+                  {
+                    "name": "pauseMoveBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  },
+                  {
+                    "name": "defensiveVolatilityBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  },
+                  {
+                    "name": "pauseVolatilityBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  },
+                  {
+                    "name": "defensiveDepth",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  }
+                ]
+              },
+              {
+                "name": "normal",
+                "type": "tuple",
+                "internalType": "struct ModeLimits",
+                "components": [
+                  {
+                    "name": "maxFillBase",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  },
+                  {
+                    "name": "maxFillDepthBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  },
+                  {
+                    "name": "minSpreadBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  },
+                  {
+                    "name": "buybacksAllowed",
+                    "type": "bool",
+                    "internalType": "bool"
+                  }
+                ]
+              },
+              {
+                "name": "defensive",
+                "type": "tuple",
+                "internalType": "struct ModeLimits",
+                "components": [
+                  {
+                    "name": "maxFillBase",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                  },
+                  {
+                    "name": "maxFillDepthBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  },
+                  {
+                    "name": "minSpreadBps",
+                    "type": "uint16",
+                    "internalType": "uint16"
+                  },
+                  {
+                    "name": "buybacksAllowed",
+                    "type": "bool",
+                    "internalType": "bool"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getStrategy",
+    "inputs": [
+      {
+        "name": "strategyId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct Strategy",
+        "components": [
+          {
+            "name": "policyId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "mm",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "kind",
+            "type": "uint8",
+            "internalType": "enum StrategyKind"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum Status"
           },
           {
             "name": "activeStrategyHash",
@@ -348,53 +801,8 @@ export const mandateModuleAbi = [
           {
             "name": "bounds",
             "type": "tuple",
-            "internalType": "struct MandateBounds",
+            "internalType": "struct StrategyBounds",
             "components": [
-              {
-                "name": "allotment",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "releaseStart",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "releaseDuration",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "epochLength",
-                "type": "uint64",
-                "internalType": "uint64"
-              },
-              {
-                "name": "maxEpochCap",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "maxShippedQuote",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "floorPriceX36",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "maxAnchorDeviationBps",
-                "type": "uint16",
-                "internalType": "uint16"
-              },
-              {
-                "name": "twapWindow",
-                "type": "uint32",
-                "internalType": "uint32"
-              },
               {
                 "name": "spreadBpsMin",
                 "type": "uint16",
@@ -406,36 +814,36 @@ export const mandateModuleAbi = [
                 "internalType": "uint16"
               },
               {
+                "name": "maxShippedBase",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxShippedQuote",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
                 "name": "mmFeeShareBps",
                 "type": "uint16",
                 "internalType": "uint16"
               },
               {
-                "name": "anchor",
-                "type": "address",
-                "internalType": "address"
-              },
-              {
-                "name": "quoter",
-                "type": "address",
-                "internalType": "address"
+                "name": "maxBuyPriceX36",
+                "type": "uint256",
+                "internalType": "uint256"
               }
             ]
           },
           {
             "name": "params",
             "type": "tuple",
-            "internalType": "struct MandateParams",
+            "internalType": "struct StrategyParams",
             "components": [
               {
                 "name": "spreadBps",
                 "type": "uint16",
                 "internalType": "uint16"
-              },
-              {
-                "name": "epochCap",
-                "type": "uint256",
-                "internalType": "uint256"
               },
               {
                 "name": "shippedBase",
@@ -456,26 +864,7 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
-    "name": "mandateCount",
-    "inputs": [
-      {
-        "name": "safe",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "mandatesOf",
+    "name": "liveStrategiesOf",
     "inputs": [
       {
         "name": "safe",
@@ -494,10 +883,10 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
-    "name": "pause",
+    "name": "pausePolicy",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "policyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -507,27 +896,73 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
+    "name": "pauseStrategy",
+    "inputs": [
+      {
+        "name": "strategyId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "policiesOf",
+    "inputs": [
+      {
+        "name": "safe",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "policyCount",
+    "inputs": [
+      {
+        "name": "safe",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "reship",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "internalType": "bytes32"
       },
       {
         "name": "params",
         "type": "tuple",
-        "internalType": "struct MandateParams",
+        "internalType": "struct StrategyParams",
         "components": [
           {
             "name": "spreadBps",
             "type": "uint16",
             "internalType": "uint16"
-          },
-          {
-            "name": "epochCap",
-            "type": "uint256",
-            "internalType": "uint256"
           },
           {
             "name": "shippedBase",
@@ -547,10 +982,10 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
-    "name": "revoke",
+    "name": "revokePolicy",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "policyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -560,10 +995,42 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
+    "name": "revokeStrategy",
+    "inputs": [
+      {
+        "name": "strategyId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "strategiesOf",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "strategyNonce",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -579,10 +1046,10 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
-    "name": "unpause",
+    "name": "unpausePolicy",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "policyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -592,63 +1059,238 @@ export const mandateModuleAbi = [
   },
   {
     "type": "function",
-    "name": "updateBounds",
+    "name": "unpauseStrategy",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updatePolicy",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "config",
+        "type": "tuple",
+        "internalType": "struct PolicyConfig",
+        "components": [
+          {
+            "name": "release",
+            "type": "tuple",
+            "internalType": "struct ReleaseLimits",
+            "components": [
+              {
+                "name": "allotment",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "releaseStart",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "releaseDuration",
+                "type": "uint64",
+                "internalType": "uint64"
+              }
+            ]
+          },
+          {
+            "name": "period",
+            "type": "tuple",
+            "internalType": "struct PeriodLimits",
+            "components": [
+              {
+                "name": "periodLength",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "grossSellCap",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "netSellCap",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "quoteSpendCap",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "price",
+            "type": "tuple",
+            "internalType": "struct PriceRules",
+            "components": [
+              {
+                "name": "floorPriceX36",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxQuoteDeviationBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "maxImpactBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              }
+            ]
+          },
+          {
+            "name": "oracle",
+            "type": "tuple",
+            "internalType": "struct OracleRules",
+            "components": [
+              {
+                "name": "oracle",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "twapWindow",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "shortWindow",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "depthBandBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minPoolAge",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "minTrustedDepth",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "defensiveMoveBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "pauseMoveBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "defensiveVolatilityBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "pauseVolatilityBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "defensiveDepth",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "normal",
+            "type": "tuple",
+            "internalType": "struct ModeLimits",
+            "components": [
+              {
+                "name": "maxFillBase",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxFillDepthBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minSpreadBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "buybacksAllowed",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          },
+          {
+            "name": "defensive",
+            "type": "tuple",
+            "internalType": "struct ModeLimits",
+            "components": [
+              {
+                "name": "maxFillBase",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxFillDepthBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minSpreadBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "buybacksAllowed",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateStrategyBounds",
+    "inputs": [
+      {
+        "name": "strategyId",
         "type": "bytes32",
         "internalType": "bytes32"
       },
       {
         "name": "bounds",
         "type": "tuple",
-        "internalType": "struct MandateBounds",
+        "internalType": "struct StrategyBounds",
         "components": [
-          {
-            "name": "allotment",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "releaseStart",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "releaseDuration",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "epochLength",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "maxEpochCap",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maxShippedQuote",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "floorPriceX36",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maxAnchorDeviationBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "twapWindow",
-            "type": "uint32",
-            "internalType": "uint32"
-          },
           {
             "name": "spreadBpsMin",
             "type": "uint16",
@@ -660,19 +1302,24 @@ export const mandateModuleAbi = [
             "internalType": "uint16"
           },
           {
+            "name": "maxShippedBase",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxShippedQuote",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
             "name": "mmFeeShareBps",
             "type": "uint16",
             "internalType": "uint16"
           },
           {
-            "name": "anchor",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "quoter",
-            "type": "address",
-            "internalType": "address"
+            "name": "maxBuyPriceX36",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -682,101 +1329,10 @@ export const mandateModuleAbi = [
   },
   {
     "type": "event",
-    "name": "BoundsUpdated",
-    "inputs": [
-      {
-        "name": "mandateId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "bounds",
-        "type": "tuple",
-        "indexed": false,
-        "internalType": "struct MandateBounds",
-        "components": [
-          {
-            "name": "allotment",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "releaseStart",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "releaseDuration",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "epochLength",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "maxEpochCap",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maxShippedQuote",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "floorPriceX36",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maxAnchorDeviationBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "twapWindow",
-            "type": "uint32",
-            "internalType": "uint32"
-          },
-          {
-            "name": "spreadBpsMin",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "spreadBpsMax",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "mmFeeShareBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "anchor",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "quoter",
-            "type": "address",
-            "internalType": "address"
-          }
-        ]
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "FeesClaimed",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -804,10 +1360,10 @@ export const mandateModuleAbi = [
   },
   {
     "type": "event",
-    "name": "MandateCreated",
+    "name": "PolicyCreated",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "policyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -819,15 +1375,9 @@ export const mandateModuleAbi = [
         "internalType": "address"
       },
       {
-        "name": "mm",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
         "name": "base",
         "type": "address",
-        "indexed": false,
+        "indexed": true,
         "internalType": "address"
       },
       {
@@ -841,48 +1391,345 @@ export const mandateModuleAbi = [
   },
   {
     "type": "event",
-    "name": "MandatePaused",
+    "name": "PolicyPaused",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "policyId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyRevoked",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyUnpaused",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyUpdated",
+    "inputs": [
+      {
+        "name": "policyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
       },
       {
-        "name": "by",
+        "name": "config",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct PolicyConfig",
+        "components": [
+          {
+            "name": "release",
+            "type": "tuple",
+            "internalType": "struct ReleaseLimits",
+            "components": [
+              {
+                "name": "allotment",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "releaseStart",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "releaseDuration",
+                "type": "uint64",
+                "internalType": "uint64"
+              }
+            ]
+          },
+          {
+            "name": "period",
+            "type": "tuple",
+            "internalType": "struct PeriodLimits",
+            "components": [
+              {
+                "name": "periodLength",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "grossSellCap",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "netSellCap",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "quoteSpendCap",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "price",
+            "type": "tuple",
+            "internalType": "struct PriceRules",
+            "components": [
+              {
+                "name": "floorPriceX36",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxQuoteDeviationBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "maxImpactBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              }
+            ]
+          },
+          {
+            "name": "oracle",
+            "type": "tuple",
+            "internalType": "struct OracleRules",
+            "components": [
+              {
+                "name": "oracle",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "twapWindow",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "shortWindow",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "depthBandBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minPoolAge",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "minTrustedDepth",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "defensiveMoveBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "pauseMoveBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "defensiveVolatilityBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "pauseVolatilityBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "defensiveDepth",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "normal",
+            "type": "tuple",
+            "internalType": "struct ModeLimits",
+            "components": [
+              {
+                "name": "maxFillBase",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxFillDepthBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minSpreadBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "buybacksAllowed",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          },
+          {
+            "name": "defensive",
+            "type": "tuple",
+            "internalType": "struct ModeLimits",
+            "components": [
+              {
+                "name": "maxFillBase",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxFillDepthBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minSpreadBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "buybacksAllowed",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "StrategyAdded",
+    "inputs": [
+      {
+        "name": "strategyId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "policyId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "mm",
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "kind",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum StrategyKind"
       }
     ],
     "anonymous": false
   },
   {
     "type": "event",
-    "name": "MandateRevoked",
+    "name": "StrategyBoundsUpdated",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
       },
       {
-        "name": "docked",
-        "type": "bool",
+        "name": "bounds",
+        "type": "tuple",
         "indexed": false,
-        "internalType": "bool"
+        "internalType": "struct StrategyBounds",
+        "components": [
+          {
+            "name": "spreadBpsMin",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "spreadBpsMax",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxShippedBase",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxShippedQuote",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "mmFeeShareBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxBuyPriceX36",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
       }
     ],
     "anonymous": false
   },
   {
     "type": "event",
-    "name": "MandateUnpaused",
+    "name": "StrategyDocked",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "strategyHash",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -892,10 +1739,10 @@ export const mandateModuleAbi = [
   },
   {
     "type": "event",
-    "name": "ParamsUpdated",
+    "name": "StrategyParamsUpdated",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -904,17 +1751,12 @@ export const mandateModuleAbi = [
         "name": "params",
         "type": "tuple",
         "indexed": false,
-        "internalType": "struct MandateParams",
+        "internalType": "struct StrategyParams",
         "components": [
           {
             "name": "spreadBps",
             "type": "uint16",
             "internalType": "uint16"
-          },
-          {
-            "name": "epochCap",
-            "type": "uint256",
-            "internalType": "uint256"
           },
           {
             "name": "shippedBase",
@@ -933,19 +1775,38 @@ export const mandateModuleAbi = [
   },
   {
     "type": "event",
-    "name": "StrategyDocked",
+    "name": "StrategyPaused",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
       },
       {
-        "name": "strategyHash",
+        "name": "by",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "StrategyRevoked",
+    "inputs": [
+      {
+        "name": "strategyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
+      },
+      {
+        "name": "docked",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -955,7 +1816,7 @@ export const mandateModuleAbi = [
     "name": "StrategyShipped",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -971,6 +1832,19 @@ export const mandateModuleAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "StrategyUnpaused",
+    "inputs": [
+      {
+        "name": "strategyId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
       }
     ],
     "anonymous": false
@@ -1004,7 +1878,33 @@ export const mandateModuleAbi = [
   },
   {
     "type": "error",
-    "name": "InvalidBounds",
+    "name": "InsufficientBacking",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "committed",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "balance",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidParties",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidPolicy",
     "inputs": [
       {
         "name": "field",
@@ -1015,7 +1915,18 @@ export const mandateModuleAbi = [
   },
   {
     "type": "error",
-    "name": "InvalidParties",
+    "name": "InvalidStrategy",
+    "inputs": [
+      {
+        "name": "field",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "IsRevoked",
     "inputs": []
   },
   {
@@ -1040,21 +1951,6 @@ export const mandateModuleAbi = [
   },
   {
     "type": "error",
-    "name": "MandateIsRevoked",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "MandateNotActive",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "MandateNotPaused",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "ModuleNotEnabled",
     "inputs": [
       {
@@ -1063,6 +1959,11 @@ export const mandateModuleAbi = [
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "NotActive",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1099,6 +2000,11 @@ export const mandateModuleAbi = [
   },
   {
     "type": "error",
+    "name": "NotPaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NothingToClaim",
     "inputs": []
   },
@@ -1112,6 +2018,22 @@ export const mandateModuleAbi = [
         "internalType": "string"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "PolicyAlreadyActive",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PolicyNotActive",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1149,6 +2071,17 @@ export const mandateModuleAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "TooManyStrategies",
+    "inputs": [
+      {
+        "name": "limit",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   }
 ] as const satisfies Abi;
 
@@ -1163,30 +2096,12 @@ export const mandateQuoterAbi = [
         "internalType": "address"
       },
       {
-        "name": "aqua",
-        "type": "address",
-        "internalType": "contract IAqua"
-      },
-      {
         "name": "registry",
         "type": "address",
         "internalType": "contract IMandateRegistry"
       }
     ],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "AQUA",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IAqua"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1210,88 +2125,6 @@ export const mandateQuoterAbi = [
         "name": "",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "anchorStatus",
-    "inputs": [
-      {
-        "name": "mandateId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "aquaSpotX36",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "twapX36",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "deviationBps",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "ok",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "epochResetsAt",
-    "inputs": [
-      {
-        "name": "mandateId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "epochState",
-    "inputs": [
-      {
-        "name": "mandateId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "epochIndex",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "netSoldThisEpoch",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "totalNetSold",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -1441,7 +2274,7 @@ export const mandateQuoterAbi = [
     "name": "feesAccrued",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -1462,57 +2295,117 @@ export const mandateQuoterAbi = [
   },
   {
     "type": "function",
-    "name": "released",
+    "name": "policyCounters",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "policyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
     ],
     "outputs": [
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "out",
+        "type": "tuple",
+        "internalType": "struct IMandateQuoter.PolicyCounters",
+        "components": [
+          {
+            "name": "periodIndex",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "grossSold",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "netSold",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "quoteSpent",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalNetSold",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "released",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "periodEndsAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "remainingThisEpoch",
+    "name": "riskMode",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "policyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
     ],
     "outputs": [
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "sellableNow",
-    "inputs": [
+        "name": "mode",
+        "type": "uint8",
+        "internalType": "enum RiskMode"
+      },
       {
-        "name": "mandateId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
+        "name": "reason",
+        "type": "uint8",
+        "internalType": "enum RiskReason"
+      },
       {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "health",
+        "type": "tuple",
+        "internalType": "struct IMarketOracle.Health",
+        "components": [
+          {
+            "name": "priced",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "spotX36",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "twapX36",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "shortTwapX36",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "trustedDepthBase",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "poolAge",
+            "type": "uint32",
+            "internalType": "uint32"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
@@ -1522,7 +2415,7 @@ export const mandateQuoterAbi = [
     "name": "FeeAccrued",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "strategyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -1547,13 +2440,13 @@ export const mandateQuoterAbi = [
     "name": "Filled",
     "inputs": [
       {
-        "name": "mandateId",
+        "name": "policyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
       },
       {
-        "name": "strategyHash",
+        "name": "strategyId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -1563,6 +2456,12 @@ export const mandateQuoterAbi = [
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "strategyHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
       },
       {
         "name": "isSell",
@@ -1589,28 +2488,17 @@ export const mandateQuoterAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "netSoldThisEpoch",
-        "type": "uint256",
+        "name": "mode",
+        "type": "uint8",
         "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "totalNetSold",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
+        "internalType": "enum RiskMode"
       }
     ],
     "anonymous": false
   },
   {
     "type": "error",
-    "name": "AmountAlreadyComputed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "AnchorDeviation",
+    "name": "AboveMaxBuyPrice",
     "inputs": [
       {
         "name": "priceX36",
@@ -1618,21 +2506,16 @@ export const mandateQuoterAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "twapX36",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "deviationBps",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "maxDeviationBps",
+        "name": "maxBuyPriceX36",
         "type": "uint256",
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "AmountAlreadyComputed",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1652,10 +2535,37 @@ export const mandateQuoterAbi = [
   },
   {
     "type": "error",
-    "name": "EpochCapReached",
+    "name": "BuybacksNotAllowed",
     "inputs": [
       {
-        "name": "used",
+        "name": "mode",
+        "type": "uint8",
+        "internalType": "enum RiskMode"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "FillTooLarge",
+    "inputs": [
+      {
+        "name": "baseAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxBaseAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "GrossSellCapReached",
+    "inputs": [
+      {
+        "name": "sold",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -1726,24 +2636,24 @@ export const mandateQuoterAbi = [
   },
   {
     "type": "error",
-    "name": "MandateNotFound",
+    "name": "NetSellCapReached",
     "inputs": [
       {
-        "name": "mandateId",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "netSold",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "requested",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "cap",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
-  },
-  {
-    "type": "error",
-    "name": "MandatePaused",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "MandateRevoked",
-    "inputs": []
   },
   {
     "type": "error",
@@ -1753,6 +2663,89 @@ export const mandateQuoterAbi = [
         "name": "caller",
         "type": "address",
         "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PolicyPaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PolicyRevoked",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PriceImpactTooHigh",
+    "inputs": [
+      {
+        "name": "priceX36",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "preTradeX36",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "impactBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxImpactBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "QuoteOffMarket",
+    "inputs": [
+      {
+        "name": "preTradeX36",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "twapX36",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deviationBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxDeviationBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "QuoteSpendCapReached",
+    "inputs": [
+      {
+        "name": "spent",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "requested",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "cap",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },
@@ -1779,6 +2772,17 @@ export const mandateQuoterAbi = [
   },
   {
     "type": "error",
+    "name": "RiskPaused",
+    "inputs": [
+      {
+        "name": "reason",
+        "type": "uint8",
+        "internalType": "enum RiskReason"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "SafeCastOverflowedUintDowncast",
     "inputs": [
       {
@@ -1792,6 +2796,32 @@ export const mandateQuoterAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "SellsNotAllowed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "StrategyNotFound",
+    "inputs": [
+      {
+        "name": "strategyId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "StrategyPaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "StrategyRevoked",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1853,8 +2883,8 @@ export const mandateQuoterAbi = [
   }
 ] as const satisfies Abi;
 
-// Source artifact: contracts/out/UniswapV4TwapAnchor.sol/UniswapV4TwapAnchor.json
-export const uniswapV4TwapAnchorAbi = [
+// Source artifact: contracts/out/UniswapV4MarketOracle.sol/UniswapV4MarketOracle.json
+export const uniswapV4MarketOracleAbi = [
   {
     "type": "constructor",
     "inputs": [
@@ -1904,11 +2934,6 @@ export const uniswapV4TwapAnchorAbi = [
         "name": "quote",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "maxSpotDeviationBps",
-        "type": "uint16",
-        "internalType": "uint16"
       }
     ],
     "stateMutability": "nonpayable"
@@ -1947,20 +2972,7 @@ export const uniswapV4TwapAnchorAbi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract ITickObserver"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MAX_SPOT_DEVIATION_BPS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint16",
-        "internalType": "uint16"
+        "internalType": "contract IPoolHealthSource"
       }
     ],
     "stateMutability": "view"
@@ -2006,7 +3018,7 @@ export const uniswapV4TwapAnchorAbi = [
   },
   {
     "type": "function",
-    "name": "consult",
+    "name": "health",
     "inputs": [
       {
         "name": "base",
@@ -2022,13 +3034,55 @@ export const uniswapV4TwapAnchorAbi = [
         "name": "window",
         "type": "uint32",
         "internalType": "uint32"
+      },
+      {
+        "name": "shortWindow",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "bandBps",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "outputs": [
       {
-        "name": "twapPriceX36",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "h",
+        "type": "tuple",
+        "internalType": "struct IMarketOracle.Health",
+        "components": [
+          {
+            "name": "priced",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "spotX36",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "twapX36",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "shortTwapX36",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "trustedDepthBase",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "poolAge",
+            "type": "uint32",
+            "internalType": "uint32"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
@@ -2053,67 +3107,6 @@ export const uniswapV4TwapAnchorAbi = [
     "stateMutability": "view"
   },
   {
-    "type": "function",
-    "name": "snapshot",
-    "inputs": [
-      {
-        "name": "window",
-        "type": "uint32",
-        "internalType": "uint32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "spotPriceX36",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "twapPriceX36",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "deviationBps",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "spotTick",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "tick",
-        "type": "int24",
-        "internalType": "int24"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "twapTick",
-    "inputs": [
-      {
-        "name": "window",
-        "type": "uint32",
-        "internalType": "uint32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "int24",
-        "internalType": "int24"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
     "type": "error",
     "name": "PairNotInPool",
     "inputs": [
@@ -2131,75 +3124,7 @@ export const uniswapV4TwapAnchorAbi = [
   },
   {
     "type": "error",
-    "name": "PriceOutOfRange",
-    "inputs": [
-      {
-        "name": "tick",
-        "type": "int24",
-        "internalType": "int24"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "SpotTwapDivergence",
-    "inputs": [
-      {
-        "name": "spotX36",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "twapX36",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "deviationBps",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "maxDeviationBps",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "WrongPair",
-    "inputs": [
-      {
-        "name": "base",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "quote",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "ZeroAmount",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ZeroDeviationLimit",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "ZeroHook",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ZeroWindow",
     "inputs": []
   }
 ] as const satisfies Abi;
@@ -2218,6 +3143,11 @@ export const mandateOracleHookAbi = [
         "name": "maxAbsTickDelta",
         "type": "int24",
         "internalType": "int24"
+      },
+      {
+        "name": "settleSeconds",
+        "type": "uint32",
+        "internalType": "uint32"
       }
     ],
     "stateMutability": "nonpayable"
@@ -2231,6 +3161,19 @@ export const mandateOracleHookAbi = [
         "name": "",
         "type": "int24",
         "internalType": "int24"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "SETTLE_SECONDS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
       }
     ],
     "stateMutability": "view"
@@ -3028,7 +3971,7 @@ export const mandateOracleHookAbi = [
     "inputs": [],
     "outputs": [
       {
-        "name": "",
+        "name": "permissions",
         "type": "tuple",
         "internalType": "struct Hooks.Permissions",
         "components": [
@@ -3124,6 +4067,54 @@ export const mandateOracleHookAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "initializedAt",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "bytes32",
+        "internalType": "PoolId"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "liquidityStateById",
+    "inputs": [
+      {
+        "name": "poolId",
+        "type": "bytes32",
+        "internalType": "PoolId"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "initializedAt",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "lastAddAt",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "liquidityBeforeAdds",
+        "type": "uint128",
+        "internalType": "uint128"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -3236,6 +4227,25 @@ export const mandateOracleHookAbi = [
         "name": "cardinalityNext",
         "type": "uint16",
         "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "trustedLiquidity",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "bytes32",
+        "internalType": "PoolId"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint128",
+        "internalType": "uint128"
       }
     ],
     "stateMutability": "view"
@@ -5940,14 +6950,14 @@ export const demoStateAbi = [
         "internalType": "contract MandateModule"
       },
       {
-        "name": "anchor",
+        "name": "oracle",
         "type": "address",
-        "internalType": "contract UniswapV4TwapAnchor"
+        "internalType": "contract UniswapV4MarketOracle"
       },
       {
-        "name": "traditionalAnchor",
+        "name": "traditionalOracle",
         "type": "address",
-        "internalType": "contract UniswapV4TwapAnchor"
+        "internalType": "contract UniswapV4MarketOracle"
       },
       {
         "name": "traditionalMm",
@@ -5959,13 +6969,13 @@ export const demoStateAbi = [
   },
   {
     "type": "function",
-    "name": "ANCHOR",
+    "name": "FIELDS",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "address",
-        "internalType": "contract UniswapV4TwapAnchor"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -5985,13 +6995,13 @@ export const demoStateAbi = [
   },
   {
     "type": "function",
-    "name": "TRADITIONAL_ANCHOR",
+    "name": "ORACLE",
     "inputs": [],
     "outputs": [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract UniswapV4TwapAnchor"
+        "internalType": "contract UniswapV4MarketOracle"
       }
     ],
     "stateMutability": "view"
@@ -6011,10 +7021,23 @@ export const demoStateAbi = [
   },
   {
     "type": "function",
+    "name": "TRADITIONAL_ORACLE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract UniswapV4MarketOracle"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "snapshot",
     "inputs": [
       {
-        "name": "id",
+        "name": "strategyId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -6022,8 +7045,8 @@ export const demoStateAbi = [
     "outputs": [
       {
         "name": "s",
-        "type": "uint256[17]",
-        "internalType": "uint256[17]"
+        "type": "uint256[22]",
+        "internalType": "uint256[22]"
       }
     ],
     "stateMutability": "view"
@@ -6163,19 +7186,6 @@ export const anchorLauncherAbi = [
   },
   {
     "type": "function",
-    "name": "MAX_SPOT_DEVIATION_BPS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint16",
-        "internalType": "uint16"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "OBSERVATION_CARDINALITY",
     "inputs": [],
     "outputs": [
@@ -6261,7 +7271,7 @@ export const anchorLauncherAbi = [
       {
         "name": "anchor",
         "type": "address",
-        "internalType": "contract UniswapV4TwapAnchor"
+        "internalType": "contract UniswapV4MarketOracle"
       },
       {
         "name": "poolId",

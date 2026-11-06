@@ -32,7 +32,7 @@ await output("packages/chains/src/generated.ts", header
 const contracts = {
   mandateModule: "MandateModule.sol/MandateModule",
   mandateQuoter: "MandateQuoter.sol/MandateQuoter",
-  uniswapV4TwapAnchor: "UniswapV4TwapAnchor.sol/UniswapV4TwapAnchor",
+  uniswapV4MarketOracle: "UniswapV4MarketOracle.sol/UniswapV4MarketOracle",
   mandateOracleHook: "MandateOracleHook.sol/MandateOracleHook",
   aqua: "IAqua.sol/IAqua",
   swapVm: "ISwapVM.sol/ISwapVM",
