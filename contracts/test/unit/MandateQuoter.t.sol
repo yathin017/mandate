@@ -46,9 +46,10 @@ contract MandateQuoterTest is Test {
         quoter = new MandateQuoter(router, IAqua(makeAddr("aqua")), IMandateRegistry(address(registry)));
 
         // Day 20 of 180: 1,111,111 LAUNCH released.
-        Mandate memory m = MandateFixture.defaultMandate(
-            safe, mm, base, quote, address(anchor), address(quoter), uint64(T0 - 20 days)
-        );
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint64 releaseStart = uint64(T0 - 20 days);
+        Mandate memory m =
+            MandateFixture.defaultMandate(safe, mm, base, quote, address(anchor), address(quoter), releaseStart);
         m.activeStrategyHash = STRATEGY;
         registry.set(ID, m);
     }
@@ -259,6 +260,7 @@ contract MandateQuoterTest is Test {
     function test_releaseExceeded() public {
         // Day 1: 55,555 LAUNCH released, well under the 200k epoch cap.
         Mandate memory m = registry.getMandate(ID);
+        // forge-lint: disable-next-line(unsafe-typecast)
         m.bounds.releaseStart = uint64(T0 - 1 days);
         registry.set(ID, m);
         uint256 unlocked = quoter.released(ID);
@@ -275,6 +277,7 @@ contract MandateQuoterTest is Test {
 
     function test_nothingSellableBeforeReleaseStart() public {
         Mandate memory m = registry.getMandate(ID);
+        // forge-lint: disable-next-line(unsafe-typecast)
         m.bounds.releaseStart = uint64(T0 + 1 days);
         registry.set(ID, m);
         assertEq(quoter.sellableNow(ID), 0);

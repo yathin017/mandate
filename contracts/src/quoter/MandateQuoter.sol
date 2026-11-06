@@ -94,6 +94,8 @@ contract MandateQuoter is IExtruction, IMandateQuoter {
         // 1. NotRouter: only the router may drive a fill that writes state.
         require(isStaticContext || msg.sender == ROUTER, NotRouter(msg.sender));
         require(args.length == 32, InvalidArgs());
+        // casting to 'bytes32' is safe because args.length == 32 was checked above
+        // forge-lint: disable-next-line(unsafe-typecast)
         bytes32 mandateId = bytes32(args);
 
         Mandate memory m = _getMandate(mandateId);

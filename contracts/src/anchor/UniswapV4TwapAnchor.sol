@@ -68,6 +68,8 @@ contract UniswapV4TwapAnchor is IPriceAnchor {
 
         int56 delta = cumulatives[1] - cumulatives[0];
         int56 span = int56(uint56(window));
+        // casting to 'int24' is safe because the mean of int24 ticks is itself within int24 range
+        // forge-lint: disable-next-line(unsafe-typecast)
         int24 tick = int24(delta / span);
         if (delta < 0 && delta % span != 0) tick--;
         return tick;

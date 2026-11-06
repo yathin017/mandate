@@ -14,7 +14,7 @@ import { MandateVenueSetup } from "../utils/MandateVenueSetup.sol";
 ///         deployed bytecode behaves like the pinned source used by the integration suite.
 /// @dev Skipped when the chain's RPC env var is unset.
 contract MandateQuoterForkTest is MandateVenueSetup {
-    function _venue() internal override returns (IAqua, ISwapVM) {
+    function _venue() internal view override returns (IAqua, ISwapVM) {
         ChainConfig memory cfg = ChainConfigLib.load(1);
         return (IAqua(cfg.aqua), ISwapVM(cfg.swapVmRouter));
     }
