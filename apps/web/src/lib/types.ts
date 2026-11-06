@@ -245,6 +245,10 @@ export interface SafeMandateSummary {
   feesQuote: string;
   claimedBase: string;
   claimedQuote: string;
+  /** The market maker's fixed share of the spread fees, and what that share comes to (raw units). */
+  mmFeeShareBps: number;
+  mmEarnedBase: string;
+  mmEarnedQuote: string;
   anchorStatus: AnchorStatus | null;
   fills: number;
   quoteVolume: string;

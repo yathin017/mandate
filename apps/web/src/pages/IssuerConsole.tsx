@@ -262,7 +262,7 @@ function MandateRow({ safe, mandate: m }: { safe: Address; mandate: SafeMandateS
       <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <Stat label="Fills" value={String(m.fills)} />
         <Stat label="Volume" value={`${formatCompact(m.quoteVolume, quote.decimals)} ${quote.symbol}`} />
-        <Stat label="Fees earned by the MM" value={`${formatUnits(m.feesQuote, quote.decimals, 2)} ${quote.symbol}`} />
+        <Stat label={`MM pay (${m.mmFeeShareBps / 100}% of fees)`} value={`${formatUnits(m.mmEarnedQuote, quote.decimals, 2)} ${quote.symbol}`} />
         <Stat label="Refused trades" value={String(m.refused)} />
       </dl>
 
