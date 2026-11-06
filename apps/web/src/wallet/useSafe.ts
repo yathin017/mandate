@@ -1,5 +1,6 @@
 import { safeAbi, type PreparedCall } from "@mandate/sdk";
 import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import { useConnection, useReadContract, useReadContracts } from "wagmi";
 
@@ -35,6 +36,8 @@ export function useSafeAction(safe: Address | undefined, call: PreparedCall | un
   const info = useSafeInfo(safe);
   const tx = useTx();
   const queryClient = useQueryClient();
+  /** Set once this action executed: the panel locks so the same call is not proposed again at the next nonce. */
+  const [executed, setExecuted] = useState<{ blockNumber: bigint } | null>(null);
 
   const hashQuery = useReadContract({
     address: safe,
@@ -92,7 +95,7 @@ export function useSafeAction(safe: Address | undefined, call: PreparedCall | un
   async function execute() {
     if (!safe || !call || !info.owners || !me) return;
     const signers = info.owners.filter((owner) => approvals.get(owner.toLowerCase()) || owner.toLowerCase() === me);
-    await tx.run({
+    const outcome = await tx.run({
       checks: moduleCheck,
       send: {
         to: safe,
@@ -104,10 +107,13 @@ export function useSafeAction(safe: Address | undefined, call: PreparedCall | un
       },
       ...(context ? { context } : {}),
     });
+    if (outcome.ok && outcome.blockNumber !== undefined) setExecuted({ blockNumber: outcome.blockNumber });
     await refresh();
+    return outcome.ok;
   }
 
   return {
+    executed,
     info,
     safeTxHash,
     approvals,

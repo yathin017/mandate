@@ -147,10 +147,12 @@ function Desk({ item }: { item: MandateListItem }) {
     <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
       <div className="space-y-6">
         <Card>
-          <CardHeader className="flex-row flex-wrap items-center gap-3 space-y-0">
-            <CardTitle className="font-serif text-xl">{base.symbol} / {quote.symbol}</CardTitle>
-            <StatusPill status={item.status} />
-            <Link to={`/mandates/${item.mandateId}`} className="ml-auto text-sm underline-offset-4 hover:underline">Public page</Link>
+          <CardHeader>
+            <div className="flex flex-wrap items-center gap-3">
+              <CardTitle className="font-serif text-xl">{base.symbol} / {quote.symbol}</CardTitle>
+              <StatusPill status={item.status} />
+              <Link to={`/mandates/${item.mandateId}`} className="ml-auto text-sm underline-offset-4 hover:underline">Public page</Link>
+            </div>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Stat label="Issuer Safe" value={<Hex value={item.safe} />} />

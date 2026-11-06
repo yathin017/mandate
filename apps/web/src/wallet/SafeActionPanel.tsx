@@ -26,8 +26,16 @@ export function SafeActionPanel({
   onDone?: () => void;
 }) {
   const action = useSafeAction(safe, call, context);
-  const { info, approvals, threshold, approvedCount, isOwner, hasApproved, canExecute, tx } = action;
-  const confirmed = tx.state.status === "confirmed";
+  const { info, approvals, threshold, approvedCount, isOwner, hasApproved, canExecute, tx, executed } = action;
+
+  if (executed) {
+    return (
+      <div className="space-y-2 rounded-lg border border-filled/40 p-4">
+        <p className="font-medium">{label}: executed</p>
+        <TxStatus state={tx.state} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
@@ -52,11 +60,11 @@ export function SafeActionPanel({
       </ul>
       {!isOwner && <p className="text-xs text-muted-foreground">Connect one of the Safe's owners to approve or execute.</p>}
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={!isOwner || hasApproved || tx.busy || confirmed} onClick={() => void action.approve()}>
+        <Button variant="outline" disabled={!isOwner || hasApproved || tx.busy} onClick={() => void action.approve()}>
           {hasApproved ? "Approved" : "Approve as owner"}
         </Button>
         <Button
-          disabled={!canExecute || tx.busy || confirmed}
+          disabled={!canExecute || tx.busy}
           onClick={async () => {
             await action.execute();
             onDone?.();

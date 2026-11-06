@@ -4,7 +4,19 @@ import { useCallback, useState } from "react";
 import type { Address, Hash, Hex } from "viem";
 import { usePublicClient, useWalletClient } from "wagmi";
 
+import { api } from "@/lib/api";
+
 import { demoChain } from "./config";
+
+/** Waits (bounded) until the indexer has committed `block`, so refetched lists include this transaction. */
+async function waitForIndexer(block: bigint, timeoutMs = 20_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const head = await api.health().then((h) => h.head?.number, () => undefined);
+    if (head !== undefined && BigInt(head) >= block) return;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
 
 /** Every wallet action moves through these states (spec 10.2 rule 5). */
 export type TxState =
@@ -15,6 +27,8 @@ export type TxState =
   | { status: "signing" }
   | { status: "pending"; hash: Hash }
   | { status: "confirmed"; hash: Hash; blockNumber: bigint }
+  /** Confirmed onchain; waiting for the indexer before refreshing what the page shows. */
+  | { status: "indexing"; hash: Hash; blockNumber: bigint }
   /** simulateOnly run whose checks passed; nothing was sent. */
   | { status: "simulated" }
   | { status: "failed"; message: string; hash?: Hash };
@@ -22,6 +36,12 @@ export type TxState =
 export interface Call {
   readonly to: Address;
   readonly data: Hex;
+}
+
+/** What `run` resolved to; `blockNumber` is set only when a transaction was confirmed. */
+export interface TxOutcome {
+  readonly ok: boolean;
+  readonly blockNumber?: bigint;
 }
 
 export interface TxRequest {
@@ -45,10 +65,10 @@ export function useTx() {
   const [state, setState] = useState<TxState>({ status: "idle" });
 
   const run = useCallback(
-    async (request: TxRequest): Promise<boolean> => {
+    async (request: TxRequest): Promise<TxOutcome> => {
       if (!wallet || !publicClient) {
         setState({ status: "failed", message: "Connect a wallet on the demo chain first." });
-        return false;
+        return { ok: false };
       }
       const account = wallet.account.address;
 
@@ -59,13 +79,13 @@ export function useTx() {
           await publicClient.call({ account: check.from, to: check.to, data: check.data });
         } catch (error) {
           setState({ status: "blocked", error: explainError(error, request.context) });
-          return false;
+          return { ok: false };
         }
       }
 
       if (request.simulateOnly) {
         setState({ status: "simulated" });
-        return true;
+        return { ok: true };
       }
 
       setState({ status: "signing" });
@@ -75,22 +95,25 @@ export function useTx() {
       } catch (error) {
         const rejected = error instanceof Error && /reject|denied/i.test(`${error.name} ${error.message}`);
         setState({ status: "failed", message: rejected ? "You rejected the request in your wallet." : explainError(error, request.context).message });
-        return false;
+        return { ok: false };
       }
 
       setState({ status: "pending", hash });
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") {
         setState({ status: "failed", hash, message: "The transaction reverted onchain. Refresh the state and try again." });
-        return false;
+        return { ok: false };
       }
-      setState({ status: "confirmed", hash, blockNumber: receipt.blockNumber });
+      setState({ status: "indexing", hash, blockNumber: receipt.blockNumber });
+      await waitForIndexer(receipt.blockNumber);
       await queryClient.invalidateQueries();
-      return true;
+      setState({ status: "confirmed", hash, blockNumber: receipt.blockNumber });
+      return { ok: true, blockNumber: receipt.blockNumber };
     },
     [wallet, publicClient, queryClient],
   );
 
   const reset = useCallback(() => setState({ status: "idle" }), []);
-  return { state, run, reset, busy: state.status === "simulating" || state.status === "signing" || state.status === "pending" };
+  const busy = state.status === "simulating" || state.status === "signing" || state.status === "pending" || state.status === "indexing";
+  return { state, run, reset, busy };
 }

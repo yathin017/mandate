@@ -22,6 +22,12 @@ export function TxStatus({ state }: { state: TxState }) {
           Pending · tx <Hex value={state.hash} />
         </Line>
       );
+    case "indexing":
+      return (
+        <Line icon={<Loader2 className="size-4 animate-spin" />}>
+          Confirmed in block <span className="tabular font-mono">{state.blockNumber.toString()}</span> · updating views…
+        </Line>
+      );
     case "confirmed":
       return (
         <Line icon={<CheckCircle2 className="size-4 text-filled" />}>
