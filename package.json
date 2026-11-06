@@ -19,7 +19,9 @@
     "packages:build": "pnpm generate && tsc -b packages/chains packages/sdk",
     "packages:test": "node --test packages/chains/test/*.test.ts packages/sdk/test/*.test.ts",
     "sdk:test:fork": "pnpm packages:build && node --env-file-if-exists=.env replay/export.ts --test-sdk",
-    "packages:typecheck": "tsc -p packages/chains/tsconfig.test.json && tsc -p packages/sdk/tsconfig.test.json"
+    "packages:typecheck": "tsc -p packages/chains/tsconfig.test.json && tsc -p packages/sdk/tsconfig.test.json",
+    "indexer:test": "pnpm --filter @mandate/indexer test",
+    "indexer:typecheck": "tsc -p apps/indexer/tsconfig.json"
   },
   "type": "module",
   "devDependencies": {
