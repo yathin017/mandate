@@ -208,6 +208,13 @@ export function getLocalForkDeployment(sourceChainId = 1): LocalForkDeployment {
   return deployment;
 }
 
+/** Explorer link for an address on a real chain; none on a local fork. */
+export function getAddressUrl(chainId: number, address: Address): string | undefined {
+  if (deployments.some((item) => item.chainId === chainId && item.environment === "local-mainnet-fork")) return undefined;
+  const config = chains.find((item) => item.chainId === chainId);
+  return config ? `${config.explorer}/address/${getAddress(address)}` : undefined;
+}
+
 /** Explorer link for real chains; none for local-fork hashes (callers show their saved receipt instead). */
 export function getTransactionUrl(chainId: number, transactionHash: Hash): string | undefined {
   hash(transactionHash, "transactionHash");
