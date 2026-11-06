@@ -11,6 +11,10 @@ export const keys = {
   rateLimit: (scope: string, client: string, window: number) => `mandate:v1:rl:${scope}:${client}:${window}`,
   /** Per-mandate counter bumped on writes that do not move the head (simulated attempts); part of feed keys. */
   mandateVersion: (chainId: number, mandateId: string) => `mandate:v1:ver:${chainId}:${mandateId}`,
+  /** One-time sign-in nonce. Consumed with GETDEL, so a signed message can be used once. */
+  authNonce: (nonce: string) => `mandate:v1:auth:nonce:${nonce}`,
+  /** Cached session lookup by token hash; deleted on sign-out, so revocation is immediate. */
+  session: (tokenHash: string) => `mandate:v1:auth:session:${tokenHash}`,
   /** Pub/sub channel announcing committed changes for one mandate. */
   mandateChannel: (chainId: number, mandateId: string) => `mandate:v1:events:${chainId}:${mandateId}`,
 } as const;
@@ -18,4 +22,8 @@ export const keys = {
 export const TTL = {
   responseSeconds: 30,
   rateLimitSeconds: 60,
+  /** A sign-in message must be signed and submitted within this window. */
+  authNonceSeconds: 600,
+  /** Upper bound on a cached session lookup (capped by the session's own expiry). */
+  sessionSeconds: 60,
 } as const;

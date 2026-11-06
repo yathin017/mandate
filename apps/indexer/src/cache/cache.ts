@@ -95,6 +95,21 @@ export class Cache {
     });
   }
 
+  /** Stores a fresh sign-in nonce. Returns false when Redis is unavailable (sign-in must then fail closed). */
+  async putNonce(nonce: string): Promise<boolean> {
+    return (await this.attempt(() => this.redis.set(keys.authNonce(nonce), "1", "EX", TTL.authNonceSeconds, "NX"))) === "OK";
+  }
+
+  /** Consumes a nonce atomically: true once, false if unknown/used, undefined when Redis is unavailable. */
+  async takeNonce(nonce: string): Promise<boolean | undefined> {
+    const value = await this.attempt(() => this.redis.getdel(keys.authNonce(nonce)));
+    return value === undefined ? undefined : value === "1";
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.attempt(() => this.redis.del(key));
+  }
+
   async getMandateVersion(chainId: number, mandateId: string): Promise<string> {
     return (await this.attempt(() => this.redis.get(keys.mandateVersion(chainId, mandateId)))) ?? "0";
   }

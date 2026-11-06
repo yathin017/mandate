@@ -8,6 +8,7 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { streamSSE } from "hono/streaming";
 
+import { createAuthRoutes } from "../auth/routes.ts";
 import type { Cache } from "../cache/cache.ts";
 import type { ChainContext } from "../chain.ts";
 import { keys, TTL } from "../cache/keys.ts";
@@ -65,16 +66,23 @@ export function createApp(deps: AppDeps) {
       origin: (origin) => (config.API_CORS_ORIGINS.includes(origin) ? origin : null),
       allowMethods: ["GET", "POST", "OPTIONS"],
       allowHeaders: ["content-type"],
+      // Session cookies; origins are an explicit allow-list, never reflected wildcards.
+      credentials: true,
       maxAge: 600,
     }),
   );
-  app.use("*", bodyLimit({ maxSize: 4 * 1024, onError: (c) => c.json({ error: "payload too large" }, 413) }));
+  // Sign-in bodies may carry ERC-6492 smart-wallet signatures; every other body stays small.
+  const smallBody = bodyLimit({ maxSize: 4 * 1024, onError: (c) => c.json({ error: "payload too large" }, 413) });
+  const signInBody = bodyLimit({ maxSize: 16 * 1024, onError: (c) => c.json({ error: "payload too large" }, 413) });
+  app.use("*", (c, next) => (c.req.path === "/v1/auth/verify" ? signInBody(c, next) : smallBody(c, next)));
 
   app.onError((error, c) => {
     log(`${c.req.method} ${c.req.path}: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
     return c.json({ error: "internal error" }, 500);
   });
   app.notFound((c) => c.json({ error: "not found" }, 404));
+
+  app.route("/v1/auth", createAuthRoutes({ db, cache, config, log, clientIp, ...(deps.chain ? { chain: deps.chain } : {}) }));
 
   /** Head for a chain: Redis first, Postgres cursor as fallback. Undefined if the chain is not indexed. */
   async function head(chainId: number) {

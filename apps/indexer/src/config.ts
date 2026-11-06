@@ -24,6 +24,23 @@ const schema = z.object({
     .transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean))
     .pipe(z.array(origin)),
   API_ATTEMPTS_PER_MINUTE: z.coerce.number().int().min(1).max(10_000).default(20),
+  /**
+   * Web origins allowed to sign in (EIP-4361). The SIWE message's domain and URI must match one of them, and
+   * every state-changing auth request must carry one as its Origin header. Empty disables sign-in.
+   */
+  API_AUTH_ORIGINS: z
+    .string()
+    .default("")
+    .transform((value) => value.split(",").map((o) => o.trim()).filter(Boolean))
+    .pipe(z.array(z.url({ protocol: /^https?$/ }).transform((o) => new URL(o).origin))),
+  /** Absolute session lifetime; sessions are not extended by use. */
+  API_SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24 * 30).default(24 * 7),
+  /** Secure (`__Host-` prefixed) session cookie. Turn off only for plain-http development hosts. */
+  API_SESSION_COOKIE_SECURE: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  API_AUTH_PER_MINUTE: z.coerce.number().int().min(1).max(10_000).default(10),
 });
 
 export type Config = z.infer<typeof schema>;
