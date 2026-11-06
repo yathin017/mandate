@@ -16,7 +16,7 @@ Built for ETHGlobal Mumbai 2026.
 | `contracts/` | Foundry project: quoter, Safe module, v4 oracle hook, tests, scripts. |
 | `packages/` | Shared TypeScript packages (chain registry, SDK). |
 | `apps/indexer` | Indexer worker + public API (Postgres, Redis, SSE). |
-| `apps/web` | Dashboard (Vite + React + shadcn); reads only the indexer API. |
+| `apps/web` | Dashboard, wallet flows and the self-serve onboarding wizard (Vite + React + shadcn). Dashboards read the indexer API; wallet flows read the chain. |
 | `replay/` | Scenario export for the Replay Theater. |
 
 ## Requirements
@@ -120,5 +120,22 @@ pair with the oracle hook (if missing), grows its observation buffer and deploys
 address; quotes work once the pool has 30 minutes of history. Liquidity is added with Uniswap's own tools. The demo
 pair's pool above predates the launcher, so `anchorOf(mLAUNCH, mUSD)` is unset.
 
-Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`, `RotateRoles`, `DeployLauncher`). Run the Base stack with
-`pnpm base:worker`, `pnpm base:server` and `pnpm base:web`.
+**Self-serve onboarding.** `/onboard` in the web app takes a project from nothing to a live mandate, each step a
+transaction its own wallets sign: treasury Safe, token pair, enable the module, launch the anchor, create the mandate.
+It was run on Base with a 2-of-2 Safe in which Owner 1 used scripts and Owner 2 the wizard in a browser wallet:
+
+| | |
+|---|---|
+| Pair | Demo Nova [`dNOVA 0xB515…9A9B`](https://basescan.org/token/0xB515f7b4136D5282F2186838e02a19A156bC9A9B) / Demo Dollar [`dUSD 0x7F8a…C8a2`](https://basescan.org/token/0x7F8a933C627747Cd5A1B6b828FD48F1649C9C8a2) (mocks) |
+| Issuer Safe (2-of-2, Owner 1 + Owner 2) | [`0xB88E30325557e7C7fD409F661C1C1060476C5456`](https://basescan.org/address/0xB88E30325557e7C7fD409F661C1C1060476C5456) |
+| Anchor (from the launcher) | [`0xC4C94eB720C0536308f83ED7130F4009b67A8e7a`](https://basescan.org/address/0xC4C94eB720C0536308f83ED7130F4009b67A8e7a), PoolId `0x5312523f4a54811974afb6080b1747b875688420a8a5ff63d90e0d1f1ecddf5c`, full-range liquidity at 0.40 |
+| Mandate | `0xeb3a5ead8f87fad3ff3879d381045bec7ff992a92179ec3699b5ea55c7c2a648` (Market Maker above) |
+
+Owner 1's half (`OnboardPair`: tokens, Safe, anchor, liquidity, approval of `enableModule`) starts at block 53973676;
+Owner 1 then [approved the mandate](https://basescan.org/tx/0xf66eb79c0d111374b68542e75c4a51dedb2507599a7345e3eb465243973ed564)
+from the wizard's shared link with `apps/web/scripts/approve-terms.ts`. Owner 2 executed
+[enableModule](https://basescan.org/tx/0x48ede66d8d0289ca70cd7f8f3de287a6b095a369b7b45d3ed60aa54703f90e23) and
+[createMandate](https://basescan.org/tx/0xf3745211cf11f308d8400d6e894cd5aa2205b5940fabaa6c59cf8ab138f1a4f3) from the wizard.
+
+Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`, `RotateRoles`, `DeployLauncher`, `OnboardPair`). Run the
+Base stack with `pnpm base:worker`, `pnpm base:server` and `pnpm base:web`.
