@@ -1,7 +1,16 @@
 import { randomUUID } from "node:crypto";
 
 import { zValidator } from "@hono/zod-validator";
-import { explainError, hashMandateTerms, mandateModuleAbi, mandateTermsTypedData, termsFromJson, termsToJson, type MandateTerms, type MandateTermsJson } from "@mandate/sdk";
+import {
+  explainError,
+  hashStrategyTerms,
+  mandateModuleAbi,
+  strategyTermsTypedData,
+  termsFromJson,
+  termsToJson,
+  type StrategyTerms,
+  type StrategyTermsJson,
+} from "@mandate/sdk";
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { getAddress, type Address, type Hex } from "viem";
@@ -17,20 +26,21 @@ import { proposals } from "../db/schema.ts";
 import { safeOwners } from "./safes.ts";
 
 /**
- * Proposals: how an issuer Safe and a market maker agree on a mandate before anything is signed onchain.
+ * Proposals: how an issuer Safe and a market maker agree on a strategy before anything is signed onchain. The
+ * strategy runs under the Safe's treasury policy for the pair, which the issuer sets on its own.
  *
  *   POST /v1/proposals                    an owner of the Safe drafts terms (optionally sending them at once)
  *   GET  /v1/proposals?safe=0x…           the Safe's proposals (caller must own the Safe)
  *   GET  /v1/proposals?as=mm              proposals addressed to the caller (drafts excluded)
  *   GET  /v1/proposals/:id                one proposal, for an owner of its Safe or its market maker
- *   POST /v1/proposals/:id/send           draft → sent        (owner; terms must pass createMandate's simulation)
+ *   POST /v1/proposals/:id/send           draft → sent        (owner; terms must pass addStrategy's simulation)
  *   POST /v1/proposals/:id/withdraw       draft|sent|accepted → withdrawn (owner)
  *   POST /v1/proposals/:id/accept         sent → accepted     (market maker; EIP-712 signature over the terms)
  *   POST /v1/proposals/:id/decline        sent → declined     (market maker)
- *   POST /v1/proposals/:id/executed       accepted → executed (owner; the mandate is checked onchain)
+ *   POST /v1/proposals/:id/executed       accepted → executed (owner; the strategy is checked onchain)
  *
  * Authority always comes from the chain: Safe ownership is read from the Safe, the acceptance signature is verified
- * through the RPC (EOAs and ERC-1271/6492 wallets), and "executed" is accepted only if the module's mandate matches
+ * through the RPC (EOAs and ERC-1271/6492 wallets), and "executed" is accepted only if the module's strategy matches
  * the accepted terms. Every transition is a single conditional UPDATE, so concurrent requests cannot skip a state.
  * Proposals past `expires_at` become `expired` when read.
  */
@@ -46,17 +56,13 @@ const termsJson = z.object({
   marketMaker: z.string().regex(HEX_ADDRESS),
   base: z.string().regex(HEX_ADDRESS),
   quote: z.string().regex(HEX_ADDRESS),
+  kind: z.string().regex(UINT),
   bounds: z.object({
-    allotment: z.string().regex(UINT), releaseStart: z.string().regex(UINT), releaseDuration: z.string().regex(UINT),
-    epochLength: z.string().regex(UINT), maxEpochCap: z.string().regex(UINT), maxShippedQuote: z.string().regex(UINT),
-    floorPriceX36: z.string().regex(UINT), maxAnchorDeviationBps: z.string().regex(UINT), twapWindow: z.string().regex(UINT),
-    spreadBpsMin: z.string().regex(UINT), spreadBpsMax: z.string().regex(UINT), mmFeeShareBps: z.string().regex(UINT),
-    anchor: z.string().regex(HEX_ADDRESS),
+    spreadBpsMin: z.string().regex(UINT), spreadBpsMax: z.string().regex(UINT),
+    maxShippedBase: z.string().regex(UINT), maxShippedQuote: z.string().regex(UINT),
+    mmFeeShareBps: z.string().regex(UINT), maxBuyPriceX36: z.string().regex(UINT),
   }),
-  params: z.object({
-    spreadBps: z.string().regex(UINT), epochCap: z.string().regex(UINT),
-    shippedBase: z.string().regex(UINT), shippedQuote: z.string().regex(UINT),
-  }),
+  params: z.object({ spreadBps: z.string().regex(UINT), shippedBase: z.string().regex(UINT), shippedQuote: z.string().regex(UINT) }),
 });
 
 const createBody = z.object({
@@ -73,7 +79,7 @@ const createBody = z.object({
   send: z.boolean().default(false),
 });
 const acceptBody = z.object({ signature: z.string().regex(/^0x[0-9a-fA-F]+$/).max(12_000) });
-const executedBody = z.object({ mandateId: z.string().regex(/^0x[0-9a-fA-F]{64}$/) });
+const executedBody = z.object({ strategyId: z.string().regex(/^0x[0-9a-fA-F]{64}$/) });
 const listQuery = z.union([z.object({ safe: z.string().regex(HEX_ADDRESS) }), z.object({ as: z.literal("mm") })]);
 
 export interface ProposalDeps {
@@ -95,12 +101,13 @@ function present(row: Row) {
     mm: row.mm,
     base: row.base,
     quote: row.quote,
-    terms: row.terms as MandateTermsJson,
+    kind: row.kind,
+    terms: row.terms as StrategyTermsJson,
     termsHash: row.termsHash,
     status: row.status,
     expiresAt: Math.floor(row.expiresAt.getTime() / 1000),
     mmSignature: row.mmSignature,
-    mandateId: row.mandateId,
+    strategyId: row.strategyId,
     note: row.note,
     createdAt: row.createdAt.toISOString(),
     sentAt: row.sentAt?.toISOString() ?? null,
@@ -153,16 +160,31 @@ export function createProposalRoutes(deps: ProposalDeps) {
   }
 
   /**
-   * Runs createMandate as the Safe would (eth_call from the Safe), so module refusals (module not enabled, invalid
-   * bounds or params) surface before the market maker is asked to sign. Returns a plain-language reason or null.
+   * Runs addStrategy as the Safe would (eth_call from the Safe) under its live policy for the pair, so module refusals
+   * (no policy yet, invalid bounds or params, inventory the Safe cannot back) surface before the market maker is
+   * asked to sign. Returns a plain-language reason or null.
    */
-  async function simulateCreate(chain: ChainContext, safe: string, terms: MandateTerms): Promise<string | null> {
+  async function simulateAdd(chain: ChainContext, safe: string, terms: StrategyTerms): Promise<string | null> {
+    const policyId = await chain.client.readContract({
+      address: chain.deployment.module,
+      abi: mandateModuleAbi,
+      functionName: "activePolicyOf",
+      args: [getAddress(safe), terms.base],
+    });
+    if (/^0x0{64}$/.test(policyId)) return "This Safe has no live treasury policy for this token yet. Create the policy first.";
+    const policy = await chain.client.readContract({
+      address: chain.deployment.module,
+      abi: mandateModuleAbi,
+      functionName: "getPolicy",
+      args: [policyId],
+    });
+    if (policy.quote.toLowerCase() !== terms.quote.toLowerCase()) return "The Safe's policy for this token uses a different quote token.";
     try {
       await chain.client.simulateContract({
         address: chain.deployment.module,
         abi: mandateModuleAbi,
-        functionName: "createMandate",
-        args: [terms.marketMaker, terms.base, terms.quote, { ...terms.bounds, quoter: chain.deployment.quoter }, terms.params],
+        functionName: "addStrategy",
+        args: [policyId, terms.marketMaker, terms.kind, terms.bounds, terms.params],
         account: getAddress(safe),
       });
       return null;
@@ -187,7 +209,7 @@ export function createProposalRoutes(deps: ProposalDeps) {
     const body = c.req.valid("json");
     const me = c.var.session.address.toLowerCase();
     if (body.chainId !== config.INDEXER_CHAIN_ID) return c.json({ error: "chain not served here" }, 404);
-    let terms: MandateTerms;
+    let terms: StrategyTerms;
     try {
       terms = termsFromJson(body.terms);
     } catch (error) {
@@ -202,12 +224,12 @@ export function createProposalRoutes(deps: ProposalDeps) {
     if (!chain) return c.json({ error: "chain RPC unavailable" }, 503);
     if (!(await isOwner(chain, safe, me))) return c.json({ error: "only an owner of this Safe can propose" }, 403);
     if (body.send) {
-      const reason = await simulateCreate(chain, safe, terms);
+      const reason = await simulateAdd(chain, safe, terms);
       if (reason) return c.json({ error: "the module would refuse these terms", reason }, 422);
     }
 
     const id = randomUUID();
-    const termsHash = hashMandateTerms(chain.deployment, { proposalId: id, safe, terms, expiresAt: BigInt(body.expiresAt) });
+    const termsHash = hashStrategyTerms(chain.deployment, { proposalId: id, safe, terms, expiresAt: BigInt(body.expiresAt) });
     const [row] = await db
       .insert(proposals)
       .values({
@@ -218,6 +240,7 @@ export function createProposalRoutes(deps: ProposalDeps) {
         mm: terms.marketMaker.toLowerCase(),
         base: terms.base.toLowerCase(),
         quote: terms.quote.toLowerCase(),
+        kind: terms.kind,
         terms: termsToJson(terms),
         termsHash,
         status: body.send ? "sent" : "draft",
@@ -282,7 +305,7 @@ export function createProposalRoutes(deps: ProposalDeps) {
     if (found instanceof Response) return found;
     const { row, chain } = found;
     if (row.status !== "draft") return conflict(c, row);
-    const reason = await simulateCreate(chain, row.safe, termsFromJson(row.terms as MandateTermsJson));
+    const reason = await simulateAdd(chain, row.safe, termsFromJson(row.terms as StrategyTermsJson));
     if (reason) return c.json({ error: "the module would refuse these terms", reason }, 422);
     const updated = await transition(row.id, ["draft"], { status: "sent", sentAt: new Date() });
     return updated ? c.json({ data: present(updated) }) : conflict(c, (await load(row.id))!);
@@ -308,8 +331,8 @@ export function createProposalRoutes(deps: ProposalDeps) {
     if (row.status !== "sent") return conflict(c, row);
     const chain = await chainOrNull();
     if (!chain) return c.json({ error: "chain RPC unavailable" }, 503);
-    const terms = termsFromJson(row.terms as MandateTermsJson);
-    const typed = mandateTermsTypedData(chain.deployment, {
+    const terms = termsFromJson(row.terms as StrategyTermsJson);
+    const typed = strategyTermsTypedData(chain.deployment, {
       proposalId: row.id,
       safe: getAddress(row.safe),
       terms,
@@ -333,16 +356,16 @@ export function createProposalRoutes(deps: ProposalDeps) {
     if (found instanceof Response) return found;
     const { row, chain } = found;
     if (row.status !== "accepted") return conflict(c, row);
-    const mandateId = c.req.valid("json").mandateId.toLowerCase() as Hex;
-    const mismatch = await verifyMandate(chain, mandateId, row);
-    if (mismatch) return c.json({ error: "the mandate does not match the accepted terms", reason: mismatch }, 422);
+    const strategyId = c.req.valid("json").strategyId.toLowerCase() as Hex;
+    const mismatch = await verifyStrategy(chain, strategyId, row);
+    if (mismatch) return c.json({ error: "the strategy does not match the accepted terms", reason: mismatch }, 422);
     try {
-      const updated = await transition(row.id, ["accepted"], { status: "executed", mandateId });
+      const updated = await transition(row.id, ["accepted"], { status: "executed", strategyId });
       return updated ? c.json({ data: present(updated) }) : conflict(c, (await load(row.id))!);
     } catch (error) {
-      // proposals_mandate_uq: another proposal already claimed this mandate.
+      // proposals_strategy_uq: another proposal already claimed this strategy.
       if (String((error as { cause?: { code?: string } }).cause?.code ?? (error as { code?: string }).code) === "23505")
-        return c.json({ error: "this mandate is already linked to another proposal" }, 409);
+        return c.json({ error: "this strategy is already linked to another proposal" }, 409);
       throw error;
     }
   });
@@ -350,28 +373,32 @@ export function createProposalRoutes(deps: ProposalDeps) {
   return app;
 }
 
-/** Compares the module's record of a mandate with the accepted terms; returns the first difference or null. */
-async function verifyMandate(chain: ChainContext, mandateId: Hex, row: Row): Promise<string | null> {
-  let mandate;
+/** Compares the module's record of a strategy (and its policy) with the accepted terms; first difference or null. */
+async function verifyStrategy(chain: ChainContext, strategyId: Hex, row: Row): Promise<string | null> {
+  let strategy;
+  let policy;
   try {
-    mandate = await chain.client.readContract({ address: chain.deployment.module, abi: mandateModuleAbi, functionName: "getMandate", args: [mandateId] });
+    strategy = await chain.client.readContract({ address: chain.deployment.module, abi: mandateModuleAbi, functionName: "getStrategy", args: [strategyId] });
+    // Unknown ids read back as an empty record (status None) rather than reverting.
+    if (Number(strategy.status) === 0) return "no such strategy";
+    policy = await chain.client.readContract({ address: chain.deployment.module, abi: mandateModuleAbi, functionName: "getPolicy", args: [strategy.policyId] });
   } catch {
-    return "the mandate could not be read";
+    return "the strategy could not be read";
   }
-  // Unknown ids read back as an empty record (status None) rather than reverting.
-  if (Number(mandate.status) === 0) return "no such mandate";
-  const accepted = row.terms as MandateTermsJson;
+  const accepted = row.terms as StrategyTermsJson;
   const onchain = termsToJson({
-    marketMaker: mandate.mm as Address,
-    base: mandate.base as Address,
-    quote: mandate.quote as Address,
-    bounds: mandate.bounds,
+    marketMaker: strategy.mm as Address,
+    base: policy.base as Address,
+    quote: policy.quote as Address,
+    kind: Number(strategy.kind),
+    bounds: strategy.bounds,
     // Params may already have been reshipped by the market maker; only the issuer's rails must match.
     params: termsFromJson(accepted).params,
   });
-  if (mandate.safe.toLowerCase() !== row.safe) return "created by another Safe";
+  if (policy.safe.toLowerCase() !== row.safe) return "added by another Safe";
   if (onchain.marketMaker !== accepted.marketMaker) return "different market maker";
   if (onchain.base !== accepted.base || onchain.quote !== accepted.quote) return "different token pair";
+  if (onchain.kind !== accepted.kind) return "different strategy kind";
   for (const [key, value] of Object.entries(accepted.bounds)) {
     if (onchain.bounds[key as keyof typeof onchain.bounds] !== value) return `different ${key}`;
   }
