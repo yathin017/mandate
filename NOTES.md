@@ -509,6 +509,14 @@ Replay) → issuer flow → MM flow → E2E + docs.
   owner's own execution landing. 30 samples each from `mainnet.base.org` and the Tenderly gateway never went backwards;
   both allow browser CORS. Instead of switching RPCs, the Safe panel now says why Execute is disabled.
   `VITE_RPC_URL` still overrides the app's RPC.
+- **Anchor liquidity (done):** user chose the canonical v4 PositionManager (position NFT owned by the Safe), one batched
+  Safe transaction, full range. Batch = DELEGATECALL to Safe's canonical MultiSendCallOnly (`0x9641…02e2`, the only
+  delegatecall target the app allows; `safeOperation` throws otherwise): approve Permit2 for the caps → Permit2 allowance
+  to the PositionManager → `modifyLiquidities(MINT_POSITION, SETTLE_PAIR)` minting to the Safe → reset token approvals
+  to 0. Tick/liquidity math ported from v4 (matches MIN/MAX_SQRT_PRICE). Plans are keyed by `lp=<baseRaw>.<sqrtPriceX96>`
+  so co-owners sign identical calldata. Batches skip the from-the-Safe pre-check (an outside eth_call cannot reproduce
+  a delegatecall); found that an empty `checks` array skipped simulation entirely, so batches now use the default
+  simulation of the owner's own transaction. Fork: pool depth ≈ 99,999 / 39,999 after one approve + execute.
 - **Header:** the environment tag ("BASE · MOCK TOKENS") was removed at the user's request; mandate pages keep their
   mock/synthetic disclosure.
 

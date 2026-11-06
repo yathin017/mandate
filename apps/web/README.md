@@ -34,7 +34,7 @@ for issuers, Desk for market makers).
 | `/explore` | Mandates (cards) and tokens launched through the TokenFactory (`?tab=tokens`) |
 | `/market-makers` | Listed market makers ranked by onchain score |
 | `/market-makers/:address` | Profile, score with each component's weight, value and evidence, and the market maker's mandates |
-| `/launch` | Self-serve wizard: treasury Safe → token pair (launch a new token) → enable Mandate → price anchor → mandate: propose to a market maker from the marketplace (default) or create directly |
+| `/launch` | Self-serve wizard: treasury Safe → token pair (launch a new token) → enable Mandate → price anchor (launch it, then add full-range liquidity from the Safe in one batched transaction) → mandate: propose to a market maker from the marketplace (default) or create directly |
 | `/issuer` | One Safe at a glance: Safe-wide counts, proposals with their next step (send, withdraw, execute once the market maker signed), each mandate's progress (sold of released, today vs cap, fills, volume, MM fees, refused trades) and pause/unpause/revoke as Safe transactions |
 | `/desk` | Market maker's workspace (`?tab=`): **Inbox** (proposals with the full terms, accept by signing or decline), **My mandates** (spread and daily-cap sliders inside the issuer's bounds, inventory caps, re-ship, pause, claim fees, a simulate-only "exceed the cap" probe), **Profile** (marketplace listing), **Performance** (score with evidence; per mandate fills, volume, earned and claimable fee share, refused trades) |
 | `/mandates/:id` | Public mandate page: sell-limit ring, release curve vs sold, spot/TWAP band and floor, anchor health, MM pay, live activity feed, server-simulated "try a trade", numbered term sheet |
