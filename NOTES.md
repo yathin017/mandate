@@ -499,6 +499,10 @@ Replay) → issuer flow → MM flow → E2E + docs.
   duplicate `createMandate`. Issuer page rebuilt on `GET /v1/chains/:id/safes/:safe/summary` (no new tables). A Safe
   with a live mandate for the pair can propose another. Fork run: proposal from the wizard → MM accepted via API →
   owner #0 approved, owner #1 executed from `/issuer` → "Executed". The MM-side accept UI is step 7.
+- **MM flow (done):** Desk tabs Inbox / My mandates / Profile / Performance; `GET /v1/chains/:id/mms/:address/summary`.
+  Found while building it: snapshot `fees*` are the *total* spread fees, while the market maker is paid
+  `fees × mmFeeShareBps` (`MandateModule._claimable`); the issuer page had been showing total fees as MM pay. Summaries
+  now return `mmEarned*`. Radix tabs switch on mousedown, so scripted `.click()` does not change tabs (real clicks do).
 
 ## 18. Infra
 

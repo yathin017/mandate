@@ -72,7 +72,7 @@ includes `head: { number, hash }`, the block it reflects.
 | GET | `/v1/chains/:chainId/mms/scores` | Score and evidence for every market maker with a mandate on the chain |
 | GET | `/v1/chains/:chainId/mms/:address/score` | One market maker's score (404 without mandates) |
 | GET | `/v1/chains/:chainId/mms/:address/summary` | The same per-mandate overview for a market maker's mandates |
-| GET | `/v1/chains/:chainId/safes/:safe/summary` | Per-mandate overview for an issuer Safe: sold, released, today's sales vs cap, fees, fills, quote volume, refused trades |
+| GET | `/v1/chains/:chainId/safes/:safe/summary` | Per-mandate overview for an issuer Safe: sold, released, today's sales vs cap, total spread fees and the market maker's share (`mmEarned*`), fills, quote volume, refused trades |
 | GET | `/v1/chains/:chainId/tokens/launched?creator=&recipient=` | Tokens launched through the chain's TokenFactory, newest first |
 | GET | `/v1/mms` | Listed market-maker profiles (public) |
 | GET | `/v1/mms/:address` | One profile, listed or not |
