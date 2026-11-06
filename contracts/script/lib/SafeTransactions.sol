@@ -25,6 +25,11 @@ interface ISafeAccount is ISafe {
     )
         external;
 
+    /// @notice Onchain owner approval of a Safe transaction hash (counts as that owner's signature, v = 1).
+    function approveHash(bytes32 hashToApprove) external;
+    /// @notice Non-zero when `owner` approved `hash` via approveHash.
+    function approvedHashes(address owner, bytes32 hash) external view returns (uint256);
+
     function enableModule(address module) external;
     function disableModule(address prevModule, address module) external;
 
