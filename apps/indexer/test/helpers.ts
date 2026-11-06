@@ -77,3 +77,27 @@ export async function indexDemoChain(config: Config) {
   }
   return { ...handle, ctx, indexer };
 }
+
+/** Web origin the auth tests sign in from. */
+export const TEST_WEB_ORIGIN = "http://localhost:5173";
+
+/** Signs in through the API with a local account; returns the session cookie for later requests. */
+export async function signIn(
+  app: { request: (path: string, init?: RequestInit) => Response | Promise<Response> },
+  account: { address: `0x${string}`; signMessage: (args: { message: string }) => Promise<`0x${string}`> },
+  chainId: number,
+): Promise<string> {
+  const [{ createSiweMessage }, { SIWE_STATEMENT }] = await Promise.all([import("viem/siwe"), import("../src/auth/routes.ts")]);
+  const { nonce } = (await (await app.request("/v1/auth/nonce")).json()) as { nonce: string };
+  const message = createSiweMessage({
+    address: account.address, chainId, domain: new URL(TEST_WEB_ORIGIN).host, uri: TEST_WEB_ORIGIN, nonce,
+    statement: SIWE_STATEMENT, version: "1", issuedAt: new Date(),
+  });
+  const response = await app.request("/v1/auth/verify", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: TEST_WEB_ORIGIN },
+    body: JSON.stringify({ message, signature: await account.signMessage({ message }) }),
+  });
+  if (response.status !== 200) throw new Error(`sign-in failed: ${response.status} ${await response.text()}`);
+  return response.headers.get("set-cookie")!.split(";")[0]!;
+}

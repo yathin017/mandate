@@ -9,6 +9,8 @@ import { secureHeaders } from "hono/secure-headers";
 import { streamSSE } from "hono/streaming";
 
 import { createAuthRoutes } from "../auth/routes.ts";
+import { createProfileRoutes } from "../marketplace/profiles.ts";
+import { createProposalRoutes } from "../marketplace/proposals.ts";
 import { rateLimit } from "./rateLimit.ts";
 import type { Cache } from "../cache/cache.ts";
 import type { ChainContext } from "../chain.ts";
@@ -65,7 +67,7 @@ export function createApp(deps: AppDeps) {
     "*",
     cors({
       origin: (origin) => (config.API_CORS_ORIGINS.includes(origin) ? origin : null),
-      allowMethods: ["GET", "POST", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "OPTIONS"],
       allowHeaders: ["content-type"],
       // Session cookies; origins are an explicit allow-list, never reflected wildcards.
       credentials: true,
@@ -83,7 +85,10 @@ export function createApp(deps: AppDeps) {
   });
   app.notFound((c) => c.json({ error: "not found" }, 404));
 
-  app.route("/v1/auth", createAuthRoutes({ db, cache, config, log, clientIp, ...(deps.chain ? { chain: deps.chain } : {}) }));
+  const chainDep = deps.chain ? { chain: deps.chain } : {};
+  app.route("/v1/auth", createAuthRoutes({ db, cache, config, log, clientIp, ...chainDep }));
+  app.route("/v1/mms", createProfileRoutes({ db, cache, config, clientIp }));
+  app.route("/v1/proposals", createProposalRoutes({ db, cache, config, log, clientIp, ...chainDep }));
 
   /** Head for a chain: Redis first, Postgres cursor as fallback. Undefined if the chain is not indexed. */
   async function head(chainId: number) {

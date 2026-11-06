@@ -15,6 +15,10 @@ export const keys = {
   authNonce: (nonce: string) => `mandate:v1:auth:nonce:${nonce}`,
   /** Cached session lookup by token hash; deleted on sign-out, so revocation is immediate. */
   session: (tokenHash: string) => `mandate:v1:auth:session:${tokenHash}`,
+  /** A Safe's owner list as the chain reported it; owner-gated marketplace actions read it. */
+  safeOwners: (chainId: number, safe: string) => `mandate:v1:safe-owners:${chainId}:${safe}`,
+  /** Public market-maker list; deleted whenever a profile is written. */
+  mmList: () => `mandate:v1:mms:list`,
   /** Pub/sub channel announcing committed changes for one mandate. */
   mandateChannel: (chainId: number, mandateId: string) => `mandate:v1:events:${chainId}:${mandateId}`,
 } as const;
@@ -26,4 +30,7 @@ export const TTL = {
   authNonceSeconds: 600,
   /** Upper bound on a cached session lookup (capped by the session's own expiry). */
   sessionSeconds: 60,
+  /** A removed Safe owner keeps marketplace access for at most this long. */
+  safeOwnersSeconds: 60,
+  mmListSeconds: 30,
 } as const;
