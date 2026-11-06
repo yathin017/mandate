@@ -25,15 +25,26 @@ origin to the API's `API_CORS_ORIGINS`. `MANDATE_API_PROXY` changes the dev prox
 
 ## Pages
 
+Navigation is by role: public discovery (Explore, Market makers), then each side's workspace (Launch and Issuer
+for issuers, Desk for market makers).
+
 | Route | What it shows |
 |---|---|
-| `/` | The old deal vs Mandate, honest limits |
-| `/replay` | Replay theater: receipt-backed acts from `/v1/replay`, split view, damage counter, BLOCKED stamps |
-| `/mandates` | Indexed mandates |
-| `/issuer` | Issuer console: pick a Safe, see owners/threshold/module, pause/unpause/revoke, create-mandate wizard; every action is a Safe transaction approved onchain by its owners |
+| `/` | Landing for issuers and market makers: calls to action, live counts, how it works, honest limits |
+| `/explore` | Mandates (cards) and tokens launched through the TokenFactory (`?tab=tokens`) |
+| `/market-makers` | Listed market makers ranked by onchain score |
+| `/market-makers/:address` | Profile, score with each component's weight, value and evidence, and the market maker's mandates |
+| `/launch` | Self-serve wizard: treasury Safe → token pair (launch a new token) → enable Mandate → price anchor → create the mandate (see below) |
+| `/issuer` | Issuer console: pick a Safe, see owners/threshold/module, pause/unpause/revoke, create-mandate form; every action is a Safe transaction approved onchain by its owners |
 | `/desk` | MM desk: mandates where the connected wallet is the MM; spread and daily-cap sliders clamped to the issuer's bounds, inventory caps, live vs new preview, re-ship, pause, claim fees, and a simulate-only "exceed the cap" probe |
-| `/onboard` | Self-serve onboarding wizard: treasury Safe → token pair → enable Mandate → price anchor → create the mandate (see below) |
 | `/mandates/:id` | Public mandate page: sell-limit ring, release curve vs sold, spot/TWAP band and floor, anchor health, MM pay, live activity feed, server-simulated "try a trade", numbered term sheet |
+
+`/mandates` and `/onboard` redirect to `/explore` and `/launch` (query strings kept).
+
+**Sign-in.** Connecting a wallet is enough to browse and send transactions. Profiles and proposals also need
+**Sign in** in the header: an EIP-4361 message for this site, no gas. The session is an HttpOnly cookie, so the API
+must be served from the same site as the app (the dev proxy does this); a session only counts for the wallet that is
+connected, and disconnecting signs out.
 
 ## Wallet demo on Base (live deployment)
 
@@ -48,7 +59,7 @@ origin to the API's `API_CORS_ORIGINS`. `MANDATE_API_PROXY` changes the dev prox
 Issuer actions need both owners: one clicks **Approve as owner**, the other **Execute**. The connected wallet's role
 is shown next to its address in the header.
 
-## Self-serve onboarding (`/onboard`)
+## Self-serve launch (`/launch`)
 
 Five steps, each read back from the chain; choices live in the URL (`?safe=…&base=…&quote=…`), so every owner can
 open the same link and continue.

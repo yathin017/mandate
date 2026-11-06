@@ -17,7 +17,7 @@ Built for ETHGlobal Mumbai 2026.
 | `packages/` | Shared TypeScript packages (chain registry, SDK). |
 | `apps/indexer` | Indexer worker + public API (Postgres, Redis, SSE). |
 | `apps/web` | Dashboard, wallet flows and the self-serve onboarding wizard (Vite + React + shadcn). Dashboards read the indexer API; wallet flows read the chain. |
-| `replay/` | Scenario export for the Replay Theater. |
+| `replay/` | Scenario export behind the demo fork (`pnpm replay:serve`) and the indexer tests. |
 
 ## Requirements
 
@@ -121,7 +121,7 @@ pair with the oracle hook (if missing), grows its observation buffer and deploys
 address; quotes work once the pool has 30 minutes of history. Liquidity is added with Uniswap's own tools. The demo
 pair's pool above predates the launcher, so `anchorOf(mLAUNCH, mUSD)` is unset.
 
-**Self-serve onboarding.** `/onboard` in the web app takes a project from nothing to a live mandate, each step a
+**Self-serve onboarding.** `/launch` in the web app takes a project from nothing to a live mandate, each step a
 transaction its own wallets sign: treasury Safe, token pair, enable the module, launch the anchor, create the mandate.
 It was run on Base with a 2-of-2 Safe in which Owner 1 used scripts and Owner 2 the wizard in a browser wallet:
 

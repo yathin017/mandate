@@ -330,7 +330,7 @@ Code: `apps/web`. Decisions (user): Vite + React, shadcn/ui with the tweakcn the
   server-simulated attempts endpoint. MM Desk and Issuer Console are not built yet; Act 3 of the replay shows the
   MM's powers and limits.
 - **Indexer additions for the UI:** `tokens` table (migration `0001_token_metadata`) so amounts can be formatted;
-  `GET /v1/replay` serves the committed `acts.json`, because the traditional-loan side is not mandate history.
+  `GET /v1/replay` served the committed `acts.json` (removed with the Replay page in §17).
 - **Theme:** the tweakcn theme ("claude blu 2") has a near-black `destructive`, so the spec's vermilion stamp and the
   filled/warning colours are separate semantic tokens for both modes.
 - **shadcn's `cn`** now comes from the `cn` npm package; verified published by shadcn (`shadcn-ui/cn`) before use.
@@ -418,7 +418,7 @@ quote list (Base USDC/WETH) + custom with impersonation warnings; demo-only mock
 - **Token check:** `code.length > 0` is not enough. A fork test hit an address with code that is not a token
   (EIP-7702 delegation). Tokens must answer `totalSupply()` with one word.
 - **History:** the init observation counts, so the anchor prices 30 minutes after launch even with no swaps.
-- **Wizard** (`/onboard`, `apps/web/src/onboarding/`): Safe → tokens → module → anchor → mandate, each step's
+- **Wizard** (`/launch`, formerly `/onboard`; `apps/web/src/onboarding/`): Safe → tokens → module → anchor → mandate, each step's
   completion read from the chain (no indexer needed). Choices live in the URL.
 - **Terms module** (`apps/web/src/issuer/terms.ts`, pure, unit-tested): one conversion from typed terms to
   `createMandate` arguments for the wizard, the Issuer Console and the CLI, so all owners build identical calldata.
@@ -488,6 +488,11 @@ Replay) → issuer flow → MM flow → E2E + docs.
   supply ≤ 1e15 tokens. Indexed into `launched_tokens` (draft) from the manifest's `tokenFactory` (or
   `INDEXER_TOKEN_FACTORY` on a fork); restart the worker right after deploying so no launch is missed. Base:
   `0x32feE1f159E80eE007B0d750d4eb47A513e40311`, block 53991747, runtime bytecode verified against the build.
+- **UI shell (done):** nav Explore / Market makers / Launch / Issuer / Desk; Replay page and `GET /v1/replay` removed
+  (user); header sign-in (SIWE, session only counts for the connected wallet, disconnect signs out); Explore (mandates +
+  launched tokens), marketplace list ranked by score, market-maker page with score evidence; new landing. `/mandates`
+  and `/onboard` redirect. Still to come: the wizard's market-maker picker and proposal flow (step 6), profile editor
+  and proposal inbox on the desk (step 7). "Propose a mandate" links to `/launch?mm=…`, which step 6 will read.
 
 ## 18. Infra
 
