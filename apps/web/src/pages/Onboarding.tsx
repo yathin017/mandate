@@ -76,7 +76,16 @@ export function Onboarding() {
       // Independent of the module: anyone can launch the anchor while owners approve.
       state: anchorReady ? "done" : tokensDone ? "current" : "upcoming",
       body: tokensDone ? (
-        <AnchorStep base={base as Address} quote={quote as Address} baseToken={display(baseCheck.info)} quoteToken={display(quoteCheck.info)} />
+        <AnchorStep
+          base={base as Address}
+          quote={quote as Address}
+          baseToken={display(baseCheck.info)}
+          quoteToken={display(quoteCheck.info)}
+          {...(safeDone ? { safe: safe as Address } : {})}
+          holdings={{ base: baseCheck.balance, quote: quoteCheck.balance }}
+          lpParam={params.get("lp")}
+          onLp={(encoded) => select("lp", encoded)}
+        />
       ) : undefined,
     },
     {

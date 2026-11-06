@@ -14,6 +14,7 @@ import { ANCHOR_LAUNCHER, demoChain } from "@/wallet/config";
 import { TxStatus } from "@/wallet/TxStatus";
 import { useTx } from "@/wallet/useTx";
 
+import { LiquidityPanel } from "./LiquidityPanel";
 import { CONFIG_CHAIN_ID } from "./SafeStep";
 
 const Q96 = 1n << 96n;
@@ -44,7 +45,26 @@ function depth(status: AnchorStatus, base: Address): { base: bigint; quote: bigi
  * Step 4: a Uniswap v4 pool with the Mandate oracle hook and a TWAP anchor for (base, quote), via AnchorLauncher.
  * Done once the anchor exists and its pool has a full TWAP window of history.
  */
-export function AnchorStep({ base, quote, baseToken, quoteToken }: { base: Address; quote: Address; baseToken: TokenDisplay; quoteToken: TokenDisplay }) {
+export function AnchorStep({
+  base,
+  quote,
+  baseToken,
+  quoteToken,
+  safe,
+  holdings,
+  lpParam,
+  onLp,
+}: {
+  base: Address;
+  quote: Address;
+  baseToken: TokenDisplay;
+  quoteToken: TokenDisplay;
+  /** Treasury Safe: when given, the step offers to add liquidity from it once the anchor exists. */
+  safe?: Address;
+  holdings?: { base?: bigint | undefined; quote?: bigint | undefined };
+  lpParam?: string | null;
+  onLp?: (encoded: string | null) => void;
+}) {
   const status = useAnchorStatus(base, quote);
   const tx = useTx();
   const [price, setPrice] = useState("");
@@ -104,6 +124,20 @@ export function AnchorStep({ base, quote, baseToken, quoteToken }: { base: Addre
           <TxStatus state={tx.state} />
         </div>
       )}
+
+      {s.anchor && safe && onLp && (
+        <LiquidityPanel
+          safe={safe}
+          base={base}
+          baseToken={baseToken}
+          quoteToken={quoteToken}
+          status={s}
+          holdings={holdings ?? {}}
+          lpParam={lpParam ?? null}
+          onLp={onLp}
+          onAdded={() => void status.refetch()}
+        />
+      )}
     </div>
   );
 }
@@ -123,7 +157,7 @@ function PoolFacts({ status, depth: d, baseToken, quoteToken }: { status: Anchor
       )}
       <p className={empty ? "text-blocked" : "text-muted-foreground"}>
         {empty
-          ? "No liquidity: anyone can move this price for free, so the anchor would be meaningless. Add liquidity with Uniswap v4 before trading."
+          ? "No liquidity: anyone can move this price for free, so the anchor would be meaningless. Add liquidity from the Safe below before trading."
           : `In-range depth ≈ ${formatUnits(d.base, baseToken.decimals, 0)} ${baseToken.symbol} / ${formatUnits(d.quote, quoteToken.decimals, 0)} ${quoteToken.symbol}. Deeper pools make the anchor harder to move.`}
       </p>
     </div>
