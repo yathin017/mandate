@@ -520,7 +520,64 @@ Replay) → issuer flow → MM flow → E2E + docs.
 - **Header:** the environment tag ("BASE · MOCK TOKENS") was removed at the user's request; mandate pages keep their
   mock/synthetic disclosure.
 
-## 18. Infra
+## 18. v2: one treasury policy, several strategies, market-aware risk (Segment 13)
+
+User asked (2026-11-07) to fix every loophole in their review and ship the full design. Nothing below has a built-in
+economic value: every threshold, cap and multiplier is set by the issuer (or proposed by the MM and accepted by the
+issuer). The only constants are technical bounds (array caps for gas, BPS ≤ 10,000).
+
+### Loophole → fix
+
+| # | Loophole (checked against v1 code) | v2 fix |
+|---|---|---|
+| 1 | MM moves a thin oracle through another wallet | Risk modes from oracle health: *trusted depth* (in-range liquidity that existed before the last add, see hook) within ±band; fills capped to a share of that depth |
+| 2 | Buybacks restore sell capacity (net counters only) | Policy keeps a **gross** sell counter per period that buybacks never reduce, beside the net counters |
+| 3 | Reship resets counters | Not present in v1 (counters keyed by mandate); v2 keys them by **policy**, which outlives strategies |
+| 4 | Several mandates each get their own caps | All strategies of a Safe's base token attach to **one live policy per (Safe, base)**; caps and counters are policy-wide |
+| 5 | Pool initialised at a fake price | Oracle is *untrusted* (strategies paused) until the pool is older than the issuer's minimum age **and** has the minimum trusted depth; the UI shows how much of that liquidity is the issuer's own |
+| 6 | Breaker halts trading on real moves | Three modes: Normal → Defensive (smaller fills, wider minimum spread, buybacks per issuer) → Paused only past the pause thresholds or when the oracle is unpriced/untrusted |
+| 7 | Aqua virtual balances not reserved | **Backing check** on every ship: the Safe's live strategies' current Aqua balances per token may not exceed its real balance |
+| 8 | Price check on average fill price blocks big trades | Split: the strategy's **pre-trade price** must be near the TWAP; the fill's **impact** beyond the spread is capped separately; size caps per mode |
+| 9 | (added) Unpriced oracle | Always Paused, never "defensive quoting blind" |
+
+### Model
+
+- **Policy** (issuer Safe; one live per (Safe, base); one quote token): release schedule (allotment, start, duration:
+  lifetime *net* sells), period length, gross sell cap, net sell cap, quote spend cap (every quote the treasury pays out,
+  i.e. all buys), sell floor, oracle rules (anchor, TWAP window, short window, band, minimum pool age, minimum trusted
+  depth, defensive/pause thresholds for spot move, volatility and depth), pre-trade deviation limit, impact limit, and
+  limits per mode (max fill size, max fill as a share of trusted depth, minimum spread, buybacks allowed).
+  Validation: defensive thresholds ≤ pause thresholds; defensive limits no looser than normal.
+- **Strategy** (attached to a policy, its own MM and Aqua strategy): kind **MarketMaking** (two-sided) or **Buyback**
+  (only buys base, only at or below its max buy price). Bounds: spread range, max shipped base/quote, MM fee share (fixed).
+  Params: spread, shipped base/quote. Defensive is a **mode**, not a strategy: the quoter applies it per fill
+  (minimum spread raised, smaller fills) with no dock/ship.
+- **Counters** live in the quoter per policy: period index, gross sold, net sold, quote spent; plus lifetime net sold.
+  Fees per strategy.
+- **Per fill**: identity → statuses (policy and strategy) → oracle health → mode → Paused reverts with its reason →
+  pre-trade price vs TWAP → impact → size caps → sells: floor, gross, net, release / buys: mode allows, buyback price,
+  quote spend cap → persist.
+
+### Oracle health (hook v2 + anchor v2)
+
+- Hook flags: afterInitialize + **beforeAddLiquidity** + beforeSwap (new address, so new pools; v1 pools keep v1).
+  Records the pool's initialisation time and, per add, the active liquidity *before* it. Within `settle` seconds of the
+  last add (a deploy-time hook parameter), **trusted liquidity = min(current, liquidity before the adds in that window)**,
+  so a just-in-time add cannot pass a depth check in the same block. Removals lower current liquidity at once.
+- **Depth** = base the active liquidity absorbs/supplies before the price moves ±band (v4 SqrtPriceMath over the trusted
+  liquidity, the smaller direction). Exact while liquidity is constant across the band (true for full-range positions);
+  otherwise an approximation of the in-range book. Not a dollar TVL.
+- **Volatility proxy** = distance between the short-window and long-window TWAPs. **Move** = spot vs long TWAP.
+
+### Off-chain
+
+- Execution quality: for each fill, the indexer asks the v4 Quoter for the same direction and size at the **parent
+  block** (same state, pool fee included) and records the difference. Fills whose taker is the strategy's MM, its Safe,
+  or a wallet that funded either are excluded; thin benchmark pools (below the policy's minimum trusted depth) too.
+- Proposals sign policy terms (by hash) plus strategy terms.
+- v1 contracts and their Base demo stay deployed and readable; v2 is a new deployment.
+
+## 19. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.
