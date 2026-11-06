@@ -9,6 +9,7 @@ status colours (`filled`, `blocked`, `warning`) are added on top of the theme in
 ## Run it
 
 ```sh
+pnpm infra:up          # Postgres + Redis (Docker)
 pnpm replay:serve      # demo fork (127.0.0.1:8547)
 pnpm indexer:worker    # indexes it
 pnpm indexer:server    # API on 127.0.0.1:8787
@@ -16,7 +17,8 @@ pnpm web:dev           # http://localhost:5173, /api proxied to the API
 ```
 
 Production: `VITE_API_URL=https://api.example pnpm web:build`, then serve `apps/web/dist` and add the site's
-origin to the API's `API_CORS_ORIGINS`. `MANDATE_API_PROXY` changes the dev proxy target.
+origin to the API's `API_CORS_ORIGINS`. `MANDATE_API_PROXY` changes the dev proxy target. Both can live in
+`apps/web/.env` (see `apps/web/.env.example`).
 
 ## Pages
 
