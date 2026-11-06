@@ -26,8 +26,8 @@ export function MarketMakers() {
         <div>
           <h1 className="font-serif text-3xl font-semibold tracking-tight">Market makers</h1>
           <p className="max-w-2xl text-muted-foreground">
-            Scores are computed from onchain behaviour only: quoting inside the price band, fill quality, volume, kept
-            mandates and how fast problems are fixed.
+            Scores are computed from onchain behaviour only: quoting near the market, fill prices against Uniswap,
+            volume, kept strategies and how fast problems are fixed.
           </p>
         </div>
         <Button asChild variant="outline">

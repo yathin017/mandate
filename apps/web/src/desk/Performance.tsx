@@ -3,17 +3,17 @@ import { Link } from "react-router";
 import { useConnection } from "wagmi";
 
 import { ScoreBadge, ScoreBreakdown } from "@/components/score";
-import { StatusPill } from "@/components/status";
+import { RiskBadge, StatusPill } from "@/components/status";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
-import { formatCompact, formatUnits } from "@/lib/format";
+import { formatBps, formatCompact, formatUnits } from "@/lib/format";
 import { useMmScores } from "@/lib/hooks";
 
 /**
- * The market maker's own record: the onchain score with its evidence, and per mandate the volume, fills, fees earned
- * and still claimable, and trades the rails refused. Public data; no sign-in needed.
+ * The market maker's own record: the onchain score with its evidence, and per strategy the volume, fills, execution
+ * against the market, fees earned and still claimable, and trades the rails refused. Public data; no sign-in needed.
  */
 export function Performance() {
   const { address } = useConnection();
@@ -34,24 +34,25 @@ export function Performance() {
           <CardDescription>Last 30 days, from onchain activity only. Issuers see the same numbers.</CardDescription>
         </CardHeader>
         <CardContent>
-          {score ? <ScoreBreakdown score={score} /> : <p className="text-sm text-muted-foreground">Your score starts with your first mandate.</p>}
+          {score ? <ScoreBreakdown score={score} /> : <p className="text-sm text-muted-foreground">Your score starts with your first strategy.</p>}
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Mandates</CardTitle>
-          <CardDescription>Your fixed share of the spread fees on every fill (quote on sells, base on buybacks); claim it from My mandates.</CardDescription>
+          <CardTitle>Strategies</CardTitle>
+          <CardDescription>Your fixed share of the spread fees on every fill (quote on sells, base on buybacks); claim it from My strategies.</CardDescription>
         </CardHeader>
         <CardContent>
           {summary.isPending && <Skeleton className="h-32 w-full" />}
-          {summary.data && rows.length === 0 && <p className="text-sm text-muted-foreground">No mandates yet.</p>}
+          {summary.data && rows.length === 0 && <p className="text-sm text-muted-foreground">No strategies yet.</p>}
           {rows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Mandate</TableHead>
+                  <TableHead>Strategy</TableHead>
                   <TableHead className="text-right">Fills</TableHead>
                   <TableHead className="text-right">Volume</TableHead>
+                  <TableHead className="text-right">Vs market</TableHead>
                   <TableHead className="text-right">You earned</TableHead>
                   <TableHead className="text-right">Claimable</TableHead>
                   <TableHead className="text-right">Refused</TableHead>
@@ -75,15 +76,18 @@ export function Performance() {
                     </>
                   );
                   return (
-                    <TableRow key={m.mandateId}>
+                    <TableRow key={m.strategyId}>
                       <TableCell>
-                        <Link to={`/mandates/${m.mandateId}`} className="flex items-center gap-2 whitespace-nowrap underline-offset-4 hover:underline">
-                          {m.tokens.base?.symbol ?? "?"} / {quote.symbol} <StatusPill status={m.status} />
+                        <Link to={`/strategies/${m.strategyId}`} className="flex items-center gap-2 whitespace-nowrap underline-offset-4 hover:underline">
+                          {m.tokens.base?.symbol ?? "?"} / {quote.symbol} <StatusPill status={m.status} /> <RiskBadge mode={m.riskMode} reason={m.riskReason} />
                         </Link>
                       </TableCell>
                       <TableCell className="tabular text-right font-mono">{m.fills}</TableCell>
                       <TableCell className="tabular text-right font-mono">
                         {formatCompact(m.quoteVolume, quote.decimals)} <span className="text-xs text-muted-foreground">{quote.symbol}</span>
+                      </TableCell>
+                      <TableCell className="tabular text-right font-mono" title="Volume-weighted fill price against the Uniswap price before each fill; + favours the treasury">
+                        {m.avgQualityBps === null ? "–" : `${m.avgQualityBps >= 0 ? "+" : "−"}${formatBps(Math.abs(Math.round(m.avgQualityBps)))}`}
                       </TableCell>
                       <TableCell className="tabular text-right font-mono">{both(BigInt(m.mmEarnedQuote), BigInt(m.mmEarnedBase))}</TableCell>
                       <TableCell className="tabular text-right font-mono">

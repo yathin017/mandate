@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { isAddress } from "viem";
 
-import { MandateCards } from "@/components/MandateCards";
+import { StrategyCards } from "@/components/StrategyCards";
 import { ScoreBadge, ScoreBreakdown } from "@/components/score";
 import { Hex } from "@/components/status";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import { api, ApiError } from "@/lib/api";
 import { qk, useMmScores } from "@/lib/hooks";
 import { formatChainTime } from "@/lib/format";
 
-/** One market maker: self-written profile, onchain score with its evidence, and its mandates. */
+/** One market maker: self-written profile, onchain score with its evidence, and the strategies it runs. */
 export function MarketMakerPage() {
   const address = (useParams().address ?? "").toLowerCase();
   const valid = isAddress(address);
@@ -31,7 +31,7 @@ export function MarketMakerPage() {
     enabled: valid,
   });
   const scores = useMmScores();
-  const mandates = useQuery({ queryKey: ["mandates", "mm", address], queryFn: () => api.mandatesByMm(address), enabled: valid });
+  const strategies = useQuery({ queryKey: ["strategies", "list", { mm: address }], queryFn: () => api.strategies({ mm: address }), enabled: valid });
   const score = scores.data?.data.scores.find((s) => s.mm === address);
 
   if (!valid) return <p className="text-blocked">Not a valid address.</p>;
@@ -51,7 +51,7 @@ export function MarketMakerPage() {
         <div className="flex items-center gap-3">
           <ScoreBadge score={score} className="px-3 py-1 text-lg" />
           <Button asChild>
-            <Link to={`/launch?mm=${address}`}>Propose a mandate</Link>
+            <Link to={`/launch?mm=${address}`}>Propose a strategy</Link>
           </Button>
         </div>
       </div>
@@ -87,16 +87,16 @@ export function MarketMakerPage() {
           <CardHeader>
             <CardTitle>Onchain score</CardTitle>
             <CardDescription>
-              {score ? `Last 30 days to ${formatChainTime(score.window.to)}.` : "No mandates on this chain yet."}
+              {score ? `Last 30 days to ${formatChainTime(score.window.to)}.` : "No strategies on this chain yet."}
             </CardDescription>
           </CardHeader>
-          <CardContent>{score ? <ScoreBreakdown score={score} /> : <p className="text-sm text-muted-foreground">Scores start with the first mandate.</p>}</CardContent>
+          <CardContent>{score ? <ScoreBreakdown score={score} /> : <p className="text-sm text-muted-foreground">Scores start with the first strategy.</p>}</CardContent>
         </Card>
       </div>
 
       <section className="space-y-3">
-        <h2 className="font-serif text-xl font-semibold">Mandates</h2>
-        {mandates.data?.data.length ? <MandateCards mandates={mandates.data.data} /> : <p className="text-sm text-muted-foreground">None yet.</p>}
+        <h2 className="font-serif text-xl font-semibold">Strategies</h2>
+        {strategies.data?.data.length ? <StrategyCards strategies={strategies.data.data} /> : <p className="text-sm text-muted-foreground">None yet.</p>}
       </section>
     </div>
   );

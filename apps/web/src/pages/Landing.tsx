@@ -4,18 +4,18 @@ import { Link } from "react-router";
 import { BlockedStamp } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useLaunchedTokens, useMandates, useMmProfiles } from "@/lib/hooks";
+import { useLaunchedTokens, useMmProfiles, useStrategies } from "@/lib/hooks";
 import { demoChain } from "@/wallet/config";
 
 const STEPS = [
   { title: "Launch", body: "Create your token with a fixed supply that lands straight in your team's Safe." },
-  { title: "Anchor", body: "Open a Uniswap v4 pool with an oracle hook; its 30-minute average becomes the price reference." },
-  { title: "Choose", body: "Compare market makers by an onchain score and send one your terms." },
-  { title: "Mandate", body: "They sign the exact terms, your owners approve, and the deal runs as code." },
+  { title: "Anchor", body: "Open a Uniswap v4 pool with an oracle hook; it reports price, depth and volatility to your treasury." },
+  { title: "Policy", body: "Set your treasury's release, sell and buyback limits, price rules and when to turn defensive or pause." },
+  { title: "Strategies", body: "Market makers sign the exact terms and trade inside your policy, sharing its limits." },
 ];
 
 /**
- * Front door for both sides of the market: issuers launching a token, and market makers looking for mandates.
+ * Front door for both sides of the market: issuers launching a token, and market makers looking for work.
  * Live counts come from the indexer; nothing here needs a wallet.
  */
 export function Landing() {
@@ -48,14 +48,14 @@ export function Landing() {
           icon={<Building2 />}
           title="For issuers"
           description="From a fresh token to a market maker under contract, without giving up custody."
-          points={["Launch a fixed-supply token into your Safe", "Set release, daily cap, floor and price band", "Pause or revoke at any time; earned fees are settled"]}
+          points={["Launch a fixed-supply token into your Safe", "One policy for the whole treasury: limits no strategy can reset", "Trading turns defensive or pauses when the market looks wrong"]}
           cta={{ to: "/launch", label: "Start a launch" }}
           secondary={{ to: "/issuer", label: "Manage my Safe" }}
         />
         <RoleCard
           icon={<LineChart />}
           title="For market makers"
-          description="Win mandates on your record and get paid on real fills, inside clear rails."
+          description="Win strategies on your record and get paid on real fills, inside clear rails."
           points={["Publish a profile issuers can find", "Accept terms with one signature", "Tune spread and inventory; claim fees directly"]}
           cta={{ to: "/desk", label: "Open the desk" }}
           secondary={{ to: "/market-makers", label: "See the leaderboard" }}
@@ -81,28 +81,29 @@ export function Landing() {
             <ShieldCheck className="size-6 text-filled" /> Every "no" explains itself
           </h2>
           <p className="text-muted-foreground">
-            A sell past the daily limit, below the floor, or into a manipulated price is refused before any token
-            moves, and the refusal shows up on the mandate's public page with the clause it broke.
+            A sell past the treasury's limits, below the floor, or into a manipulated or thin market is refused before
+            any token moves, and the refusal shows up on the strategy's public page with the clause it broke.
           </p>
         </div>
-        <BlockedStamp clause="Daily sell limit reached" className="scale-125" />
+        <BlockedStamp clause="Net sell limit" className="scale-125" />
       </section>
 
       <section className="text-sm text-muted-foreground">
         <h2 className="mb-2 font-medium text-foreground">Honest limits</h2>
-        Mandate governs treasuries that make markets onchain; it cannot stop sales on centralized exchanges. The contracts
-        are unaudited.
+        Mandate governs treasuries that make markets onchain; it cannot stop sales on centralized exchanges. Its market
+        checks read one Uniswap v4 pool, so a pool with little real liquidity gives weak protection. The contracts are
+        unaudited.
       </section>
     </div>
   );
 }
 
 function LiveStats() {
-  const mandates = useMandates();
+  const strategies = useStrategies();
   const mms = useMmProfiles();
   const tokens = useLaunchedTokens();
   const stats = [
-    { label: "Mandates", value: mandates.data?.data.length, to: "/explore" },
+    { label: "Strategies", value: strategies.data?.data.length, to: "/explore" },
     { label: "Market makers", value: mms.data?.data.length, to: "/market-makers" },
     { label: "Tokens launched", value: tokens.data?.data.length, to: "/explore?tab=tokens" },
   ];

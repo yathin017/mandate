@@ -7,19 +7,19 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Inbox } from "@/desk/Inbox";
-import { MyMandates } from "@/desk/MyMandates";
+import { MyStrategies } from "@/desk/MyStrategies";
 import { Performance } from "@/desk/Performance";
 import { ProfileEditor } from "@/desk/ProfileEditor";
 import { api } from "@/lib/api";
 import { DEMO_ACCOUNTS, isLive } from "@/wallet/config";
 import { useSession } from "@/wallet/session";
 
-const TABS = ["inbox", "mandates", "profile", "performance"] as const;
+const TABS = ["inbox", "strategies", "profile", "performance"] as const;
 type Tab = (typeof TABS)[number];
 
 /**
- * The market maker's workspace: proposals to answer, mandates to operate, the public listing, and the onchain record
- * issuers judge it by. The active tab lives in the URL (?tab=).
+ * The market maker's workspace: proposals to answer, strategies to operate, the public listing, and the onchain
+ * record issuers judge it by. The active tab lives in the URL (?tab=).
  */
 export function MMDesk() {
   const [params, setParams] = useSearchParams();
@@ -34,7 +34,7 @@ export function MMDesk() {
     <div className="space-y-6">
       <div>
         <h1 className="font-serif text-3xl font-semibold tracking-tight">Desk</h1>
-        <p className="text-muted-foreground">Answer proposals, operate your mandates inside the issuer's rails, and keep your listing current.</p>
+        <p className="text-muted-foreground">Answer proposals, operate your strategies inside the issuer's rails, and keep your listing current.</p>
       </div>
       {status !== "connected" && (
         <Alert>
@@ -50,15 +50,15 @@ export function MMDesk() {
           <TabsTrigger value="inbox">
             Inbox {waiting > 0 && <Badge className="ml-1.5 h-5 px-1.5">{waiting}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="mandates">My mandates</TabsTrigger>
+          <TabsTrigger value="strategies">My strategies</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
         <TabsContent value="inbox" className="pt-4">
           <Inbox />
         </TabsContent>
-        <TabsContent value="mandates" className="pt-4">
-          <MyMandates />
+        <TabsContent value="strategies" className="pt-4">
+          <MyStrategies />
         </TabsContent>
         <TabsContent value="profile" className="pt-4">
           <ProfileEditor />

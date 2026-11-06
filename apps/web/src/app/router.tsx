@@ -11,7 +11,8 @@ import { Layout } from "./Layout";
 const Explore = lazy(() => import("@/pages/Explore").then((m) => ({ default: m.Explore })));
 const MarketMakers = lazy(() => import("@/pages/MarketMakers").then((m) => ({ default: m.MarketMakers })));
 const MarketMakerPage = lazy(() => import("@/pages/MarketMakerPage").then((m) => ({ default: m.MarketMakerPage })));
-const MandatePage = lazy(() => import("@/pages/MandatePage").then((m) => ({ default: m.MandatePage })));
+const StrategyPage = lazy(() => import("@/pages/StrategyPage").then((m) => ({ default: m.StrategyPage })));
+const PolicyPage = lazy(() => import("@/pages/PolicyPage").then((m) => ({ default: m.PolicyPage })));
 const IssuerConsole = lazy(() => import("@/pages/IssuerConsole").then((m) => ({ default: m.IssuerConsole })));
 const Onboarding = lazy(() => import("@/pages/Onboarding").then((m) => ({ default: m.Onboarding })));
 const MMDesk = lazy(() => import("@/pages/MMDesk").then((m) => ({ default: m.MMDesk })));
@@ -34,7 +35,10 @@ export const router = createBrowserRouter([
       { path: "launch", element: page(<Onboarding />) },
       { path: "issuer", element: page(<IssuerConsole />) },
       { path: "desk", element: page(<MMDesk />) },
-      { path: "mandates/:mandateId", element: page(<MandatePage />) },
+      { path: "strategies/:strategyId", element: page(<StrategyPage />) },
+      { path: "policies/:policyId", element: page(<PolicyPage />) },
+      // v1 mandate links: mandates were replaced by policies and strategies, so old ids no longer resolve.
+      { path: "mandates/*", element: <Redirect to="/explore" /> },
       { path: "mandates", element: <Redirect to="/explore" /> },
       { path: "onboard", element: <Redirect to="/launch" /> },
       { path: "*", element: <NotFound /> },

@@ -1,32 +1,32 @@
 import { ExternalLink } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 
-import { MandateCards } from "@/components/MandateCards";
+import { StrategyCards } from "@/components/StrategyCards";
 import { Hex } from "@/components/status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatChainTime, formatCompact } from "@/lib/format";
-import { useLaunchedTokens, useMandates } from "@/lib/hooks";
+import { useLaunchedTokens, useStrategies } from "@/lib/hooks";
 import { addressUrl } from "@/wallet/config";
 
-/** Public discovery: live mandates and tokens launched on the platform. No wallet needed. */
+/** Public discovery: strategies under treasury policies, and tokens launched on the platform. No wallet needed. */
 export function Explore() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "tokens" ? "tokens" : "mandates";
+  const tab = params.get("tab") === "tokens" ? "tokens" : "strategies";
   return (
     <div className="space-y-6">
       <div>
         <h1 className="font-serif text-3xl font-semibold tracking-tight">Explore</h1>
-        <p className="text-muted-foreground">Every mandate's terms and refusals are public, and so is every launch.</p>
+        <p className="text-muted-foreground">Every strategy's terms, its treasury's limits and every refusal are public, and so is every launch.</p>
       </div>
       <Tabs value={tab} onValueChange={(v) => setParams(v === "tokens" ? { tab: "tokens" } : {}, { replace: true })}>
         <TabsList>
-          <TabsTrigger value="mandates">Mandates</TabsTrigger>
+          <TabsTrigger value="strategies">Strategies</TabsTrigger>
           <TabsTrigger value="tokens">Launched tokens</TabsTrigger>
         </TabsList>
-        <TabsContent value="mandates" className="pt-4">
-          <Mandates />
+        <TabsContent value="strategies" className="pt-4">
+          <Strategies />
         </TabsContent>
         <TabsContent value="tokens" className="pt-4">
           <Tokens />
@@ -36,18 +36,18 @@ export function Explore() {
   );
 }
 
-function Mandates() {
-  const mandates = useMandates();
-  if (mandates.isPending) return <Skeleton className="h-40 w-full" />;
-  if (mandates.isError) return <p className="text-blocked">Could not load mandates: {mandates.error.message}</p>;
-  if (mandates.data.data.length === 0) {
+function Strategies() {
+  const strategies = useStrategies();
+  if (strategies.isPending) return <Skeleton className="h-40 w-full" />;
+  if (strategies.isError) return <p className="text-blocked">Could not load strategies: {strategies.error.message}</p>;
+  if (strategies.data.data.length === 0) {
     return (
       <p className="text-muted-foreground">
-        No mandates yet. <Link to="/launch" className="underline underline-offset-4">Launch one</Link>.
+        No strategies yet. <Link to="/launch" className="underline underline-offset-4">Set one up</Link>.
       </p>
     );
   }
-  return <MandateCards mandates={mandates.data.data} />;
+  return <StrategyCards strategies={strategies.data.data} />;
 }
 
 function Tokens() {
