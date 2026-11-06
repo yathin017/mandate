@@ -17,6 +17,8 @@ const schema = z.object({
   INDEXER_LOG_RANGE: z.coerce.number().int().min(1).max(10_000).default(500),
   /** Parallel snapshot reads. Public RPCs rate-limit bursts; use 1 for them. */
   INDEXER_SNAPSHOT_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(8),
+  /** Market-maker availability probes (read-only quotes per live mandate and side). 0 turns them off. */
+  INDEXER_PROBE_INTERVAL_S: z.coerce.number().int().min(0).max(86_400).default(600),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(8787),
   API_CORS_ORIGINS: z
     .string()

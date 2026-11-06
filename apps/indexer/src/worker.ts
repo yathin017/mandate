@@ -5,6 +5,7 @@ import { createDb } from "./db/client.ts";
 import { runMigrations } from "./db/migrate.ts";
 import { Indexer, type BatchCommitted } from "./ingest/indexer.ts";
 import { checkPostgres, checkRedis, checkRpc, runWithPreflight } from "./preflight.ts";
+import { Prober } from "./score/prober.ts";
 
 /** Indexer process: check infrastructure, migrate, then follow the chain until SIGINT/SIGTERM. */
 const config = loadConfig();
@@ -39,6 +40,7 @@ const indexer = new Indexer(ctx, db, config, announce);
 const controller = new AbortController();
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => controller.abort());
 
-await indexer.run(controller.signal);
+// Probes read the indexed head, so they run beside the indexer and never block it.
+await Promise.all([indexer.run(controller.signal), new Prober(ctx, db, config).run(controller.signal)]);
 await cache.close();
 await close();
