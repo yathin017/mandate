@@ -24,6 +24,10 @@ contract MockMandateRegistry is IMandateRegistry {
         _mandates[mandateId].params.epochCap = epochCap;
     }
 
+    function setAnchor(bytes32 mandateId, address anchor) external {
+        _mandates[mandateId].bounds.anchor = anchor;
+    }
+
     function getMandate(bytes32 mandateId) external view returns (Mandate memory) {
         return _mandates[mandateId];
     }
