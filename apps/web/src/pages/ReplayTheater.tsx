@@ -12,19 +12,8 @@ import { formatPrice, formatUnits } from "@/lib/format";
 import { useReplay } from "@/lib/hooks";
 import type { Replay, ReplayAct, ReplayState, ReplayStep } from "@/lib/replay";
 import { cn } from "@/lib/utils";
+import { clauseOf } from "@/lib/clauses";
 
-const CLAUSE: Record<string, string> = {
-  EpochCapReached: "Daily sell limit",
-  ReleaseExceeded: "Release schedule",
-  BelowFloor: "Price floor",
-  AnchorDeviation: "Uniswap anchor",
-  SpotTwapDivergence: "Manipulation guard",
-  MandatePaused: "Mandate paused",
-  MandateRevoked: "Mandate revoked",
-  ParamsOutOfBounds: "Issuer bounds",
-  NotModule: "Safe permissions",
-  SafeCallFailed: "Safe permissions",
-};
 
 const isTraditional = (step: ReplayStep) => step.kind === "approval" || step.kind === "traditional-sell";
 
@@ -140,7 +129,7 @@ function CurrentStep({ step }: { step: ReplayStep }) {
     <Card key={step.step} className={cn("animate-in fade-in", blocked && "border-blocked/50 bg-blocked/5")}>
       <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center">
         {blocked ? (
-          <BlockedStamp clause={CLAUSE[step.error?.name ?? ""] ?? step.error?.name} className="shrink-0" />
+          <BlockedStamp clause={clauseOf(step.error?.name)} className="shrink-0" />
         ) : (
           <CheckCircle2 className="size-6 shrink-0 text-filled" />
         )}

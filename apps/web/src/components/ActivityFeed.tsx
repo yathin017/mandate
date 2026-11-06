@@ -5,23 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BlockedStamp, Hex, SyntheticTag } from "@/components/status";
 import { formatChainTime, formatPrice, formatUnits } from "@/lib/format";
+import { clauseOf } from "@/lib/clauses";
 import { useActivity } from "@/lib/hooks";
 import type { ActivityItem, TokenDisplay } from "@/lib/types";
 
-/** Plain-language clause names for the stamp (spec 10.2); the full sentence comes from the indexer. */
-const CLAUSE: Record<string, string> = {
-  EpochCapReached: "Daily sell limit",
-  ReleaseExceeded: "Release schedule",
-  BelowFloor: "Price floor",
-  AnchorDeviation: "Uniswap anchor",
-  SpotTwapDivergence: "Manipulation guard",
-  MandatePaused: "Mandate paused",
-  MandateRevoked: "Mandate revoked",
-  ParamsOutOfBounds: "Issuer bounds",
-  NotIssuer: "Issuer only",
-  NotMarketMaker: "MM only",
-  SafeBalancesForTokenNotInActiveStrategy: "Strategy docked",
-};
 
 export function ActivityFeed({ mandateId, base, quote }: { mandateId: string; base: TokenDisplay; quote: TokenDisplay }) {
   const activity = useActivity(mandateId);
@@ -137,7 +124,7 @@ function ActivityRow({ item, base, quote }: { item: ActivityItem; base: TokenDis
 
   return (
     <li className="flex flex-col gap-2 bg-blocked/5 p-3 sm:flex-row sm:items-start sm:gap-4">
-      <BlockedStamp clause={CLAUSE[item.error_name ?? ""] ?? item.error_name} className="shrink-0 self-start" />
+      <BlockedStamp clause={clauseOf(item.error_name)} className="shrink-0 self-start" />
       <div className="min-w-0 flex-1 space-y-1">
         <p className="text-sm">{item.explanation ?? "Refused by the contract."}</p>
         {meta}
