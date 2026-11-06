@@ -4,15 +4,15 @@ import type { Address, Hash } from "viem";
 import type { ChainContext } from "../chain.ts";
 import type { Config } from "../config.ts";
 import type { Db } from "../db/client.ts";
-import { blocks, mandates, mmProbes, rawEvents, syncCursors } from "../db/schema.ts";
+import { blocks, mmProbes, rawEvents, strategies, syncCursors } from "../db/schema.ts";
 
 /**
- * Availability probes for the market-maker score. Every `INDEXER_PROBE_INTERVAL_S` it quotes each live mandate at
+ * Availability probes for the market-maker score. Every `INDEXER_PROBE_INTERVAL_S` it quotes each live strategy at
  * the indexed head, once per side, with a trade of 0.1% of the shipped inventory, and records whether it would fill.
  * Quotes are `eth_call`s through the SwapVM router: nothing is sent and nothing costs gas.
  *
- * Only refusals the market maker controls count against it (see `classify`); issuer rails, the anchor's own breakers
- * and RPC failures are recorded as neutral.
+ * Only refusals the market maker controls count against it (see `classify`); issuer rails (caps, floor, release,
+ * kind), the policy's risk mode and RPC failures are recorded as neutral.
  */
 /** Quote caller. Any address works for a view quote; a fixed one keeps probes recognisable. */
 export const PROBE_TAKER = "0x000000000000000000000000000000000000dEaD" as Address;
@@ -21,7 +21,7 @@ const PROBE_DIVISOR = 1000n;
 const RETENTION_SECONDS = 35n * 86_400n;
 
 /** Refusals the market maker could have prevented by reshipping (price or inventory) in time. */
-const MM_FAULTS = new Set(["AnchorDeviation", "InsufficientLiquidity", "ZeroBalance"]);
+const MM_FAULTS = new Set(["QuoteOffMarket", "InsufficientLiquidity", "ZeroBalance"]);
 
 export function classify(errorName: string | null): "ok" | "mm_fault" | "neutral" {
   if (errorName === null) return "ok";
@@ -71,25 +71,35 @@ export class Prober {
     if (!block) return 0;
 
     const live = await this.db
-      .select({ mandateId: mandates.mandateId, mm: mandates.mm, base: mandates.base, quote: mandates.quote, status: mandates.status, params: mandates.params })
-      .from(mandates)
-      .where(and(eq(mandates.chainId, chainId), inArray(mandates.status, [1, 2])));
+      .select({
+        strategyId: strategies.strategyId,
+        mm: strategies.mm,
+        base: strategies.base,
+        quote: strategies.quote,
+        status: strategies.status,
+        kind: strategies.kind,
+        params: strategies.params,
+      })
+      .from(strategies)
+      .where(and(eq(strategies.chainId, chainId), inArray(strategies.status, [1, 2])));
 
     const rows: (typeof mmProbes.$inferInsert)[] = [];
     for (const m of live) {
-      const base = { chainId, mandateId: m.mandateId, mm: m.mm, blockNumber: cursor.blockNumber, timestamp: block.timestamp };
+      const base = { chainId, strategyId: m.strategyId, mm: m.mm, blockNumber: cursor.blockNumber, timestamp: block.timestamp };
+      // A buyback strategy never sells by design; probing that side would only record issuer-chosen refusals.
+      const sides = m.kind === 1 ? (["buy"] as const) : (["sell", "buy"] as const);
       if (m.status === 2) {
         // Pausing is the market maker's fault only when the market maker paused it.
-        const pausedBy = await this.lastPauser(m.mandateId);
+        const pausedBy = await this.lastPauser(m.strategyId);
         const outcome = pausedBy === m.mm ? "mm_fault" : "neutral";
-        for (const side of ["sell", "buy"] as const) rows.push({ ...base, side, outcome, errorName: "MandatePaused" });
+        for (const side of sides) rows.push({ ...base, side, outcome, errorName: "StrategyPaused" });
         continue;
       }
       const amount = BigInt((m.params as { shippedBase: string }).shippedBase) / PROBE_DIVISOR;
       if (amount === 0n) continue;
-      for (const side of ["sell", "buy"] as const) {
+      for (const side of sides) {
         // sell: a taker buys `amount` base from the treasury (exact out); buy: a taker sells `amount` base to it.
-        const result = await this.ctx.sdk.quote(m.mandateId as Hash, {
+        const result = await this.ctx.sdk.quote(m.strategyId as Hash, {
           taker: PROBE_TAKER,
           tokenIn: (side === "sell" ? m.quote : m.base) as Address,
           tokenOut: (side === "sell" ? m.base : m.quote) as Address,
@@ -106,11 +116,11 @@ export class Prober {
     return rows.length;
   }
 
-  private async lastPauser(mandateId: string): Promise<string | undefined> {
+  private async lastPauser(strategyId: string): Promise<string | undefined> {
     const [event] = await this.db
       .select({ args: rawEvents.args })
       .from(rawEvents)
-      .where(and(eq(rawEvents.chainId, this.ctx.chainId), eq(rawEvents.mandateId, mandateId), eq(rawEvents.eventName, "MandatePaused")))
+      .where(and(eq(rawEvents.chainId, this.ctx.chainId), eq(rawEvents.strategyId, strategyId), eq(rawEvents.eventName, "StrategyPaused")))
       .orderBy(desc(rawEvents.blockNumber), desc(rawEvents.logIndex))
       .limit(1);
     return (event?.args as { by?: string } | undefined)?.by?.toLowerCase();

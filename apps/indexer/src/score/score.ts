@@ -4,9 +4,9 @@
  * | Component      | Weight | Measure                                                                         |
  * |----------------|--------|---------------------------------------------------------------------------------|
  * | availability   | 35%    | probe rounds that would fill ÷ rounds that would fill or failed for the MM's reason |
- * | priceQuality   | 20%    | 1 − volume-weighted (|fill price − TWAP| ÷ the mandate's anchor tolerance)       |
+ * | priceQuality   | 20%    | 1 − volume-weighted (|fill price − Uniswap spot before the fill| ÷ the issuer's quote tolerance) |
  * | volume         | 20%    | log-scaled quote volume relative to the busiest market maker on the chain        |
- * | reliability    | 15%    | share of mandates not revoked × min(1, days under management ÷ 30)               |
+ * | reliability    | 15%    | share of strategies not revoked × min(1, days under management ÷ 30)             |
  * | responsiveness | 10%    | 1 − min(1, median minutes to recover from a fault or reship after a bounds change ÷ 120) |
  *
  * A component without evidence is reported as such and the remaining weights are rescaled; a market maker with fewer
@@ -21,7 +21,7 @@ const TENURE_DAYS = 30;
 
 export interface MmEvidence {
   readonly mm: string;
-  /** Probe rounds (one per mandate per probe time) that would fill on every probed side. */
+  /** Probe rounds (one per strategy per probe time) that would fill on every probed side. */
   readonly okRounds: number;
   /** Probe rounds with at least one refusal the market maker controls. */
   readonly faultRounds: number;
@@ -31,7 +31,7 @@ export interface MmEvidence {
   /** Σ quote volume (whole tokens) and Σ volume × (deviation ÷ tolerance), for the weighted price quality. */
   readonly quoteVolume: number;
   readonly weightedDeviation: number;
-  readonly mandates: number;
+  readonly strategies: number;
   readonly revoked: number;
   readonly managedDays: number;
 }
@@ -70,12 +70,12 @@ export function computeScores(evidence: readonly MmEvidence[]): MmScore[] {
       availability: {
         weight: WEIGHTS.availability,
         value: rounds >= MIN_PROBE_ROUNDS ? round(e.okRounds / rounds) : null,
-        evidence: `${e.okRounds} of ${rounds} probe rounds would fill (refusals by issuer rails or the anchor's breakers excluded)`,
+        evidence: `${e.okRounds} of ${rounds} probe rounds would fill (refusals by issuer rails or market risk modes excluded)`,
       },
       priceQuality: {
         weight: WEIGHTS.priceQuality,
         value: e.fills > 0 && e.quoteVolume > 0 ? round(clamp01(1 - e.weightedDeviation / e.quoteVolume)) : null,
-        evidence: `${e.fills} fills; volume-weighted distance from the Uniswap TWAP, as a share of the anchor tolerance`,
+        evidence: `${e.fills} fills; volume-weighted distance from the Uniswap price before each fill, as a share of the issuer's quote tolerance`,
       },
       volume: {
         weight: WEIGHTS.volume,
@@ -84,8 +84,8 @@ export function computeScores(evidence: readonly MmEvidence[]): MmScore[] {
       },
       reliability: {
         weight: WEIGHTS.reliability,
-        value: e.mandates > 0 ? round((1 - e.revoked / e.mandates) * Math.min(1, e.managedDays / TENURE_DAYS)) : null,
-        evidence: `${e.mandates - e.revoked} of ${e.mandates} mandates not revoked; ${round(e.managedDays, 1)} days under management`,
+        value: e.strategies > 0 ? round((1 - e.revoked / e.strategies) * Math.min(1, e.managedDays / TENURE_DAYS)) : null,
+        evidence: `${e.strategies - e.revoked} of ${e.strategies} strategies not revoked; ${round(e.managedDays, 1)} days under management`,
       },
       responsiveness: {
         weight: WEIGHTS.responsiveness,
