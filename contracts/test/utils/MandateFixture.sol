@@ -11,6 +11,7 @@ library MandateFixture {
     uint256 internal constant FLOOR_X36 = 3e23; // 0.30 USDC per LAUNCH
     uint256 internal constant SPOT_X36 = 4e23; // 0.40 USDC per LAUNCH
     uint16 internal constant SPREAD_BPS = 30;
+    uint256 internal constant MAX_SHIPPED_QUOTE = 5_000_000e6;
 
     function defaultMandate(
         address safe,
@@ -38,6 +39,7 @@ library MandateFixture {
                 releaseDuration: 180 days,
                 epochLength: 1 days,
                 maxEpochCap: MAX_EPOCH_CAP,
+                maxShippedQuote: MAX_SHIPPED_QUOTE,
                 floorPriceX36: FLOOR_X36,
                 maxAnchorDeviationBps: 300,
                 twapWindow: 30 minutes,

@@ -25,6 +25,8 @@ struct MandateBounds {
     uint64 epochLength;
     /// @dev Ceiling on `MandateParams.epochCap`.
     uint256 maxEpochCap;
+    /// @dev Ceiling on `MandateParams.shippedQuote`: quote tokens the issuer commits to buybacks.
+    uint256 maxShippedQuote;
     /// @dev Never sell base below this price.
     uint256 floorPriceX36;
     /// @dev Max distance between execution price and the anchor TWAP.
@@ -34,11 +36,11 @@ struct MandateBounds {
     /// @dev Range the market maker may choose `MandateParams.spreadBps` from.
     uint16 spreadBpsMin;
     uint16 spreadBpsMax;
-    /// @dev Market maker's share of accrued fees, paid by the issuer.
+    /// @dev Market maker's share of accrued fees, claimable by the market maker. Fixed at creation.
     uint16 mmFeeShareBps;
     /// @dev IPriceAnchor adapter for this mandate's pair.
     address anchor;
-    /// @dev The only Extruction target strategies of this mandate may use.
+    /// @dev The only Extruction target strategies of this mandate may use. Set by the registry, not the issuer.
     address quoter;
 }
 
