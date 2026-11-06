@@ -10,7 +10,7 @@ import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 import { ChainConfig, ChainConfigLib } from "../../script/lib/ChainConfig.sol";
 import { AquaProgram } from "../../src/libraries/AquaProgram.sol";
 import { AquaOrders } from "../utils/AquaOrders.sol";
-import { AquaTaker } from "../utils/AquaTaker.sol";
+import { AquaTaker } from "../../src/mocks/AquaTaker.sol";
 import { ProbeExtruction } from "../utils/ProbeExtruction.sol";
 
 /// @title AquaFillForkTest

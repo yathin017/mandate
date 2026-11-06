@@ -16,9 +16,9 @@ import { UniswapV4TwapAnchor } from "../../src/anchor/UniswapV4TwapAnchor.sol";
 import { MockERC20 } from "../../src/mocks/MockERC20.sol";
 import { ChainConfig, ChainConfigLib } from "../../script/lib/ChainConfig.sol";
 
-import { AquaTaker } from "../utils/AquaTaker.sol";
+import { AquaTaker } from "../../src/mocks/AquaTaker.sol";
 import { MandateFixture } from "../utils/MandateFixture.sol";
-import { ISafeAccount, SafeTransactions } from "../utils/SafeTransactions.sol";
+import { ISafeAccount, SafeTransactions } from "../../script/lib/SafeTransactions.sol";
 import { V4AnchorSetup } from "../utils/V4AnchorSetup.sol";
 
 /// @notice Complete module lifecycle on canonical Safe 1.4.1, Aqua, SwapVM and v4 bytecode.

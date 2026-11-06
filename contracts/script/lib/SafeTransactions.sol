@@ -5,7 +5,7 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { ISafe } from "../../src/interfaces/ISafe.sol";
 
-/// @notice Test-only owner and factory interfaces, verified against Safe v1.4.1 source.
+/// @notice Fork/test owner and factory interfaces, verified against Safe v1.4.1 source.
 /// @dev Production ISafe deliberately exposes only the two module operations it needs.
 interface ISafeAccount is ISafe {
     function VERSION() external view returns (string memory);
@@ -71,7 +71,7 @@ interface ISafeProxyFactory {
         returns (address proxy);
 }
 
-/// @notice Creates real Safe proxies and signs owner transactions with Foundry-generated test keys.
+/// @notice Creates real Safe proxies and signs owner transactions with local development keys.
 /// @dev Never impersonates the Safe: issuer actions pass through its EIP-712 signature and nonce checks.
 library SafeTransactions {
     Vm private constant VM = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));

@@ -17,7 +17,7 @@ import { MandateModule } from "../../src/module/MandateModule.sol";
 import { MandateQuoter } from "../../src/quoter/MandateQuoter.sol";
 import { MockERC20 } from "../../src/mocks/MockERC20.sol";
 
-import { AquaTaker } from "../utils/AquaTaker.sol";
+import { AquaTaker } from "../../src/mocks/AquaTaker.sol";
 import { MandateFixture } from "../utils/MandateFixture.sol";
 import { MockPriceAnchor } from "../utils/MockPriceAnchor.sol";
 import { MockSafe } from "../utils/MockSafe.sol";

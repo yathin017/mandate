@@ -13,7 +13,7 @@ import { MandateQuoter } from "../../src/quoter/MandateQuoter.sol";
 import { MockERC20 } from "../../src/mocks/MockERC20.sol";
 
 import { AquaOrders } from "./AquaOrders.sol";
-import { AquaTaker } from "./AquaTaker.sol";
+import { AquaTaker } from "../../src/mocks/AquaTaker.sol";
 import { MandateFixture } from "./MandateFixture.sol";
 import { MockMandateRegistry } from "./MockMandateRegistry.sol";
 import { MockPriceAnchor } from "./MockPriceAnchor.sol";

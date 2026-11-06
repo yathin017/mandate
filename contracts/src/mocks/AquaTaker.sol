@@ -9,7 +9,7 @@ import { ITakerCallbacks } from "@1inch/swap-vm/src/interfaces/ITakerCallbacks.s
 import { TakerTraitsLib } from "@1inch/swap-vm/src/libs/TakerTraits.sol";
 
 /// @title AquaTaker
-/// @notice Test taker for Aqua strategies. Pays `tokenIn` by pushing it into the maker's Aqua
+/// @notice Local-fork/test taker for Aqua strategies. Pays `tokenIn` by pushing it into the maker's Aqua
 ///         balance from `preTransferInCallback`, which is how the router expects Aqua takers to pay.
 contract AquaTaker is ITakerCallbacks {
     IAqua public immutable AQUA;
