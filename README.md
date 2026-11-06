@@ -22,6 +22,8 @@ Built for ETHGlobal Mumbai 2026.
 
 Foundry ≥ 1.7, Node ≥ 24, pnpm 10.
 
+Install the pinned JavaScript dependencies with `pnpm install --frozen-lockfile`.
+
 ## Contract verification
 
 ```sh
@@ -50,5 +52,22 @@ This starts a fresh local Anvil fork, deploys the demo, broadcasts Acts 1–3 an
 [`deployments/1.json`](deployments/1.json) describes a **local fork of mainnet**, with runtime chain id 31337.
 See [`replay/README.md`](replay/README.md) for the scenario inputs, evidence format and synthetic-data disclosures.
 
-Segments 1–5 are implemented: quoter, v4 anchor, Safe module, deployment scripts and replay export.
-Next: `packages/chains` and `packages/sdk` (ABIs and error mapping); indexer and web follow at their own gates.
+## Shared packages
+
+```sh
+pnpm packages:build
+pnpm packages:typecheck
+pnpm packages:test
+pnpm generate:check
+pnpm sdk:test:fork
+```
+
+- [`@mandate/chains`](packages/chains/README.md): validated source-chain configuration and runtime deployment registry.
+- [`@mandate/sdk`](packages/sdk/README.md): generated ABIs, reads with block provenance, quotes, prepared calls,
+  exact price units and shared plain-language error mapping.
+
+The replay exporter uses the SDK error mapper. `sdk:test:fork` runs the complete replay plus live SDK tests
+against a fresh local fork; all temporary nodes are stopped afterward.
+
+Segments 1–6 are implemented. Next: Segment 7's indexer, draft Postgres schema, Redis views and REST API.
+Indexer stack and blocked-attempt ingestion choices remain for that gate's user review.

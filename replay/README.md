@@ -3,7 +3,8 @@
 Run from the repository root with Node 24+, pnpm and Foundry installed:
 
 ```sh
-pnpm contracts:build
+pnpm install --frozen-lockfile
+pnpm packages:build
 pnpm replay:run
 pnpm replay:test
 pnpm replay:verify
@@ -66,7 +67,11 @@ units. The snapshot includes balances, sell counters, live spot/TWAP, claimed fe
 epoch cap, strategy nonce and status. `source` identifies the reader contract, function, block and block hash.
 Initial states share the post-setup block before Act 1 and have their own `initialSource` provenance.
 
+The exporter now uses `@mandate/sdk` for error decoding and copy. `pnpm replay:run` and `pnpm replay:test` build
+the shared packages automatically. `pnpm sdk:test:fork` also runs the SDK's live reads, quotes and permission
+simulations against the temporary node before it stops.
+
 The Node tests reconcile Safe balance changes against receipt transfer logs, sell counters against `Filled`
 events, and replay outcomes against `Attempted` events. They also reject missing evidence, false provenance,
-missing synthetic labels, malformed ABI data and unsafe RPC destinations. General ABIs and reusable error
-wrappers belong to Segment 6; the current decoder handles only this explicit draft replay format.
+missing synthetic labels, malformed ABI data and unsafe RPC destinations. General ABIs and error wrappers
+live in the SDK. The remaining replay-specific decoder handles this draft snapshot and event format.

@@ -3,7 +3,7 @@
 Verified facts, decisions and spec conflicts. Every entry names its source. If this file and
 `.agents/README.md` disagree, this file reflects what the code/chain actually does.
 
-Last verified: Nov 6, 2026. Fork tests pin mainnet block 26,355,000. Updated through Segment 5.
+Last verified: Nov 6, 2026. Fork tests pin mainnet block 26,355,000. Updated through Segment 6.
 
 ---
 
@@ -249,7 +249,55 @@ Code: `contracts/src/module/MandateModule.sol`, `src/libraries/MandateStrategy.s
 - `replay/README.md` documents commands, the draft export format and demo limitations. Segment 6 is next; no
   indexer schema, Redis implementation or web application is included in this segment.
 
-## 11. Infra
+## 11. Chain registry and SDK (Segment 6)
+
+- `packages/chains` generates browser-compatible ESM data from the existing chain/deployment JSON. It validates
+  ids, non-zero addresses, hashes, RPC env names, explorer URLs and fork disclosures. Lookup uses **runtime**
+  chain ids: `getDeployment(31337)` returns the demo; `getDeployment(1)` rejects because no Mandate deployment
+  is registered on mainnet. `getTransactionUrl(31337, hash)` returns no Etherscan link. Source-chain config
+  remains separate from deployment context.
+- `packages/sdk` uses exactly pinned **viem 2.57.16**, **TypeScript 5.9.3** and **Node 24 types 24.19.2**, with a
+  committed pnpm lockfile. Both packages emit ESM and declarations under strict TypeScript settings; tests also
+  typecheck against their published package entry points. Runtime source contains no Node-only APIs.
+- `scripts/generate.ts` copies ABIs from freshly compiled Foundry artifacts, preserving tuple names, events and
+  inherited errors. Exported constants cover the module, quoter, hook/anchor, Aqua, SwapVM/router, Safe, ERC20
+  metadata/errors and demo evidence contracts. `pnpm generate:check` fails on stale generated files.
+- **Quote ABI detail:** the router implementation's `quote` is not declared view, while its pinned `ISwapVM`
+  interface exposes the same selector as view. The SDK uses that generated interface for read-only `eth_call`;
+  the live integration confirms correct amounts and order hashes. No manually edited ABI mutability is used.
+- `GenerateSdkFixtures.s.sol` derives taker-data and Aqua order-hash vectors from the pinned Solidity
+  `TakerTraitsLib.build` and `MandateStrategy`. The SDK passes exact-byte comparisons for quote modes,
+  threshold/deadline modes, zero threshold and uint256/uint40 maxima. Its EOA settlement uses transferFrom to
+  the router, then Aqua.push; the taker approves the **router**, while the Safe's approval goes to **Aqua**.
+- Read helpers verify RPC chain identity, deployed module code and the module's immutable venue/quoter links.
+  Each snapshot reads one confirmed block and rechecks its hash afterward; a reorg rejects the read. The
+  adapter's health reports its spot/TWAP band separately from full quote eligibility. Missing history remains
+  unavailable. There is no cache or implicit fallback price.
+- Prepared calls cover create, bounds, reship, pause/unpause, revoke, direct claims, router approvals and swaps.
+  Issuer calls are payloads for signed Safe transactions. Builders carry role metadata and never sign or submit.
+  Submit-ready swap data requires a positive threshold and expiry. Monetary amounts remain bigint, and price
+  parsing rejects unrepresentable precision instead of rounding silently.
+- **Error coverage:** all **49 distinct custom error names** present in our production ABIs have explicit copy,
+  enforced by TypeScript and tests. The mapper also handles Safe codes, nested SafeCallFailed causes, common
+  ERC20/Aqua/router errors, panics and malformed/unknown provider data. It follows known provider cause/data
+  fields with depth/cycle limits and does not mistake transaction calldata for revert bytes.
+- **Verified revoke ordering:** a successfully docked strategy can fail in Aqua with
+  `SafeBalancesForTokenNotInActiveStrategy` before reaching `MandateRevoked`. The live SDK test asserts that
+  actual error and its docked-strategy explanation. When docking fails, the quoter's revoked check still applies,
+  as covered by the existing Safe fork suite. Source: pinned `IAqua`, `Aqua` and the executed integration tests.
+- The replay now imports this shared error mapper. Its refreshed JSON changes explanation text while retaining
+  actual outcomes and receipt evidence. The live run still verifies **178 steps / 156 blocked inner calls**.
+- Verification: **111 Solidity tests, 19 package tests, 4 live SDK tests and 7 replay tests pass**, with no skips
+  in those runs. Package declarations, consumer tests and generated-file freshness checks pass. The SDK live
+  command owns and shuts down a fresh local Anvil; it performs read-only permission simulations.
+- viem behavior was checked against installed source and its primary documentation for
+  [readContract](https://github.com/wevm/viem/blob/main/site/pages/docs/contract/readContract.md),
+  [decodeErrorResult](https://github.com/wevm/viem/blob/main/site/pages/docs/contract/decodeErrorResult.md), and
+  [simulateContract](https://github.com/wevm/viem/blob/main/site/pages/docs/contract/simulateContract.md).
+- Package READMEs document the APIs and commands. Segment 7 remains gated: indexer framework, ORM, blocked-
+  attempt ingestion and the draft database schema require the user's choices/review before implementation.
+
+## 12. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.
