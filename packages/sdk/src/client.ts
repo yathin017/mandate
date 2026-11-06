@@ -67,7 +67,7 @@ export async function createMandateClient(client: PublicClient, deployment: Mand
       ]);
       await assertBlock(block);
       const [mode, reason, health] = risk;
-      return { policy, counters, risk: { mode, reason: riskReason(reason), health }, strategyIds,
+      return { policy, counters, risk: { mode, reason: riskReason(reason), reasonIndex: reason, health }, strategyIds,
         source: { ...block, chainId: deployment.chainId, module: deployment.module, quoter: deployment.quoter,
           oracle: policy.config.oracle.oracle } };
     },
