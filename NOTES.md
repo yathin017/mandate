@@ -482,6 +482,12 @@ Replay) → issuer flow → MM flow → E2E + docs.
   0.28 (demo fills sit near the band edge), reliability 0.003 (0.1 days of tenure). Volume is in quote-token units, so
   it only compares like-quoted mandates. Found while testing: a suite that sets the Redis head and then reverts the
   fork must delete the head key, or later suites read a head that no longer exists.
+- **Token launch (done, Base deploy pending confirmation):** `TokenFactory` + `LaunchedToken` (OZ ERC20 + permit,
+  18 dp, fixed supply to one recipient, no owner/mint/pause/fees). CREATE2 salt = keccak(creator, salt) so a
+  predicted address cannot be squatted. Names printable ASCII without edge spaces, symbols `[A-Za-z0-9]{1,11}`,
+  supply ≤ 1e15 tokens. Indexed into `launched_tokens` (draft) from the manifest's `tokenFactory` (or
+  `INDEXER_TOKEN_FACTORY` on a fork); restart the worker right after deploying so no launch is missed. Base dry run:
+  ~1.98M gas, ~0.00002 ETH.
 
 ## 18. Infra
 

@@ -40,6 +40,7 @@ Without `INDEXER_TEST_DATABASE_URL` the chain-backed suites are skipped. `pnpm i
 | MandateQuoter | `Filled`, `FeeAccrued` | `fills` (fee merged in) |
 | ERC20 `symbol`/`decimals` of each mandate's tokens | — | `tokens` (symbols sanitised to 32 printable chars) |
 | Demo ScenarioActor (MM) | `Attempted` | `attempts` with `source = onchain_actor` |
+| TokenFactory (manifest `tokenFactory`, or `INDEXER_TOKEN_FACTORY` on a fork) | `TokenLaunched` | `launched_tokens`, `tokens` |
 | SDK `readSnapshot` at each touched block | counters, release, fees, anchor | `snapshots` |
 
 Logs are accepted only from the contract that defines the event. Actor attempts map to mandates by act number;
@@ -71,6 +72,7 @@ includes `head: { number, hash }`, the block it reflects.
 | POST | `/v1/auth/logout` | Revokes the session, clears the cookie |
 | GET | `/v1/chains/:chainId/mms/scores` | Score and evidence for every market maker with a mandate on the chain |
 | GET | `/v1/chains/:chainId/mms/:address/score` | One market maker's score (404 without mandates) |
+| GET | `/v1/chains/:chainId/tokens/launched?creator=&recipient=` | Tokens launched through the chain's TokenFactory, newest first |
 | GET | `/v1/mms` | Listed market-maker profiles (public) |
 | GET | `/v1/mms/:address` | One profile, listed or not |
 | PUT | `/v1/mms/me` | Create/replace the signed-in wallet's profile |
