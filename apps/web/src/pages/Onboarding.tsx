@@ -92,6 +92,7 @@ export function Onboarding() {
             quote={{ address: quoteCheck.info.address, symbol: quoteCheck.info.symbol, decimals: quoteCheck.info.decimals }}
             anchor={anchor.data.anchor}
             anchorReady={anchorReady}
+            anchorPriceX36={anchor.data.spotPriceX36}
             holdings={{ base: baseCheck.balance, quote: quoteCheck.balance }}
             mandates={pairMandates}
             termsParam={params.get("terms")}

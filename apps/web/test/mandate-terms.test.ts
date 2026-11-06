@@ -21,9 +21,9 @@ const TERMS: Terms = {
   dailyCap: "50000",
   floor: "0.30",
   shippedBase: "250000",
-  shippedQuote: "1000",
+  shippedQuote: "100000",
 };
-const ctx = { safe: SAFE, owners: [OWNER], base: BASE, quote: QUOTE, anchor: ANCHOR, holdings: { base: 10n ** 24n, quote: 5_000n * 10n ** 6n } };
+const ctx = { safe: SAFE, owners: [OWNER], base: BASE, quote: QUOTE, anchor: ANCHOR, holdings: { base: 10n ** 24n, quote: 200_000n * 10n ** 6n }, anchorPriceX36: priceToX36("0.40", BASE, QUOTE)! };
 const error = (overrides: Partial<Terms>, c = ctx) => {
   const built = buildTerms({ ...TERMS, ...overrides }, c);
   return "error" in built ? built.error : undefined;
@@ -54,7 +54,7 @@ describe("mandate terms", () => {
     assert.equal(built.bounds.maxAnchorDeviationBps, 300);
     assert.deepEqual([built.bounds.spreadBpsMin, built.bounds.spreadBpsMax, built.params.spreadBps], [10, 200, 80]);
     assert.equal(built.params.shippedBase, 250_000n * 10n ** 18n);
-    assert.equal(built.params.shippedQuote, 1_000n * 10n ** 6n);
+    assert.equal(built.params.shippedQuote, 100_000n * 10n ** 6n);
     assert.equal(built.bounds.maxShippedQuote, built.params.shippedQuote);
     assert.deepEqual(built.warnings, []);
   });
@@ -65,10 +65,22 @@ describe("mandate terms", () => {
     assert.match(error({ spreadMaxPct: "3" })!, /below the anchor tolerance/);
     assert.match(error({ spreadPct: "2.5", spreadMaxPct: "2" })!, /within the spread range/);
     assert.match(error({ shippedBase: "2000000" })!, /exceed the allotment/);
-    assert.match(error({ shippedQuote: "5000.000001" })!, /holds only 5000 USDC/);
+    assert.match(error({ shippedQuote: "200000.000001" })!, /holds only 200000 USDC/);
     assert.match(error({ shippedQuote: "1.0000001" })!, /at most 6 decimals/);
     assert.match(error({ releaseDays: "0" })!, /at least 1/);
     assert.match(error({}, { ...ctx, holdings: { base: 10n ** 18n, quote: 10n ** 12n } })!, /holds only 1 dLAUNCH/);
+  });
+
+  test("the shipped ratio is the starting price: it must sit inside the anchor band and above the floor", () => {
+    // 250,000 base against 1,000 quote starts at 0.004, under the 0.30 floor.
+    assert.match(error({ shippedQuote: "1000" })!, /0\.004 USDC per dLAUNCH is below the floor.*ship about 100000 USDC/);
+    // 0.36 is 10% under the 0.40 pool price, outside the 3% band.
+    assert.match(error({ shippedQuote: "90000" })!, /outside the anchor tolerance of the pool price 0\.4 USDC/);
+    // 0.392 is 2% under: inside the band.
+    assert.equal(error({ shippedQuote: "98000" }), undefined);
+    // Without a pool price only the floor is checked.
+    const { anchorPriceX36: _, ...withoutPool } = ctx;
+    assert.equal(error({ shippedQuote: "90000" }, withoutPool as typeof ctx), undefined);
   });
 
   test("an owner as market maker and an under-funded allotment are warned, not refused", () => {

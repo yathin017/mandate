@@ -7,7 +7,7 @@ import { Hex } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatBps, formatPrice, formatUnits } from "@/lib/format";
+import { formatBps, formatPrice, formatUnits, parseUnits } from "@/lib/format";
 import { demoChain, deployment } from "@/wallet/config";
 import { SafeActionPanel } from "@/wallet/SafeActionPanel";
 import { useSafeInfo } from "@/wallet/useSafe";
@@ -49,6 +49,7 @@ export function CreateMandateForm({
   quote,
   anchor,
   holdings,
+  anchorPriceX36,
   initial,
   releaseOffsetDays = 0,
   startInReview = false,
@@ -62,6 +63,8 @@ export function CreateMandateForm({
   anchor: Address;
   /** Safe balances; shipped inventory above them is refused. */
   holdings?: Holdings;
+  /** The anchor pool's current price; the starting price (shipped ratio) is checked against it. */
+  anchorPriceX36?: bigint;
   initial?: Partial<Terms>;
   /** Default release start, in days before today (chain time), when `initial` has none. */
   releaseOffsetDays?: number;
@@ -83,8 +86,8 @@ export function CreateMandateForm({
   }, [now, terms.releaseStart, releaseOffsetDays]);
 
   const built = useMemo(
-    () => buildTerms(terms, { safe, owners, base, quote, anchor, holdings }),
-    [terms, safe, owners, base, quote, anchor, holdings],
+    () => buildTerms(terms, { safe, owners, base, quote, anchor, holdings, anchorPriceX36 }),
+    [terms, safe, owners, base, quote, anchor, holdings, anchorPriceX36],
   );
   const call = useMemo(
     () =>
@@ -147,6 +150,7 @@ export function CreateMandateForm({
           </div>
         ))}
       </div>
+      <StartingPrice terms={terms} base={base} quote={quote} anchorPriceX36={anchorPriceX36} />
       {"error" in built && <p className="text-sm text-blocked">{built.error}</p>}
       <Button type="submit" disabled={!call}>
         Review terms
@@ -177,6 +181,7 @@ function ReviewTerms({ built, base, quote, anchor, now }: { built: BuiltTerms; b
     ["Anchor tolerance", `${formatBps(b.maxAnchorDeviationBps)} of the 30-minute TWAP`],
     ["Spread", `${formatBps(p.spreadBps)} (MM may set ${formatBps(b.spreadBpsMin)} – ${formatBps(b.spreadBpsMax)})`],
     ["MM fee share", `${formatBps(b.mmFeeShareBps)}, fixed`],
+    ["Starting price", `${formatPrice((p.shippedQuote * 10n ** 36n) / p.shippedBase, base.decimals, quote.decimals, 6)} ${quote.symbol} per ${base.symbol} (shipped ratio)`],
     ["Initial inventory", amount(p.shippedBase, base)],
     ["Buyback inventory", amount(p.shippedQuote, quote)],
   ];
@@ -189,5 +194,22 @@ function ReviewTerms({ built, base, quote, anchor, now }: { built: BuiltTerms; b
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * Fills are priced over the shipped balances, so their ratio is where trading starts. Shown live next to the pool
+ * price because a ratio far from it makes every fill fail the anchor check.
+ */
+function StartingPrice({ terms, base, quote, anchorPriceX36 }: { terms: Terms; base: TokenRef; quote: TokenRef; anchorPriceX36?: bigint }) {
+  const shippedBase = parseUnits(terms.shippedBase, base.decimals);
+  const shippedQuote = parseUnits(terms.shippedQuote, quote.decimals);
+  if (!shippedBase || !shippedQuote) return null;
+  const price = (x36: bigint) => `${formatPrice(x36, base.decimals, quote.decimals, 6)} ${quote.symbol} per ${base.symbol}`;
+  return (
+    <p className="text-sm text-muted-foreground">
+      Starting price (shipped ratio): <b className="tabular">{price((shippedQuote * 10n ** 36n) / shippedBase)}</b>
+      {anchorPriceX36 !== undefined && <> · pool price <span className="tabular">{price(anchorPriceX36)}</span></>}
+    </p>
   );
 }

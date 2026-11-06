@@ -94,7 +94,16 @@ export function priceToX36(price: string, base: TokenRef, quote: TokenRef): bigi
  */
 export function buildTerms(
   terms: Terms,
-  ctx: { safe: Address; owners?: readonly Address[]; base: TokenRef; quote: TokenRef; anchor: Address; holdings?: Holdings },
+  ctx: {
+    safe: Address;
+    owners?: readonly Address[];
+    base: TokenRef;
+    quote: TokenRef;
+    anchor: Address;
+    holdings?: Holdings;
+    /** The anchor pool's current price (X36). When given, the starting price is checked against it and the floor. */
+    anchorPriceX36?: bigint;
+  },
 ): { error: string } | BuiltTerms {
   const { base, quote, holdings } = ctx;
   const amount = (v: string, t: TokenRef, name: string) => {
@@ -110,6 +119,12 @@ export function buildTerms(
   const days = (v: string, name: string) => {
     if (!/^\d{1,4}$/.test(v.trim()) || BigInt(v.trim()) === 0n) throw new Error(`${name}: whole days, at least 1`);
     return BigInt(v.trim()) * 86_400n;
+  };
+  /** The two ways to ship at `targetX36`: more quote for the same base, or less base for the same quote. */
+  const rebalance = (targetX36: bigint) => {
+    const sb = parseUnits(terms.shippedBase, base.decimals) ?? 0n;
+    const sq = parseUnits(terms.shippedQuote, quote.decimals) ?? 0n;
+    return `ship about ${fmt((sb * targetX36) / 10n ** 36n, quote, 2)} ${quote.symbol} with this inventory, or about ${fmt((sq * 10n ** 36n) / targetX36, base, 2)} ${base.symbol} with this buyback inventory`;
   };
   try {
     if (!isAddress(terms.mm)) throw new Error("Market maker address: not a valid address");
@@ -137,6 +152,17 @@ export function buildTerms(
       throw new Error(`Initial inventory: the Safe holds only ${fmt(holdings.base, base)} ${base.symbol}`);
     if (holdings?.quote !== undefined && shippedQuote > holdings.quote)
       throw new Error(`Buyback inventory: the Safe holds only ${fmt(holdings.quote, quote)} ${quote.symbol}`);
+
+    // Fills are priced over the shipped balances (constant product), so their ratio is the starting price.
+    // Too far from the anchor and every fill fails AnchorDeviation; below the floor and every sell fails BelowFloor.
+    const startX36 = (shippedQuote * 10n ** 36n) / shippedBase;
+    if (startX36 < floorPriceX36)
+      throw new Error(`Starting price: ${shownPrice(startX36, base, quote)} is below the floor, so every sell would be refused; ${rebalance(ctx.anchorPriceX36 ?? floorPriceX36)}`);
+    if (ctx.anchorPriceX36 !== undefined && ctx.anchorPriceX36 > 0n) {
+      const diff = startX36 > ctx.anchorPriceX36 ? startX36 - ctx.anchorPriceX36 : ctx.anchorPriceX36 - startX36;
+      if (diff * 10_000n >= ctx.anchorPriceX36 * BigInt(anchorBps))
+        throw new Error(`Starting price: ${shownPrice(startX36, base, quote)} is outside the anchor tolerance of the pool price ${shownPrice(ctx.anchorPriceX36, base, quote)}, so every fill would be refused; ${rebalance(ctx.anchorPriceX36)}`);
+    }
 
     const warnings: string[] = [];
     if (ctx.owners?.some((o) => getAddress(o) === marketMaker))
@@ -169,10 +195,16 @@ export function buildTerms(
   }
 }
 
+/** Human price (quote per base, up to 6 decimals) for messages. */
+function shownPrice(x36: bigint, base: TokenRef, quote: TokenRef): string {
+  const micro = (x36 * 10n ** BigInt(base.decimals) * 1_000_000n) / (10n ** 36n * 10n ** BigInt(quote.decimals));
+  return `${fmt(micro, { address: base.address, symbol: "", decimals: 6 })} ${quote.symbol} per ${base.symbol}`;
+}
+
 /** Plain decimal for error messages (no grouping, so it can be pasted back into the field). */
-function fmt(raw: bigint, token: TokenRef): string {
+function fmt(raw: bigint, token: TokenRef, maxFraction = token.decimals): string {
   const unit = 10n ** BigInt(token.decimals);
-  const fraction = (raw % unit).toString().padStart(token.decimals, "0").replace(/0+$/, "");
+  const fraction = (raw % unit).toString().padStart(token.decimals, "0").slice(0, maxFraction).replace(/0+$/, "");
   return fraction ? `${raw / unit}.${fraction}` : `${raw / unit}`;
 }
 

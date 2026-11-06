@@ -21,6 +21,7 @@ export function MandateStep({
   quote,
   anchor,
   anchorReady,
+  anchorPriceX36,
   holdings,
   mandates,
   termsParam,
@@ -33,6 +34,8 @@ export function MandateStep({
   quote: TokenRef;
   anchor: Address;
   anchorReady: boolean;
+  /** Current price of the anchor's pool. */
+  anchorPriceX36: bigint | undefined;
   holdings: Holdings;
   /** Live (not revoked) mandates of this Safe for this pair. */
   mandates: readonly SafeMandate[];
@@ -89,6 +92,7 @@ export function MandateStep({
         quote={quote}
         anchor={anchor}
         holdings={holdings}
+        {...(anchorPriceX36 !== undefined ? { anchorPriceX36 } : {})}
         initial={shared ?? STANDARD_RAILS}
         startInReview={Boolean(shared)}
         onReview={(terms) => {
