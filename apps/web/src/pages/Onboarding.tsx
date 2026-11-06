@@ -6,18 +6,21 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SafeStep } from "@/onboarding/SafeStep";
 import { AnchorStep, useAnchorStatus } from "@/onboarding/AnchorStep";
+import { MandateStep } from "@/onboarding/MandateStep";
 import { ModuleStep } from "@/onboarding/ModuleStep";
 import { TokenStep } from "@/onboarding/TokenStep";
 import { useTokenInfo } from "@/onboarding/useTokenInfo";
 import { useSafeCheck } from "@/onboarding/useSafeCheck";
+import { useSafeMandates } from "@/onboarding/useSafeMandates";
 import { cn } from "@/lib/utils";
 import { demoChain, isLive } from "@/wallet/config";
 
 type StepState = "done" | "current" | "upcoming";
 
 /**
- * Self-serve onboarding: Safe → tokens → module → anchor → mandate. Choices live in the URL (?safe=…), so every
- * owner can open the same link and continue; each step's completion is read from the chain, not stored locally.
+ * Self-serve onboarding: Safe → tokens → module → anchor → mandate. Choices live in the URL (?safe=…, and the
+ * reviewed mandate terms), so every owner can open the same link and continue; each step's completion is read
+ * from the chain, not stored locally.
  */
 export function Onboarding() {
   const [params, setParams] = useSearchParams();
@@ -34,6 +37,12 @@ export function Onboarding() {
   const anchor = useAnchorStatus(tokensDone ? (base as Address) : null, tokensDone ? (quote as Address) : null);
   const anchorReady = Boolean(anchor.data?.anchor && anchor.data.ready);
   const display = (info: typeof baseCheck.info) => (info?.ok ? { symbol: info.symbol, decimals: info.decimals } : { symbol: "?", decimals: 18 });
+  const safeMandates = useSafeMandates(moduleDone ? (safe as Address) : null);
+  // Revoked mandates do not count: the issuer may start over with a new one for the same pair.
+  const pairMandates = (safeMandates.data ?? []).filter(
+    (m) => m.status !== 3 && m.base.toLowerCase() === base?.toLowerCase() && m.quote.toLowerCase() === quote?.toLowerCase(),
+  );
+  const mandateDone = pairMandates.length > 0;
 
   const select = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
@@ -73,7 +82,26 @@ export function Onboarding() {
     {
       title: "Create the mandate",
       description: "Terms, market maker, owners' approval.",
-      state: moduleDone && anchor.data?.anchor ? "current" : "upcoming",
+      state: mandateDone ? "done" : moduleDone && anchor.data?.anchor ? "current" : "upcoming",
+      body:
+        moduleDone && anchor.data?.anchor && baseCheck.info?.ok && quoteCheck.info?.ok ? (
+          <MandateStep
+            safe={safe as Address}
+            threshold={check.threshold}
+            base={{ address: baseCheck.info.address, symbol: baseCheck.info.symbol, decimals: baseCheck.info.decimals }}
+            quote={{ address: quoteCheck.info.address, symbol: quoteCheck.info.symbol, decimals: quoteCheck.info.decimals }}
+            anchor={anchor.data.anchor}
+            anchorReady={anchorReady}
+            holdings={{ base: baseCheck.balance, quote: quoteCheck.balance }}
+            mandates={pairMandates}
+            termsParam={params.get("terms")}
+            onTerms={(encoded) => select("terms", encoded)}
+            onCreated={() => {
+              select("terms", null);
+              void safeMandates.refetch();
+            }}
+          />
+        ) : undefined,
     },
   ];
 
