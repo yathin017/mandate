@@ -40,9 +40,12 @@ contract LiveFills is Script {
         vm.stopBroadcast();
 
         // The market maker's own key: tighten the spread inside the issuer's 0.1%-2% range, then claim fees.
+        // Inventory can only be re-shipped up to what is still unsold (the module enforces this).
         Mandate memory m = module.getMandate(id);
+        (,, uint256 totalNetSold) = module.QUOTER().epochState(id);
         MandateParams memory next = m.params;
         next.spreadBps = 30;
+        next.shippedBase = m.bounds.allotment - totalNetSold;
         vm.startBroadcast(LiveConfig.mmKey());
         module.reship(id, next);
         (uint256 claimedBase, uint256 claimedQuote) = module.claimFees(id);
