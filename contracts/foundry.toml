@@ -22,10 +22,6 @@ fs_permissions = [
 [profile.default.fuzz]
 runs = 256
 
-# Fork tests are opt-in: `FOUNDRY_PROFILE=fork forge test`.
-[profile.fork]
-match_path = "test/fork/**"
-
 [profile.ci.fuzz]
 runs = 2048
 
