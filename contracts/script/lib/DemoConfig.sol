@@ -7,7 +7,16 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
-import { MandateBounds, MandateParams } from "../../src/libraries/MandateTypes.sol";
+import {
+    ModeLimits,
+    OracleRules,
+    PeriodLimits,
+    PolicyConfig,
+    PriceRules,
+    ReleaseLimits,
+    StrategyBounds,
+    StrategyParams
+} from "../../src/libraries/MandateTypes.sol";
 
 /// @notice Shared, deliberately SYNTHETIC inputs for local-fork deployment and Acts 1–3.
 library DemoConfig {
@@ -16,9 +25,19 @@ library DemoConfig {
     string internal constant MNEMONIC = "test test test test test test test test test test test junk";
     uint256 internal constant PRICE = 4e23;
     uint32 internal constant WINDOW = 30 minutes;
+    uint32 internal constant SHORT_WINDOW = 5 minutes;
+    /// @dev Liquidity added within this many seconds is not trusted depth yet (hook constructor argument).
+    uint32 internal constant SETTLE_SECONDS = 10 minutes;
     uint256 internal constant ALLOTMENT = 10_000_000e18;
+    uint256 internal constant QUOTE = 4_000_000e6;
     uint256 internal constant BURST_ALLOTMENT = 134_100_000e18;
-    uint256 internal constant CAP = 50_000e18;
+    uint256 internal constant BURST_QUOTE = 53_640_000e6;
+    uint256 internal constant NET_CAP = 50_000e18;
+    uint256 internal constant BURST_NET_CAP = 1_341_000e18;
+    /// @dev Full-range liquidity of the anchor pool (~100M LAUNCH / 40M sUSDC at 0.40) and of the thin pool the
+    ///      traditional market maker dumps into (~1M / 400k).
+    int256 internal constant ANCHOR_LIQUIDITY = 6e19;
+    int256 internal constant TRADITIONAL_LIQUIDITY = 6e17;
 
     function guard() internal view {
         require(block.chainid == 31_337, "Demo: local chain 31337 only");
@@ -66,31 +85,58 @@ library DemoConfig {
         return uint160(Math.sqrt(ratio));
     }
 
-    function bounds(address anchor, bool burst) internal view returns (MandateBounds memory) {
-        return MandateBounds({
-            allotment: burst ? BURST_ALLOTMENT : ALLOTMENT,
-            releaseStart: uint64(block.timestamp - 20 days),
-            releaseDuration: 180 days,
-            epochLength: 1 days,
-            maxEpochCap: burst ? 1_341_000e18 : CAP,
-            maxShippedQuote: burst ? 53_640_000e6 : 4_000_000e6,
-            floorPriceX36: 3e23,
-            maxAnchorDeviationBps: 300,
-            twapWindow: WINDOW,
-            spreadBpsMin: 10,
-            spreadBpsMax: 200,
-            mmFeeShareBps: 5000,
-            anchor: anchor,
-            quoter: address(0)
+    /// @notice SYNTHETIC policy for one demo Safe. `burst` is Act 2's larger treasury. On the platform every value
+    ///         here is the issuer's choice; these only make the acts readable.
+    function policy(address oracle, bool burst) internal view returns (PolicyConfig memory) {
+        return PolicyConfig({
+            release: ReleaseLimits({
+                allotment: burst ? BURST_ALLOTMENT : ALLOTMENT,
+                releaseStart: uint64(block.timestamp - 20 days),
+                releaseDuration: 180 days
+            }),
+            period: PeriodLimits({
+                periodLength: 1 days,
+                grossSellCap: 2 * (burst ? BURST_NET_CAP : NET_CAP),
+                netSellCap: burst ? BURST_NET_CAP : NET_CAP,
+                quoteSpendCap: burst ? 1_000_000e6 : 100_000e6
+            }),
+            price: PriceRules({ floorPriceX36: 3e23, maxQuoteDeviationBps: 300, maxImpactBps: 300 }),
+            oracle: OracleRules({
+                oracle: oracle,
+                twapWindow: WINDOW,
+                shortWindow: SHORT_WINDOW,
+                depthBandBps: 500,
+                minPoolAge: 1 hours,
+                minTrustedDepth: 100_000e18,
+                defensiveMoveBps: 200,
+                pauseMoveBps: 1000,
+                defensiveVolatilityBps: 300,
+                pauseVolatilityBps: 1500,
+                defensiveDepth: 500_000e18
+            }),
+            normal: ModeLimits({ maxFillBase: 1_000_000e18, maxFillDepthBps: 5000, minSpreadBps: 0, buybacksAllowed: true }),
+            defensive: ModeLimits({
+                maxFillBase: 100_000e18, maxFillDepthBps: 2000, minSpreadBps: 150, buybacksAllowed: false
+            })
         });
     }
 
-    function params(bool burst) internal pure returns (MandateParams memory) {
-        return MandateParams({
+    function strategyBounds(bool burst) internal pure returns (StrategyBounds memory) {
+        return StrategyBounds({
+            spreadBpsMin: 10,
+            spreadBpsMax: 200,
+            maxShippedBase: burst ? BURST_ALLOTMENT : ALLOTMENT,
+            maxShippedQuote: burst ? BURST_QUOTE : QUOTE,
+            mmFeeShareBps: 5000,
+            maxBuyPriceX36: 0
+        });
+    }
+
+    function params(bool burst) internal pure returns (StrategyParams memory) {
+        return StrategyParams({
             spreadBps: 80,
-            epochCap: burst ? 1_341_000e18 : CAP,
             shippedBase: burst ? BURST_ALLOTMENT : ALLOTMENT,
-            shippedQuote: burst ? 53_640_000e6 : 4_000_000e6
+            shippedQuote: burst ? BURST_QUOTE : QUOTE
         });
     }
 }

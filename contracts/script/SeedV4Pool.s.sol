@@ -14,7 +14,8 @@ import { MandateOracleHook } from "../src/hook/MandateOracleHook.sol";
 import { ChainConfig, ChainConfigLib } from "./lib/ChainConfig.sol";
 import { DemoConfig } from "./lib/DemoConfig.sol";
 
-/// @notice Creates separate anchor and traditional-loan pools with synthetic liquidity on canonical v4.
+/// @notice Creates separate anchor and traditional-loan pools with synthetic liquidity on canonical v4. The anchor pool
+///         is deep enough to anchor Act 2's fills; the traditional pool is thin, as a new token's first pool would be.
 contract SeedV4Pool is Script {
     using stdJson for string;
     using PoolIdLibrary for PoolKey;
@@ -42,7 +43,7 @@ contract SeedV4Pool is Script {
                 ModifyLiquidityParams({
                     tickLower: TickMath.minUsableTick(key.tickSpacing),
                     tickUpper: TickMath.maxUsableTick(key.tickSpacing),
-                    liquidityDelta: 6e17,
+                    liquidityDelta: i == 1 ? DemoConfig.TRADITIONAL_LIQUIDITY : DemoConfig.ANCHOR_LIQUIDITY,
                     salt: 0
                 }),
                 ""

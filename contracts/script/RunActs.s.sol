@@ -10,17 +10,17 @@ import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { SwapParams } from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import { PoolSwapTest } from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 import { MandateModule } from "../src/module/MandateModule.sol";
-import { MandateParams } from "../src/libraries/MandateTypes.sol";
+import { StrategyKind, StrategyParams } from "../src/libraries/MandateTypes.sol";
 import { IMandateModule } from "../src/interfaces/IMandateModule.sol";
 import { IMandateQuoter } from "../src/interfaces/IMandateQuoter.sol";
-import { UniswapV4TwapAnchor } from "../src/anchor/UniswapV4TwapAnchor.sol";
 import { AquaTaker } from "../src/mocks/AquaTaker.sol";
 import { ISafe } from "../src/interfaces/ISafe.sol";
 import { ISafeAccount, SafeTransactions } from "./lib/SafeTransactions.sol";
 import { DemoConfig } from "./lib/DemoConfig.sol";
 import { ScenarioActor } from "./demo/ScenarioActor.sol";
 
-/// @notice Broadcasts Acts 1–3. The exporter advances local-node time between the TWAP phases.
+/// @notice Broadcasts Acts 1–3 against v2 policies and strategies. The exporter advances local-node time between the
+///         TWAP phases.
 /// @dev Each ScenarioActor call checks its expected result onchain and emits the real return/revert data.
 contract RunActs is Script {
     using stdJson for string;
@@ -35,6 +35,8 @@ contract RunActs is Script {
     address internal hook;
     PoolSwapTest internal swapRouter;
     ISafeAccount[3] internal safes;
+    /// @dev Each act's Safe has one policy with one market-making strategy; `ids` are the strategy ids.
+    bytes32[3] internal policyIds;
     bytes32[3] internal ids;
     string internal json;
 
@@ -46,11 +48,11 @@ contract RunActs is Script {
         else if (phase == 1) _act1();
         else if (phase == 2) _burst();
         else if (phase == 3) _move(200, 6e23);
-        else if (phase == 4) _buy(2, 201, 1000e18, UniswapV4TwapAnchor.SpotTwapDivergence.selector);
+        else if (phase == 4) _buy(2, 201, 1000e18, IMandateQuoter.RiskPaused.selector);
         else if (phase == 5) _move(202, DemoConfig.PRICE);
         else if (phase == 6) _buy(2, 203, 1000e18, bytes4(0));
         else if (phase == 7) _move(210, 3e23);
-        else if (phase == 8) _buyback(211, IMandateQuoter.AnchorDeviation.selector);
+        else if (phase == 8) _buyback(211, IMandateQuoter.QuoteOffMarket.selector);
         else if (phase == 9) _move(212, DemoConfig.PRICE);
         else if (phase == 10) _buyback(213, bytes4(0));
         else if (phase == 11) _act3();
@@ -71,8 +73,8 @@ contract RunActs is Script {
         swapRouter = PoolSwapTest(json.readAddress(".swapRouter"));
         for (uint256 i; i < 3; ++i) {
             safes[i] = ISafeAccount(json.readAddress(string.concat(".safe", vm.toString(i + 1))));
-            bytes32[] memory mandates = module.mandatesOf(address(safes[i]));
-            if (mandates.length > 0) ids[i] = mandates[0];
+            policyIds[i] = module.activePolicyOf(address(safes[i]), base);
+            if (policyIds[i] != bytes32(0)) ids[i] = module.strategiesOf(policyIds[i])[0];
         }
     }
 
@@ -91,21 +93,35 @@ contract RunActs is Script {
                 safes[i].execute(
                     address(module),
                     abi.encodeCall(
-                        MandateModule.createMandate,
+                        MandateModule.createPolicy,
+                        (base, quote, DemoConfig.policy(json.readAddress(".anchor"), i == 1))
+                    ),
+                    DemoConfig.keys()
+                ),
+                "Demo: create policy failed"
+            );
+            policyIds[i] = module.activePolicyOf(address(safes[i]), base);
+            require(
+                safes[i].execute(
+                    address(module),
+                    abi.encodeCall(
+                        MandateModule.addStrategy,
                         (
+                            policyIds[i],
                             address(mm),
-                            base,
-                            quote,
-                            DemoConfig.bounds(json.readAddress(".anchor"), i == 1),
+                            StrategyKind.MarketMaking,
+                            DemoConfig.strategyBounds(i == 1),
                             DemoConfig.params(i == 1)
                         )
                     ),
                     DemoConfig.keys()
                 ),
-                "Demo: create failed"
+                "Demo: add strategy failed"
             );
-            ids[i] = module.mandatesOf(address(safes[i]))[0];
-            vm.serializeBytes32("mandates", string.concat("act", vm.toString(i + 1)), ids[i]);
+            ids[i] = module.strategiesOf(policyIds[i])[0];
+            string memory key = string.concat("act", vm.toString(i + 1));
+            vm.serializeBytes32("policies", key, policyIds[i]);
+            vm.serializeBytes32("strategies", key, ids[i]);
         }
         ISafeAccount loanSafe = ISafeAccount(json.readAddress(".traditionalSafe"));
         require(
@@ -114,8 +130,9 @@ contract RunActs is Script {
             ),
             "Demo: loan failed"
         );
-        vm.writeJson(vm.serializeBytes32("mandates", "act3", ids[2]), DemoConfig.path(), ".mandates");
-        console2.log("Created 3 mandates; traditional MM received 10M LAUNCH from its Safe.");
+        vm.writeJson(vm.serializeBytes32("policies", "act3", policyIds[2]), DemoConfig.path(), ".policies");
+        vm.writeJson(vm.serializeBytes32("strategies", "act3", ids[2]), DemoConfig.path(), ".strategies");
+        console2.log("Created 3 policies with a strategy each; traditional MM received 10M LAUNCH from its Safe.");
     }
 
     function _act1() private {
@@ -144,7 +161,7 @@ contract RunActs is Script {
             bytes4(0)
         );
         for (uint256 i; i < 6; ++i) {
-            _buy(1, 10 + i, 10_000e18, i < 5 ? bytes4(0) : IMandateQuoter.EpochCapReached.selector);
+            _buy(1, 10 + i, 10_000e18, i < 5 ? bytes4(0) : IMandateQuoter.NetSellCapReached.selector);
         }
         console2.log("Act 1: traditional MM sold 10M; Mandate filled 50,000 then blocked.");
     }
@@ -152,7 +169,7 @@ contract RunActs is Script {
     function _burst() private {
         // 150 equal synthetic intents total 134.1M LAUNCH. Not historical FUN transactions or ETH proceeds.
         for (uint256 i; i < 150; ++i) {
-            _buy(2, i + 1, 894_000e18, i == 0 ? bytes4(0) : IMandateQuoter.EpochCapReached.selector);
+            _buy(2, i + 1, 894_000e18, i == 0 ? bytes4(0) : IMandateQuoter.NetSellCapReached.selector);
         }
         console2.log("Act 2: 150 synthetic intents; 894,000 LAUNCH filled, 149 blocked.");
     }
@@ -205,22 +222,30 @@ contract RunActs is Script {
     }
 
     function _act3() private {
-        MandateParams memory p = module.getMandate(ids[2]).params;
+        StrategyParams memory p = module.getStrategy(ids[2]).params;
         p.spreadBps = 30;
         mm.attempt(3, 0, address(module), abi.encodeCall(MandateModule.reship, (ids[2], p)), bytes4(0));
         _buy(3, 1, 1000e18, bytes4(0));
-        p.shippedBase -= 1000e18;
-        p.epochCap = DemoConfig.CAP + 1;
+        // The Safe now holds 1,000 LAUNCH less: shipping the full amount again would promise tokens it lacks.
         mm.attempt(
             3,
             2,
+            address(module),
+            abi.encodeCall(MandateModule.reship, (ids[2], p)),
+            IMandateModule.InsufficientBacking.selector
+        );
+        p.shippedBase -= 1000e18;
+        p.spreadBps = 5;
+        mm.attempt(
+            3,
+            3,
             address(module),
             abi.encodeCall(MandateModule.reship, (ids[2], p)),
             IMandateModule.ParamsOutOfBounds.selector
         );
         mm.attempt(
             3,
-            3,
+            4,
             address(safes[2]),
             abi.encodeCall(
                 ISafe.execTransactionFromModuleReturnData,
@@ -228,22 +253,18 @@ contract RunActs is Script {
             ),
             bytes4(keccak256("Error(string)"))
         );
-        mm.attempt(3, 4, address(module), abi.encodeCall(MandateModule.claimFees, (ids[2])), bytes4(0));
-        mm.attempt(3, 5, address(module), abi.encodeCall(MandateModule.pause, (ids[2])), bytes4(0));
-        _buy(3, 6, 1000e18, IMandateQuoter.MandatePaused.selector);
-        _issuerAttempt(7, abi.encodeCall(MandateModule.unpause, (ids[2])));
-        _buy(3, 8, 1000e18, bytes4(0));
-        _issuerAttempt(9, abi.encodeCall(MandateModule.revoke, (ids[2])));
-        mm.attempt(3, 10, address(module), abi.encodeCall(MandateModule.claimFees, (ids[2])), bytes4(0));
-        p.epochCap = DemoConfig.CAP;
+        mm.attempt(3, 5, address(module), abi.encodeCall(MandateModule.claimFees, (ids[2])), bytes4(0));
+        mm.attempt(3, 6, address(module), abi.encodeCall(MandateModule.pauseStrategy, (ids[2])), bytes4(0));
+        _buy(3, 7, 1000e18, IMandateQuoter.StrategyPaused.selector);
+        _issuerAttempt(8, abi.encodeCall(MandateModule.unpauseStrategy, (ids[2])));
+        _buy(3, 9, 1000e18, bytes4(0));
+        _issuerAttempt(10, abi.encodeCall(MandateModule.revokePolicy, (policyIds[2])));
+        mm.attempt(3, 11, address(module), abi.encodeCall(MandateModule.claimFees, (ids[2])), bytes4(0));
+        p.spreadBps = 30;
         mm.attempt(
-            3,
-            11,
-            address(module),
-            abi.encodeCall(MandateModule.reship, (ids[2], p)),
-            IMandateModule.MandateIsRevoked.selector
+            3, 12, address(module), abi.encodeCall(MandateModule.reship, (ids[2], p)), IMandateModule.IsRevoked.selector
         );
-        console2.log("Act 3: spread 80 -> 30; bounds and custody enforced; fees claimed before and after revoke.");
+        console2.log("Act 3: spread 80 -> 30; backing, bounds and custody enforced; fees claimed before and after revoke.");
     }
 
     function _issuerAttempt(uint256 step, bytes memory data) private {

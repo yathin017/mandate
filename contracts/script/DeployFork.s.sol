@@ -13,7 +13,7 @@ import { PoolModifyLiquidityTest } from "@uniswap/v4-core/src/test/PoolModifyLiq
 
 import { MandateModule } from "../src/module/MandateModule.sol";
 import { MandateOracleHook } from "../src/hook/MandateOracleHook.sol";
-import { UniswapV4TwapAnchor } from "../src/anchor/UniswapV4TwapAnchor.sol";
+import { UniswapV4MarketOracle } from "../src/anchor/UniswapV4MarketOracle.sol";
 import { MockERC20 } from "../src/mocks/MockERC20.sol";
 import { AquaTaker } from "../src/mocks/AquaTaker.sol";
 import { ChainConfig, ChainConfigLib } from "./lib/ChainConfig.sol";
@@ -41,30 +41,30 @@ contract DeployFork is Script {
         // Foundry routes broadcast CREATE2 deployments through the standard deterministic deployer proxy.
         (address predicted, bytes32 salt) = HookMiner.find(
             0x4e59b44847b379578588920cA78FbF26c0B4956C,
-            Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG,
+            Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG,
             type(MandateOracleHook).creationCode,
-            abi.encode(IPoolManager(cfg.v4PoolManager), TickMath.MAX_TICK)
+            abi.encode(IPoolManager(cfg.v4PoolManager), TickMath.MAX_TICK, DemoConfig.SETTLE_SECONDS)
         );
-        MandateOracleHook hook = new MandateOracleHook{ salt: salt }(IPoolManager(cfg.v4PoolManager), TickMath.MAX_TICK);
+        MandateOracleHook hook = new MandateOracleHook{ salt: salt }(
+            IPoolManager(cfg.v4PoolManager), TickMath.MAX_TICK, DemoConfig.SETTLE_SECONDS
+        );
         require(address(hook) == predicted, "Demo: CREATE2 address mismatch");
         PoolSwapTest swapRouter = new PoolSwapTest(IPoolManager(cfg.v4PoolManager));
         PoolModifyLiquidityTest liquidityRouter = new PoolModifyLiquidityTest(IPoolManager(cfg.v4PoolManager));
         ScenarioActor mm = new ScenarioActor();
         ScenarioActor traditionalMm = new ScenarioActor();
         AquaTaker taker = new AquaTaker(IAqua(cfg.aqua), ISwapVM(cfg.swapVmRouter));
-        UniswapV4TwapAnchor anchor = new UniswapV4TwapAnchor(
+        UniswapV4MarketOracle anchor = new UniswapV4MarketOracle(
             IPoolManager(cfg.v4PoolManager),
             DemoConfig.pool(address(base), address(quote), address(hook), false),
             address(base),
-            address(quote),
-            200
+            address(quote)
         );
-        UniswapV4TwapAnchor traditionalAnchor = new UniswapV4TwapAnchor(
+        UniswapV4MarketOracle traditionalAnchor = new UniswapV4MarketOracle(
             IPoolManager(cfg.v4PoolManager),
             DemoConfig.pool(address(base), address(quote), address(hook), true),
             address(base),
-            address(quote),
-            200
+            address(quote)
         );
         DemoState state = new DemoState(module, anchor, traditionalAnchor, address(traditionalMm));
 
@@ -76,7 +76,7 @@ contract DeployFork is Script {
         for (uint256 i; i < 3; ++i) {
             safes[i] = address(SafeTransactions.create(cfg.safeSingletonL2, cfg.safeProxyFactory, owners, 2, i + 1));
             base.mint(safes[i], i == 1 ? DemoConfig.BURST_ALLOTMENT : DemoConfig.ALLOTMENT);
-            quote.mint(safes[i], i == 1 ? 53_640_000e6 : 4_000_000e6);
+            quote.mint(safes[i], i == 1 ? DemoConfig.BURST_QUOTE : DemoConfig.QUOTE);
         }
         ISafeAccount traditionalSafe = SafeTransactions.create(cfg.safeSingletonL2, cfg.safeProxyFactory, owners, 2, 4);
         base.mint(address(traditionalSafe), DemoConfig.ALLOTMENT);
