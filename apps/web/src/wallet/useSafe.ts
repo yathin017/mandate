@@ -1,11 +1,12 @@
+import { getChainConfig } from "@mandate/chains";
 import { safeAbi, type PreparedCall } from "@mandate/sdk";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import { useConnection, useReadContract, useReadContracts } from "wagmi";
 
-import { demoChain } from "./config";
-import { approvalSignatures, execTxArgs, safeTxArgs } from "./safeTx";
+import { demoChain, deployment } from "./config";
+import { approvalSignatures, execTxArgs, safeOperation, safeTxArgs } from "./safeTx";
 import { useTx, type TxRequest } from "./useTx";
 
 /** Owners, threshold and nonce of a Safe, read from the Safe itself. */
@@ -39,11 +40,14 @@ export function useSafeAction(safe: Address | undefined, call: PreparedCall | un
   /** Set once this action executed: the panel locks so the same call is not proposed again at the next nonce. */
   const [executed, setExecuted] = useState<{ blockNumber: bigint } | null>(null);
 
+  // Throws for any delegatecall other than the chain's canonical MultiSendCallOnly: such a call is never proposed.
+  const operation = call ? safeOperation(call.to, call.operation, getChainConfig(deployment.sourceChainId).safe.multiSendCallOnly) : 0;
+
   const hashQuery = useReadContract({
     address: safe,
     abi: safeAbi,
     functionName: "getTransactionHash",
-    args: call && info.nonce !== undefined ? safeTxArgs(call.to, call.data, info.nonce) : undefined,
+    args: call && info.nonce !== undefined ? safeTxArgs(call.to, call.data, info.nonce, operation) : undefined,
     chainId: demoChain.id,
     query: { enabled: Boolean(safe && call && info.nonce !== undefined) },
   });
@@ -74,7 +78,10 @@ export function useSafeAction(safe: Address | undefined, call: PreparedCall | un
   const canExecute = isOwner && approvedCount + (approvals.get(me!) ? 0 : 1) >= threshold && threshold > 0;
 
   /** The module call exactly as the Safe will make it: refusals surface before anyone approves. */
-  const moduleCheck = safe && call ? [{ from: safe, to: call.to, data: call.data }] : [];
+  // A batch only works as the Safe's own delegatecall, which a call from outside cannot reproduce. For batches the
+  // checks are left to useTx's default: simulating the owner's actual transaction (approveHash, or execTransaction,
+  // which runs the whole batch) before anything is signed.
+  const moduleCheck = safe && call && operation === 0 ? [{ from: safe, to: call.to, data: call.data }] : undefined;
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ["readContracts"] });
@@ -85,7 +92,7 @@ export function useSafeAction(safe: Address | undefined, call: PreparedCall | un
   async function approve() {
     if (!safe || !safeTxHash) return;
     await tx.run({
-      checks: moduleCheck,
+      ...(moduleCheck ? { checks: moduleCheck } : {}),
       send: { to: safe, data: encodeFunctionData({ abi: safeAbi, functionName: "approveHash", args: [safeTxHash] }) },
       ...(context ? { context } : {}),
     });
@@ -96,13 +103,13 @@ export function useSafeAction(safe: Address | undefined, call: PreparedCall | un
     if (!safe || !call || !info.owners || !me) return;
     const signers = info.owners.filter((owner) => approvals.get(owner.toLowerCase()) || owner.toLowerCase() === me);
     const outcome = await tx.run({
-      checks: moduleCheck,
+      ...(moduleCheck ? { checks: moduleCheck } : {}),
       send: {
         to: safe,
         data: encodeFunctionData({
           abi: safeAbi,
           functionName: "execTransaction",
-          args: execTxArgs(call.to, call.data, approvalSignatures(signers)),
+          args: execTxArgs(call.to, call.data, approvalSignatures(signers), operation),
         }),
       },
       ...(context ? { context } : {}),
