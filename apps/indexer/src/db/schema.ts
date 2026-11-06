@@ -48,6 +48,21 @@ export const chains = pgTable("chains", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** ERC20 display metadata for tokens used by indexed mandates, read once from the chain. */
+export const tokens = pgTable(
+  "tokens",
+  {
+    chainId: integer("chain_id").notNull().references(() => chains.chainId),
+    address: text("address").notNull(),
+    symbol: text("symbol").notNull(),
+    decimals: smallint("decimals").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.chainId, t.address] }),
+    check("tokens_fmt", sql`${t.address} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.decimals} BETWEEN 0 AND 255`),
+  ],
+);
+
 /** Every block the worker has indexed. Parent hashes detect reorgs. */
 export const blocks = pgTable(
   "blocks",

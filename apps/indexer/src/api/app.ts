@@ -1,4 +1,6 @@
 import { getConnInfo } from "@hono/node-server/conninfo";
+import { readFile } from "node:fs/promises";
+
 import { zValidator } from "@hono/zod-validator";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -33,6 +35,8 @@ export interface AppDeps {
   readonly chain?: () => Promise<ChainContext>;
   /** Client identity for rate limiting. Defaults to the socket address; proxy headers are never trusted. */
   readonly clientIp?: (c: Context) => string;
+  /** Path of the committed replay export served at /v1/replay (optional). */
+  readonly replayPath?: string;
   /** Max concurrent SSE streams per process (default 500). */
   readonly maxStreams?: number;
   /** SSE heartbeat interval (default 15s). */
@@ -115,9 +119,11 @@ export function createApp(deps: AppDeps) {
   app.get("/v1/chains/:chainId/mandates", zValidator("param", chainParam, invalid), zValidator("query", listQuery, invalid), async (c) => {
     const { chainId } = c.req.valid("param");
     const filter = c.req.valid("query");
-    return cached(c, chainId, `mandates?safe=${filter.safe ?? ""}&mm=${filter.mm ?? ""}`, () =>
-      q.listMandates(db, chainId, filter),
-    );
+    return cached(c, chainId, `mandates?safe=${filter.safe ?? ""}&mm=${filter.mm ?? ""}`, async () => {
+      const rows = await q.listMandates(db, chainId, filter);
+      const tokens = await q.tokenMap(db, chainId, rows.flatMap((row) => [row.base, row.quote]));
+      return rows.map((row) => ({ ...row, tokens: { base: tokens[row.base] ?? null, quote: tokens[row.quote] ?? null } }));
+    });
   });
 
   app.get("/v1/chains/:chainId/mandates/:mandateId", zValidator("param", mandateParam, invalid), async (c) => {
@@ -126,8 +132,10 @@ export function createApp(deps: AppDeps) {
       const mandate = await q.getMandate(db, chainId, mandateId);
       if (!mandate) return null;
       const chain = await q.getChain(db, chainId);
+      const tokens = await q.tokenMap(db, chainId, [mandate.base, mandate.quote]);
       return {
         mandate,
+        tokens: { base: tokens[mandate.base] ?? null, quote: tokens[mandate.quote] ?? null },
         snapshot: (await q.latestSnapshot(db, chainId, mandateId)) ?? null,
         chain: chain ? { environment: chain.environment, sourceChainId: chain.sourceChainId } : null,
       };
@@ -171,6 +179,29 @@ export function createApp(deps: AppDeps) {
       );
     },
   );
+
+  /**
+   * Committed demo evidence (`replay/data/acts.json`): both sides of each act, including the traditional-loan
+   * side that is not mandate history. Static per deployment, so it is read once and cached by browsers.
+   */
+  let replay: Promise<unknown> | undefined;
+  app.get("/v1/replay", async (c) => {
+    if (!deps.replayPath) return c.json({ error: "no replay configured" }, 404);
+    replay ??= readFile(deps.replayPath, "utf8").then((text) => {
+      const parsed = JSON.parse(text) as { schemaVersion?: number; environment?: string };
+      if (parsed.schemaVersion !== 1 || typeof parsed.environment !== "string") throw new Error("unexpected replay format");
+      return parsed;
+    });
+    try {
+      const body = await replay;
+      c.header("cache-control", "public, max-age=300");
+      return c.json(body as object);
+    } catch (error) {
+      replay = undefined;
+      log(`replay unavailable: ${error instanceof Error ? error.message : String(error)}`);
+      return c.json({ error: "replay unavailable" }, 503);
+    }
+  });
 
   let openStreams = 0;
   const maxStreams = deps.maxStreams ?? 500;

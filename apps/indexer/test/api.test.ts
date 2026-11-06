@@ -25,7 +25,13 @@ describe("read API over the indexed demo chain", { skip }, () => {
     ({ ctx, db } = indexed);
     close = indexed.close;
     cache = await Cache.connect(config.REDIS_URL);
-    app = createApp({ db, cache, config, log: () => {} });
+    app = createApp({
+      db,
+      cache,
+      config,
+      log: () => {},
+      replayPath: new URL("../../../replay/data/acts.json", import.meta.url).pathname,
+    });
   });
 
   after(async () => {
@@ -102,6 +108,20 @@ describe("read API over the indexed demo chain", { skip }, () => {
       } while (cursor);
       assert.equal(keys.size, expected, `act ${act.act} activity`);
     }
+  });
+
+  test("mandates carry token display metadata", async () => {
+    const body = await (await get(`${base}/mandates/${ctx.deployment.mandates.act1}`)).json();
+    assert.deepEqual(body.data.tokens, { base: { symbol: "LAUNCH", decimals: 18 }, quote: { symbol: "sUSDC", decimals: 6 } });
+  });
+
+  test("serves the committed replay evidence", async () => {
+    const res = await get("/v1/replay");
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.environment, "local-mainnet-fork");
+    assert.equal(body.acts.length, 3);
+    assert.match(res.headers.get("cache-control") ?? "", /max-age/);
   });
 
   test("series returns snapshots in block order", async () => {

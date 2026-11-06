@@ -18,6 +18,7 @@ import {
   type MandateRow,
   type RawEventRow,
   type SnapshotRow,
+  type TokenRow,
 } from "./store.ts";
 
 /** Emitted after a batch commits; the cache layer invalidates and notifies subscribers from it. */
@@ -222,6 +223,15 @@ export class Indexer {
       if (!previous || previous.updatedBlock < block) mandateRows.set(id, this.mandateRow(id, snapshot));
     }
 
+    const tokenRows = new Map<string, TokenRow>();
+    for (const row of mandateRows.values()) {
+      for (const address of [row.base, row.quote]) {
+        if (tokenRows.has(address)) continue;
+        const display = await this.ctx.tokenDisplay(address as Hex);
+        tokenRows.set(address, { chainId, address, symbol: display.symbol, decimals: display.decimals });
+      }
+    }
+
     // The range end must still be canonical after all reads.
     const toAgain = await client.getBlock({ blockNumber: to });
     if (lower(toAgain.hash) !== lower(toHeader.hash)) throw new ReorgDuringRead(`block ${to} changed during the batch`);
@@ -233,6 +243,7 @@ export class Indexer {
       attempts: attemptRows,
       snapshots: snapshotRows,
       mandates: [...mandateRows.values()],
+      tokens: [...tokenRows.values()],
       cursor: { number: to, hash: lower(toHeader.hash!) as Hash },
     };
   }

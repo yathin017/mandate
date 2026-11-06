@@ -35,6 +35,7 @@ Without `INDEXER_TEST_DATABASE_URL` the chain-backed suites are skipped. `pnpm i
 |---|---|---|
 | MandateModule | create, ship/dock, params, bounds, pause, revoke, fee claims | `raw_events`, `mandates` |
 | MandateQuoter | `Filled`, `FeeAccrued` | `fills` (fee merged in) |
+| ERC20 `symbol`/`decimals` of each mandate's tokens | — | `tokens` (symbols sanitised to 32 printable chars) |
 | Demo ScenarioActor (MM) | `Attempted` | `attempts` with `source = onchain_actor` |
 | SDK `readSnapshot` at each touched block | counters, release, fees, anchor | `snapshots` |
 
@@ -54,7 +55,8 @@ includes `head: { number, hash }`, the block it reflects.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/health` | DB, Redis and head |
-| GET | `/v1/chains/:chainId/mandates?safe=&mm=` | Mandate projections |
+| GET | `/v1/replay` | Committed demo evidence (`replay/data/acts.json`, both sides of each act; `REPLAY_PATH` overrides) |
+| GET | `/v1/chains/:chainId/mandates?safe=&mm=` | Mandate projections with token symbol/decimals |
 | GET | `/v1/chains/:chainId/mandates/:id` | Terms, latest snapshot, environment disclosure |
 | GET | `/v1/chains/:chainId/mandates/:id/activity?limit=&before=` | Fills + blocked/simulated attempts, newest first, keyset cursor in `next` |
 | GET | `/v1/chains/:chainId/mandates/:id/series?fromBlock=&toBlock=&limit=` | Snapshots for charts, block order |

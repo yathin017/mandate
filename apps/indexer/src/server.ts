@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { serve } from "@hono/node-server";
 
 import { createApp } from "./api/app.ts";
@@ -19,7 +21,8 @@ const lazyChain = () => {
   });
   return chain;
 };
-const app = createApp({ db, cache, config, chain: lazyChain });
+const replayPath = process.env.REPLAY_PATH ?? fileURLToPath(new URL("../../../replay/data/acts.json", import.meta.url));
+const app = createApp({ db, cache, config, chain: lazyChain, replayPath });
 
 const server = serve({ fetch: app.fetch, port: config.API_PORT, hostname: process.env.API_HOST ?? "127.0.0.1" }, (info) =>
   console.log(`[api] listening on http://${info.address}:${info.port}`),

@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 
 import type { Db } from "../db/client.ts";
-import { chains, mandates, snapshots, syncCursors } from "../db/schema.ts";
+import { chains, mandates, snapshots, syncCursors, tokens } from "../db/schema.ts";
 import type { ActivityCursor } from "./params.ts";
 
 /** Read-only queries behind the API. All bigint/numeric values come back as strings or bigint. */
@@ -21,6 +21,16 @@ export async function listMandates(db: Db, chainId: number, filter: { safe?: str
   if (filter.safe) conditions.push(eq(mandates.safe, filter.safe));
   if (filter.mm) conditions.push(eq(mandates.mm, filter.mm));
   return db.select().from(mandates).where(and(...conditions)).orderBy(asc(mandates.createdBlock)).limit(500);
+}
+
+/** Display metadata for the given token addresses, keyed by lowercase address. */
+export async function tokenMap(db: Db, chainId: number, addresses: readonly string[]) {
+  if (!addresses.length) return {};
+  const rows = await db
+    .select()
+    .from(tokens)
+    .where(and(eq(tokens.chainId, chainId), inArray(tokens.address, [...new Set(addresses)])));
+  return Object.fromEntries(rows.map((row) => [row.address, { symbol: row.symbol, decimals: row.decimals }]));
 }
 
 export async function getMandate(db: Db, chainId: number, mandateId: string) {

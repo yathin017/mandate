@@ -2,7 +2,7 @@ import { and, desc, eq, gt, sql } from "drizzle-orm";
 import type { Hash } from "viem";
 
 import type { Db } from "../db/client.ts";
-import { attempts, blocks, chains, fills, mandates, rawEvents, snapshots, syncCursors } from "../db/schema.ts";
+import { attempts, blocks, chains, fills, mandates, rawEvents, snapshots, syncCursors, tokens } from "../db/schema.ts";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -12,6 +12,7 @@ export type FillRow = typeof fills.$inferInsert;
 export type AttemptRow = typeof attempts.$inferInsert;
 export type SnapshotRow = typeof snapshots.$inferInsert;
 export type MandateRow = typeof mandates.$inferInsert;
+export type TokenRow = typeof tokens.$inferInsert;
 
 export interface Batch {
   readonly blocks: BlockRow[];
@@ -20,6 +21,7 @@ export interface Batch {
   readonly attempts: AttemptRow[];
   readonly snapshots: SnapshotRow[];
   readonly mandates: MandateRow[];
+  readonly tokens: TokenRow[];
   readonly cursor: { readonly number: bigint; readonly hash: Hash };
 }
 
@@ -31,6 +33,7 @@ export async function writeBatch(db: Db, chainId: number, batch: Batch): Promise
     if (batch.fills.length) await tx.insert(fills).values(batch.fills).onConflictDoNothing();
     if (batch.attempts.length) await tx.insert(attempts).values(batch.attempts).onConflictDoNothing();
     if (batch.snapshots.length) await tx.insert(snapshots).values(batch.snapshots).onConflictDoNothing();
+    if (batch.tokens.length) await tx.insert(tokens).values(batch.tokens).onConflictDoNothing();
     for (const row of batch.mandates) await upsertMandate(tx, row);
     await setCursor(tx, chainId, batch.cursor);
   });

@@ -42,7 +42,11 @@ export async function createChainContext(config: Config): Promise<ChainContext> 
       display = Promise.all([
         client.readContract({ address: token, abi: erc20MetadataAbi, functionName: "decimals" }),
         client.readContract({ address: token, abi: erc20MetadataAbi, functionName: "symbol" }),
-      ]).then(([decimals, symbol]) => ({ decimals: Number(decimals), symbol }));
+      // Symbols are arbitrary token-controlled text: keep them short and printable.
+      ]).then(([decimals, symbol]) => ({
+        decimals: Number(decimals),
+        symbol: symbol.replace(/[^\x20-\x7e]/g, "").slice(0, 32) || "TOKEN",
+      }));
       displays.set(key, display);
     }
     return display;

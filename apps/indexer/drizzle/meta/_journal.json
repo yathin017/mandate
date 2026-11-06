@@ -8,6 +8,13 @@
       "when": 1793968737530,
       "tag": "0000_draft_initial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793970460985,
+      "tag": "0001_token_metadata",
+      "breakpoints": true
     }
   ]
 }
