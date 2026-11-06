@@ -470,6 +470,12 @@ Replay) → issuer flow → MM flow → E2E + docs.
   domain/URI and on every state-changing auth request; signatures verified through the chain RPC (EOA, ERC-1271,
   ERC-6492). Rate limited per client on nonce/verify only. Safari drops Secure cookies on `http://localhost`, so
   local `.env` sets `API_SESSION_COOKIE_SECURE=false`. 7 tests in `apps/indexer/test/auth.test.ts`.
+- **Profiles + proposals (done):** tables `mm_profiles`, `proposals` (draft); routes in
+  `apps/indexer/src/marketplace/`. Authority comes from the chain: Safe ownership read from the Safe (cached 60s),
+  MM acceptance = EIP-712 `MandateTerms` (SDK `mandateTermsTypedData`, domain chain + module) verified via RPC,
+  `executed` only if the module's mandate matches the accepted bounds/pair/MM. Sending simulates `createMandate`
+  from the Safe. Added beyond the reviewed list: a `note` (issuer → MM, ≤1000 chars). `getMandate` of an unknown id
+  returns an empty record (status None) instead of reverting. 7 tests in `apps/indexer/test/marketplace.test.ts`.
 
 ## 18. Infra
 

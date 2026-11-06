@@ -69,6 +69,13 @@ includes `head: { number, hash }`, the block it reflects.
 | POST | `/v1/auth/verify` | `{ message, signature }` (EIP-4361) → session cookie |
 | GET | `/v1/auth/session` | The caller's session (`address`, `chainId`, `expiresAt`) or 401 |
 | POST | `/v1/auth/logout` | Revokes the session, clears the cookie |
+| GET | `/v1/mms` | Listed market-maker profiles (public) |
+| GET | `/v1/mms/:address` | One profile, listed or not |
+| PUT | `/v1/mms/me` | Create/replace the signed-in wallet's profile |
+| POST | `/v1/proposals` | A Safe owner drafts terms for a market maker (`send: true` sends at once) |
+| GET | `/v1/proposals?safe=` / `?as=mm` | A Safe's proposals (owners) / those addressed to the caller (no drafts) |
+| GET | `/v1/proposals/:id` | One proposal, for its Safe's owners or its market maker |
+| POST | `/v1/proposals/:id/send` · `withdraw` · `accept` · `decline` · `executed` | Lifecycle transitions (see below) |
 
 `POST …/attempts` never accepts an outcome. The server re-runs the router quote via `eth_call` at the indexed
 head and stores the decoded result labeled `simulated`. Repeats in the same block are deduped by the table's
@@ -87,6 +94,9 @@ down. Proxy headers are not trusted; put the API behind a proxy only after addin
 | `mandate:v1:auth:nonce:{nonce}` | unused sign-in nonce | consumed by `GETDEL`; 10 min TTL |
 | `mandate:v1:auth:session:{tokenHash}` | session lookup | deleted on sign-out; TTL ≤ 60s and ≤ session expiry |
 | `mandate:v1:rl:auth:{ip}:{minute}` | sign-in request count | 60s TTL |
+| `mandate:v1:safe-owners:{chain}:{safe}` | a Safe's owners, from the chain | 60s TTL (a removed owner keeps access ≤ 60s) |
+| `mandate:v1:mms:list` | public market-maker list | deleted on every profile write; 30s TTL |
+| `mandate:v1:rl:{profile,proposals}:{ip}:{minute}` | marketplace write count | 60s TTL |
 
 Redis calls fail fast. When Redis is down, reads come from Postgres, streams return 503 and simulations return 503.
 Sign-in returns 503 (nonces live only in Redis); existing sessions keep working from Postgres.
@@ -107,6 +117,31 @@ unless `API_SESSION_COOKIE_SECURE=false`). Postgres stores only its SHA-256, in 
 `requireSession` (in `src/auth/routes.ts`) guards future routes that act for a wallet; `requireAllowedOrigin` is
 the CSRF check for their state-changing requests. The web app must reach the API on the same site (in development
 the Vite proxy does this) for the SameSite cookie to be sent.
+
+## Marketplace
+
+**Profiles** (`mm_profiles`) are written only by the signed-in wallet they describe. Text fields are stripped of
+control and bidi characters and length-capped; the website must be `https`. Profiles never carry performance: the
+market-maker score is computed from indexed chain data.
+
+**Proposals** are how an issuer Safe and a market maker agree before anything happens onchain:
+
+```
+draft ──send──▶ sent ──accept──▶ accepted ──executed──▶ executed
+  │               │──decline──▶ declined
+  └──withdraw─────┴──────────────┴──▶ withdrawn            (any of draft/sent/accepted past expiry ▶ expired)
+```
+
+- Owner actions (create, send, withdraw, executed) need a signed-in wallet that is a **current owner of the Safe**,
+  read from the Safe itself. Any owner may act, not only the creator.
+- Sending simulates `createMandate` from the Safe (`eth_call`), so terms the module would refuse are rejected with
+  its reason before the market maker is asked.
+- Accepting needs the market maker's EIP-712 signature over `MandateTerms` (proposal id, Safe, parties, bounds,
+  params, expiry; domain = chain + module). It is verified through the RPC (EOA, ERC-1271, ERC-6492) and stored.
+- `executed` is recorded only if the module's mandate has the proposal's Safe, market maker, pair and every bound;
+  params may already differ (the market maker can reship). A mandate links to at most one proposal.
+- Each transition is one conditional `UPDATE … WHERE status IN (…) AND expires_at > now()`, so concurrent
+  requests cannot skip states. Expiry is 1 hour to 30 days after creation.
 
 ## Schema
 
