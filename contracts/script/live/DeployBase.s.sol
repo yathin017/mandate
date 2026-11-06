@@ -223,10 +223,16 @@ contract DeployBase is Script {
         vm.writeJson(json, LiveConfig.path());
     }
 
-    /// @dev The TokenFactory is independent of the module, so a redeploy keeps the one already recorded.
+    /// @dev The TokenFactory is independent of the module, so a redeploy keeps the one already recorded: in the
+    ///      current manifest, or in the archived v1 manifest when this is the first v2 deployment.
     function _previousTokenFactory() private view returns (address) {
-        if (!vm.exists(LiveConfig.path())) return address(0);
-        string memory previous = vm.readFile(LiveConfig.path());
-        return previous.keyExists(".tokenFactory") ? previous.readAddress(".tokenFactory") : address(0);
+        string[2] memory paths =
+            [LiveConfig.path(), string.concat(vm.projectRoot(), "/../deployments/archive/8453-v1.json")];
+        for (uint256 i; i < paths.length; ++i) {
+            if (!vm.exists(paths[i])) continue;
+            string memory previous = vm.readFile(paths[i]);
+            if (previous.keyExists(".tokenFactory")) return previous.readAddress(".tokenFactory");
+        }
+        return address(0);
     }
 }
