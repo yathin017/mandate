@@ -8,12 +8,16 @@ import { api } from "@/lib/api";
 
 import { demoChain } from "./config";
 
-/** Waits (bounded) until the indexer has committed `block`, so refetched lists include this transaction. */
+/**
+ * Waits (bounded) until the indexer has committed `block`, so refetched lists include this transaction.
+ * Returns at once when the indexer is unreachable or indexes another chain: there is nothing to wait for.
+ */
 async function waitForIndexer(block: bigint, timeoutMs = 20_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const head = await api.health().then((h) => h.head?.number, () => undefined);
-    if (head !== undefined && BigInt(head) >= block) return;
+    const health = await api.health().catch(() => undefined);
+    if (!health?.ok || health.chainId !== demoChain.id) return;
+    if (health.head && BigInt(health.head.number) >= block) return;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
 }
@@ -34,7 +38,8 @@ export type TxState =
   | { status: "failed"; message: string; hash?: Hash };
 
 export interface Call {
-  readonly to: Address;
+  /** Omitted for a contract deployment (data is then the creation code). */
+  readonly to?: Address | undefined;
   readonly data: Hex;
 }
 
@@ -42,6 +47,8 @@ export interface Call {
 export interface TxOutcome {
   readonly ok: boolean;
   readonly blockNumber?: bigint;
+  /** Set when the transaction deployed a contract. */
+  readonly contractAddress?: Address;
 }
 
 export interface TxRequest {
@@ -52,6 +59,8 @@ export interface TxRequest {
   readonly context?: ErrorContext;
   /** Run the checks only and never send, e.g. to demonstrate a refusal. */
   readonly simulateOnly?: boolean;
+  /** Skip waiting for the indexer (for flows that read the chain directly, like onboarding). Default false. */
+  readonly skipIndexerWait?: boolean;
 }
 
 /**
@@ -76,7 +85,7 @@ export function useTx() {
       const checks = request.checks ?? [{ ...request.send, from: account }];
       for (const check of checks) {
         try {
-          await publicClient.call({ account: check.from, to: check.to, data: check.data });
+          await publicClient.call({ account: check.from, data: check.data, ...(check.to ? { to: check.to } : {}) });
         } catch (error) {
           setState({ status: "blocked", error: explainError(error, request.context) });
           return { ok: false };
@@ -91,7 +100,12 @@ export function useTx() {
       setState({ status: "signing" });
       let hash: Hash;
       try {
-        hash = await wallet.sendTransaction({ account, chain: demoChain, to: request.send.to, data: request.send.data });
+        hash = await wallet.sendTransaction({
+          account,
+          chain: demoChain,
+          data: request.send.data,
+          ...(request.send.to ? { to: request.send.to } : {}),
+        });
       } catch (error) {
         const rejected = error instanceof Error && /reject|denied/i.test(`${error.name} ${error.message}`);
         setState({ status: "failed", message: rejected ? "You rejected the request in your wallet." : explainError(error, request.context).message });
@@ -105,10 +119,10 @@ export function useTx() {
         return { ok: false };
       }
       setState({ status: "indexing", hash, blockNumber: receipt.blockNumber });
-      await waitForIndexer(receipt.blockNumber);
+      if (!request.skipIndexerWait) await waitForIndexer(receipt.blockNumber);
       await queryClient.invalidateQueries();
       setState({ status: "confirmed", hash, blockNumber: receipt.blockNumber });
-      return { ok: true, blockNumber: receipt.blockNumber };
+      return { ok: true, blockNumber: receipt.blockNumber, ...(receipt.contractAddress ? { contractAddress: receipt.contractAddress } : {}) };
     },
     [wallet, publicClient, queryClient],
   );
