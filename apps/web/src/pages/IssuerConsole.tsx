@@ -1,7 +1,7 @@
 import { buildPauseCall, buildRevokeCall, buildUnpauseCall, safeAbi, type PreparedCall } from "@mandate/sdk";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { isAddress, type Address, type Hash } from "viem";
 import { useConnection, useReadContract } from "wagmi";
 
@@ -15,12 +15,23 @@ import { Hex, StatusPill } from "@/components/status";
 import { api } from "@/lib/api";
 import type { MandateListItem, TokenDisplay } from "@/lib/types";
 import { CreateMandateForm } from "@/issuer/CreateMandateForm";
+import { STANDARD_RAILS, type Terms } from "@/issuer/terms";
+import { useTokenInfo } from "@/onboarding/useTokenInfo";
 import { ACCOUNT_HELP, DEMO_ACCOUNTS, DEMO_SAFES, demoChain, deployment, isLive, roleOf } from "@/wallet/config";
 import { SafeActionPanel } from "@/wallet/SafeActionPanel";
 import { useSafeInfo } from "@/wallet/useSafe";
 
-
 const FALLBACK: TokenDisplay = { symbol: "TOKEN", decimals: 18 };
+
+/** Demo terms mirror contracts/script/lib/DemoConfig.sol, scaled to fit the demo Safe's balance. */
+const DEMO_TERMS: Partial<Terms> = {
+  ...STANDARD_RAILS,
+  allotment: "1000000",
+  dailyCap: "50000",
+  floor: "0.30",
+  shippedBase: "1000000",
+  shippedQuote: "400000",
+};
 
 /**
  * Issuer Console (spec 10.3 B). Every action here is a Safe transaction approved onchain by the Safe's owners.
@@ -28,7 +39,9 @@ const FALLBACK: TokenDisplay = { symbol: "TOKEN", decimals: 18 };
  */
 export function IssuerConsole() {
   const [selected, setSelected] = useState<string>(DEMO_SAFES[0]!.address);
-  const [custom, setCustom] = useState("");
+  // ?safe=0x… (e.g. from onboarding) preselects a Safe that is not one of the demo Safes.
+  const [params] = useSearchParams();
+  const [custom, setCustom] = useState(() => params.get("safe") ?? "");
   const safe = (isAddress(custom) ? custom : selected) as Address;
   const { address } = useConnection();
   const info = useSafeInfo(safe);
@@ -46,6 +59,8 @@ export function IssuerConsole() {
   const tokens = mandates.data?.[0]?.tokens;
   const base = tokens?.base ?? { symbol: "LAUNCH", decimals: 18 };
   const quote = tokens?.quote ?? { symbol: "sUSDC", decimals: 6 };
+  const baseHolding = useTokenInfo(deployment.base, safe);
+  const quoteHolding = useTokenInfo(deployment.quote, safe);
   const isOwner = Boolean(address && info.owners?.some((o) => o.toLowerCase() === address.toLowerCase()));
 
   return (
@@ -131,7 +146,15 @@ export function IssuerConsole() {
           {moduleEnabled.data === false ? (
             <p className="text-sm text-blocked">Enable the Mandate module on this Safe first.</p>
           ) : (
-            <CreateMandateForm safe={safe} base={base ?? FALLBACK} quote={quote ?? FALLBACK} />
+            <CreateMandateForm
+              safe={safe}
+              base={{ ...base, address: deployment.base }}
+              quote={{ ...quote, address: deployment.quote }}
+              anchor={deployment.anchor}
+              holdings={{ base: baseHolding.balance, quote: quoteHolding.balance }}
+              initial={{ ...DEMO_TERMS, mm: DEMO_ACCOUNTS.marketMaker }}
+              releaseOffsetDays={20}
+            />
           )}
         </CardContent>
       </Card>
