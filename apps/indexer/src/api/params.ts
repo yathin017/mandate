@@ -13,6 +13,7 @@ export const address = z
 
 export const chainParam = z.object({ chainId: z.coerce.number().int().positive() });
 export const mandateParam = chainParam.extend({ mandateId: hash });
+export const mmParam = chainParam.extend({ address });
 
 export const listQuery = z.object({ safe: address.optional(), mm: address.optional() });
 

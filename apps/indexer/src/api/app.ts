@@ -2,6 +2,7 @@ import { getConnInfo } from "@hono/node-server/conninfo";
 import { readFile } from "node:fs/promises";
 
 import { zValidator } from "@hono/zod-validator";
+import { sql } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
@@ -11,6 +12,8 @@ import { streamSSE } from "hono/streaming";
 import { createAuthRoutes } from "../auth/routes.ts";
 import { createProfileRoutes } from "../marketplace/profiles.ts";
 import { createProposalRoutes } from "../marketplace/proposals.ts";
+import { loadEvidence } from "../score/evidence.ts";
+import { computeScores, WEIGHTS, WINDOW_SECONDS } from "../score/score.ts";
 import { rateLimit } from "./rateLimit.ts";
 import type { Cache } from "../cache/cache.ts";
 import type { ChainContext } from "../chain.ts";
@@ -25,6 +28,7 @@ import {
   encodeCursor,
   listQuery,
   mandateParam,
+  mmParam,
   seriesQuery,
 } from "./params.ts";
 import * as q from "./queries.ts";
@@ -98,21 +102,28 @@ export function createApp(deps: AppDeps) {
     return cursor ? { number: cursor.blockNumber.toString(), hash: cursor.blockHash } : undefined;
   }
 
-  /** Serves `compute()` from the head-scoped response cache. A new head is a new key, so no stale reads. */
-  async function cached(c: Context, chainId: number, route: string, compute: () => Promise<unknown>) {
+  /**
+   * `{ head, data }` for `compute()` from the head-scoped response cache. A new head is a new key, so no stale
+   * reads. Undefined when the chain is not indexed.
+   */
+  async function cachedBody(chainId: number, route: string, compute: () => Promise<unknown>) {
     const at = await head(chainId);
-    if (!at) return c.json({ error: "chain not indexed" }, 404);
+    if (!at) return undefined;
     const key = keys.response(chainId, at.hash, route);
-    const hit = await cache.getJson<unknown>(key);
-    if (hit !== undefined) {
-      c.header("x-cache", "hit");
-      return c.json(hit as object);
-    }
-    const body = toJsonSafe({ head: at, data: await compute() });
-    if ((body as { data: unknown }).data === null) return c.json({ error: "not found", head: at }, 404);
-    await cache.setJson(key, body, TTL.responseSeconds);
-    c.header("x-cache", "miss");
-    return c.json(body as object);
+    const hit = await cache.getJson<{ head: typeof at; data: unknown }>(key);
+    if (hit !== undefined) return { body: hit, hit: true };
+    const body = toJsonSafe({ head: at, data: await compute() }) as { head: typeof at; data: unknown };
+    if (body.data !== null) await cache.setJson(key, body, TTL.responseSeconds);
+    return { body, hit: false };
+  }
+
+  /** Serves `compute()` through `cachedBody`; null data is a 404. */
+  async function cached(c: Context, chainId: number, route: string, compute: () => Promise<unknown>) {
+    const result = await cachedBody(chainId, route, compute);
+    if (!result) return c.json({ error: "chain not indexed" }, 404);
+    if (result.body.data === null) return c.json({ error: "not found", head: result.body.head }, 404);
+    c.header("x-cache", result.hit ? "hit" : "miss");
+    return c.json(result.body as object);
   }
 
   /** Validation failure response: lists messages only, never echoes the raw input. */
@@ -138,6 +149,35 @@ export function createApp(deps: AppDeps) {
       const tokens = await q.tokenMap(db, chainId, rows.flatMap((row) => [row.base, row.quote]));
       return rows.map((row) => ({ ...row, tokens: { base: tokens[row.base] ?? null, quote: tokens[row.quote] ?? null } }));
     });
+  });
+
+  /** Market-maker scores at the indexed head (onchain evidence only; see src/score/score.ts). */
+  async function scoresAt(chainId: number) {
+    const at = await head(chainId);
+    if (!at) return [];
+    const [block] = await db.execute<{ timestamp: string }>(sql`SELECT timestamp::text FROM blocks WHERE chain_id = ${chainId} AND hash = ${at.hash}`);
+    if (!block) return [];
+    const now = BigInt(block.timestamp);
+    return computeScores(await loadEvidence(db, chainId, now)).map((s) => ({
+      ...s,
+      window: { from: (now - BigInt(WINDOW_SECONDS)).toString(), to: now.toString() },
+    }));
+  }
+
+  const allScores = (chainId: number) => cachedBody(chainId, "mm-scores", async () => ({ weights: WEIGHTS, scores: await scoresAt(chainId) }));
+
+  app.get("/v1/chains/:chainId/mms/scores", zValidator("param", chainParam, invalid), async (c) => {
+    const result = await allScores(c.req.valid("param").chainId);
+    return result ? c.json(result.body) : c.json({ error: "chain not indexed" }, 404);
+  });
+
+  app.get("/v1/chains/:chainId/mms/:address/score", zValidator("param", mmParam, invalid), async (c) => {
+    const { chainId, address } = c.req.valid("param");
+    const result = await allScores(chainId);
+    if (!result) return c.json({ error: "chain not indexed" }, 404);
+    const { scores } = result.body.data as { scores: { mm: string }[] };
+    const score = scores.find((s) => s.mm === address.toLowerCase());
+    return score ? c.json({ head: result.body.head, data: { weights: WEIGHTS, ...score } }) : c.json({ error: "no mandates for this market maker" }, 404);
   });
 
   app.get("/v1/chains/:chainId/mandates/:mandateId", zValidator("param", mandateParam, invalid), async (c) => {
