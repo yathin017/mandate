@@ -43,6 +43,13 @@
       "when": 1793988315214,
       "tag": "0005_draft_launched_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793997391499,
+      "tag": "0006_draft_policies_strategies",
+      "breakpoints": true
     }
   ]
 }

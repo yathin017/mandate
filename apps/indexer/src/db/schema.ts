@@ -37,7 +37,6 @@ const HASH = "^0x[0-9a-f]{64}$";
 
 export const attemptSource = pgEnum("attempt_source", ["onchain_actor", "simulated"]);
 export const attemptOutcome = pgEnum("attempt_outcome", ["allowed", "blocked"]);
-export const anchorStatus = pgEnum("anchor_status", ["within-spot-band", "blocked", "unavailable"]);
 
 /** Runtime chains this database indexes. `environment` discloses forks (e.g. `local-mainnet-fork`). */
 export const chains = pgTable("chains", {
@@ -48,7 +47,7 @@ export const chains = pgTable("chains", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** ERC20 display metadata for tokens used by indexed mandates, read once from the chain. */
+/** ERC20 display metadata for tokens used by indexed policies, read once from the chain. */
 export const tokens = pgTable(
   "tokens",
   {
@@ -100,7 +99,9 @@ export const rawEvents = pgTable(
     logIndex: integer("log_index").notNull(),
     address: text("address").notNull(),
     eventName: text("event_name").notNull(),
-    mandateId: text("mandate_id"),
+    /** The policy and/or strategy the event is about, when it names one. */
+    policyId: text("policy_id"),
+    strategyId: text("strategy_id"),
     /** Decoded args; bigints as decimal strings. */
     args: jsonb("args").notNull(),
   },
@@ -109,45 +110,91 @@ export const rawEvents = pgTable(
     foreignKey({ columns: [t.chainId, t.blockNumber], foreignColumns: [blocks.chainId, blocks.number] }).onDelete(
       "cascade",
     ),
-    index("raw_events_mandate_idx").on(t.chainId, t.mandateId, t.blockNumber),
+    index("raw_events_policy_idx").on(t.chainId, t.policyId, t.blockNumber),
+    index("raw_events_strategy_idx").on(t.chainId, t.strategyId, t.blockNumber),
     check("raw_events_fmt", sql`${t.address} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.txHash} ~ ${sql.raw(`'${HASH}'`)}`),
   ],
 );
 
-/** Latest terms and status per mandate, refreshed from chain reads at every block that touches it. */
-export const mandates = pgTable(
-  "mandates",
+/**
+ * Latest terms and status per treasury policy (one live policy per Safe and base token), refreshed from chain reads
+ * at every block that touches it.
+ */
+export const policies = pgTable(
+  "policies",
   {
     chainId: integer("chain_id").notNull(),
-    mandateId: text("mandate_id").notNull(),
+    policyId: text("policy_id").notNull(),
     module: text("module").notNull(),
+    safe: text("safe").notNull(),
+    base: text("base").notNull(),
+    quote: text("quote").notNull(),
+    /** Status: 1 Active, 2 Paused, 3 Revoked. */
+    status: smallint("status").notNull(),
+    /** Mirrors the DRAFT Solidity PolicyConfig struct; bigints as strings. */
+    config: jsonb("config").notNull(),
+    createdBlock: blockNumber("created_block").notNull(),
+    updatedBlock: blockNumber("updated_block").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.chainId, t.policyId] }),
+    // A policy created in a reorged block disappears with it.
+    foreignKey({ columns: [t.chainId, t.createdBlock], foreignColumns: [blocks.chainId, blocks.number] }).onDelete(
+      "cascade",
+    ),
+    index("policies_safe_idx").on(t.chainId, t.safe),
+    check("policies_fmt", sql`${t.policyId} ~ ${sql.raw(`'${HASH}'`)} AND ${t.safe} ~ ${sql.raw(`'${ADDRESS}'`)}`),
+    check("policies_status", sql`${t.status} BETWEEN 1 AND 3`),
+  ],
+);
+
+/**
+ * Latest terms and status per strategy: one market maker's Aqua order under a policy. `safe`, `base` and `quote` are
+ * copied from the policy so market-maker views need no join.
+ */
+export const strategies = pgTable(
+  "strategies",
+  {
+    chainId: integer("chain_id").notNull(),
+    strategyId: text("strategy_id").notNull(),
+    policyId: text("policy_id").notNull(),
     safe: text("safe").notNull(),
     mm: text("mm").notNull(),
     base: text("base").notNull(),
     quote: text("quote").notNull(),
-    /** MandateStatus: 1 Active, 2 Paused, 3 Revoked. */
+    /** StrategyKind: 0 market making, 1 buyback. */
+    kind: smallint("kind").notNull(),
     status: smallint("status").notNull(),
     activeStrategyHash: text("active_strategy_hash").notNull(),
-    /** Mirrors the DRAFT Solidity MandateBounds / MandateParams structs; bigints as strings. */
+    /** Mirrors the DRAFT Solidity StrategyBounds / StrategyParams structs; bigints as strings. */
     bounds: jsonb("bounds").notNull(),
     params: jsonb("params").notNull(),
     createdBlock: blockNumber("created_block").notNull(),
     updatedBlock: blockNumber("updated_block").notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.chainId, t.mandateId] }),
-    // A mandate created in a reorged block disappears with it.
+    primaryKey({ columns: [t.chainId, t.strategyId] }),
     foreignKey({ columns: [t.chainId, t.createdBlock], foreignColumns: [blocks.chainId, blocks.number] }).onDelete(
       "cascade",
     ),
-    index("mandates_safe_idx").on(t.chainId, t.safe),
-    index("mandates_mm_idx").on(t.chainId, t.mm),
-    check("mandates_fmt", sql`${t.mandateId} ~ ${sql.raw(`'${HASH}'`)} AND ${t.safe} ~ ${sql.raw(`'${ADDRESS}'`)}`),
-    check("mandates_status", sql`${t.status} BETWEEN 1 AND 3`),
+    foreignKey({ columns: [t.chainId, t.policyId], foreignColumns: [policies.chainId, policies.policyId] }).onDelete(
+      "cascade",
+    ),
+    index("strategies_policy_idx").on(t.chainId, t.policyId),
+    index("strategies_safe_idx").on(t.chainId, t.safe),
+    index("strategies_mm_idx").on(t.chainId, t.mm),
+    check(
+      "strategies_fmt",
+      sql`${t.strategyId} ~ ${sql.raw(`'${HASH}'`)} AND ${t.policyId} ~ ${sql.raw(`'${HASH}'`)} AND ${t.mm} ~ ${sql.raw(`'${ADDRESS}'`)}`,
+    ),
+    check("strategies_status", sql`${t.status} BETWEEN 1 AND 3 AND ${t.kind} BETWEEN 0 AND 1`),
   ],
 );
 
-/** One row per quoter `Filled` event, with the spread from the matching `FeeAccrued`. */
+/**
+ * One row per quoter `Filled` event, with the spread from the matching `FeeAccrued` and its execution quality:
+ * the fill price against the Uniswap spot at the end of the previous block (the market a taker saw before trading).
+ */
 export const fills = pgTable(
   "fills",
   {
@@ -156,7 +203,8 @@ export const fills = pgTable(
     logIndex: integer("log_index").notNull(),
     blockNumber: blockNumber("block_number").notNull(),
     timestamp: bigint("timestamp", { mode: "bigint" }).notNull(),
-    mandateId: text("mandate_id").notNull(),
+    policyId: text("policy_id").notNull(),
+    strategyId: text("strategy_id").notNull(),
     strategyHash: text("strategy_hash").notNull(),
     taker: text("taker").notNull(),
     /** true: treasury sold base. */
@@ -164,17 +212,25 @@ export const fills = pgTable(
     amountIn: uint256("amount_in").notNull(),
     amountOut: uint256("amount_out").notNull(),
     priceX36: uint256("price_x36").notNull(),
-    netSoldThisEpoch: uint256("net_sold_this_epoch").notNull(),
-    totalNetSold: uint256("total_net_sold").notNull(),
+    /** RiskMode the quoter applied: 0 Normal, 1 Defensive. (Paused never fills.) */
+    riskMode: smallint("risk_mode").notNull(),
     feeToken: text("fee_token"),
     feeAmount: uint256("fee_amount").notNull().default("0"),
+    /** Uniswap spot at the previous block; null when the oracle had no price then. */
+    referenceSpotX36: uint256("reference_spot_x36"),
+    /**
+     * Signed distance of the fill price from the reference, in bps, positive when it favoured the treasury (sold
+     * above or bought below the market).
+     */
+    qualityBps: integer("quality_bps"),
   },
   (t) => [
     primaryKey({ columns: [t.chainId, t.txHash, t.logIndex] }),
     foreignKey({ columns: [t.chainId, t.blockNumber], foreignColumns: [blocks.chainId, blocks.number] }).onDelete(
       "cascade",
     ),
-    index("fills_mandate_idx").on(t.chainId, t.mandateId, t.blockNumber.desc(), t.logIndex.desc()),
+    index("fills_strategy_idx").on(t.chainId, t.strategyId, t.blockNumber.desc(), t.logIndex.desc()),
+    index("fills_policy_idx").on(t.chainId, t.policyId, t.blockNumber.desc()),
   ],
 );
 
@@ -189,7 +245,7 @@ export const attempts = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     chainId: integer("chain_id").notNull(),
-    mandateId: text("mandate_id").notNull(),
+    strategyId: text("strategy_id").notNull(),
     source: attemptSource("source").notNull(),
     outcome: attemptOutcome("outcome").notNull(),
     errorName: text("error_name"),
@@ -215,9 +271,9 @@ export const attempts = pgTable(
     ),
     uniqueIndex("attempts_log_uq").on(t.chainId, t.txHash, t.logIndex),
     uniqueIndex("attempts_sim_uq")
-      .on(t.chainId, t.mandateId, t.requestHash, t.blockNumber)
+      .on(t.chainId, t.strategyId, t.requestHash, t.blockNumber)
       .where(sql`${t.source} = 'simulated'`),
-    index("attempts_mandate_idx").on(t.chainId, t.mandateId, t.blockNumber.desc()),
+    index("attempts_strategy_idx").on(t.chainId, t.strategyId, t.blockNumber.desc()),
     check(
       "attempts_evidence",
       sql`(${t.source} = 'onchain_actor' AND ${t.txHash} IS NOT NULL AND ${t.logIndex} IS NOT NULL) OR (${t.source} = 'simulated' AND ${t.txHash} IS NULL)`,
@@ -225,37 +281,66 @@ export const attempts = pgTable(
   ],
 );
 
-/** Gauge state per mandate at a block, read in one pinned-block SDK snapshot. Feeds the dashboard charts. */
-export const snapshots = pgTable(
-  "snapshots",
+/**
+ * Treasury-wide state of a policy at a block, from one pinned-block SDK read: shared counters, and the risk mode
+ * with the oracle readings behind it. Feeds the issuer dashboard and the risk timeline.
+ */
+export const policySnapshots = pgTable(
+  "policy_snapshots",
   {
     chainId: integer("chain_id").notNull(),
-    mandateId: text("mandate_id").notNull(),
+    policyId: text("policy_id").notNull(),
+    blockNumber: blockNumber("block_number").notNull(),
+    blockHash: text("block_hash").notNull(),
+    timestamp: bigint("timestamp", { mode: "bigint" }).notNull(),
+    status: smallint("status").notNull(),
+    periodIndex: uint256("period_index").notNull(),
+    grossSold: uint256("gross_sold").notNull(),
+    netSold: uint256("net_sold").notNull(),
+    quoteSpent: uint256("quote_spent").notNull(),
+    totalNetSold: uint256("total_net_sold").notNull(),
+    released: uint256("released").notNull(),
+    periodEndsAt: uint256("period_ends_at").notNull(),
+    /** RiskMode 0 Normal, 1 Defensive, 2 Paused, and the RiskReason index behind it. */
+    riskMode: smallint("risk_mode").notNull(),
+    riskReason: smallint("risk_reason").notNull(),
+    priced: boolean("priced").notNull(),
+    spotX36: uint256("spot_x36").notNull(),
+    twapX36: uint256("twap_x36").notNull(),
+    shortTwapX36: uint256("short_twap_x36").notNull(),
+    trustedDepthBase: uint256("trusted_depth_base").notNull(),
+    poolAge: bigint("pool_age", { mode: "bigint" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.chainId, t.policyId, t.blockNumber] }),
+    foreignKey({ columns: [t.chainId, t.blockNumber], foreignColumns: [blocks.chainId, blocks.number] }).onDelete(
+      "cascade",
+    ),
+    check("policy_snapshots_mode", sql`${t.riskMode} BETWEEN 0 AND 2`),
+  ],
+);
+
+/** A strategy's own state at a block: status, live spread and inventory, version, and fee accounting. */
+export const strategySnapshots = pgTable(
+  "strategy_snapshots",
+  {
+    chainId: integer("chain_id").notNull(),
+    strategyId: text("strategy_id").notNull(),
     blockNumber: blockNumber("block_number").notNull(),
     blockHash: text("block_hash").notNull(),
     timestamp: bigint("timestamp", { mode: "bigint" }).notNull(),
     status: smallint("status").notNull(),
     spreadBps: integer("spread_bps").notNull(),
-    epochCap: uint256("epoch_cap").notNull(),
-    epochIndex: uint256("epoch_index").notNull(),
-    netSoldThisEpoch: uint256("net_sold_this_epoch").notNull(),
-    totalNetSold: uint256("total_net_sold").notNull(),
-    released: uint256("released").notNull(),
-    remainingThisEpoch: uint256("remaining_this_epoch").notNull(),
-    sellableNow: uint256("sellable_now").notNull(),
-    epochResetsAt: uint256("epoch_resets_at").notNull(),
+    shippedBase: uint256("shipped_base").notNull(),
+    shippedQuote: uint256("shipped_quote").notNull(),
+    nonce: uint256("nonce").notNull(),
     feesBase: uint256("fees_base").notNull(),
     feesQuote: uint256("fees_quote").notNull(),
     claimedBase: uint256("claimed_base").notNull(),
     claimedQuote: uint256("claimed_quote").notNull(),
-    anchorStatus: anchorStatus("anchor_status").notNull(),
-    anchorSpotX36: uint256("anchor_spot_x36"),
-    anchorTwapX36: uint256("anchor_twap_x36"),
-    anchorDeviationBps: uint256("anchor_deviation_bps"),
-    anchorMaxDeviationBps: integer("anchor_max_deviation_bps"),
   },
   (t) => [
-    primaryKey({ columns: [t.chainId, t.mandateId, t.blockNumber] }),
+    primaryKey({ columns: [t.chainId, t.strategyId, t.blockNumber] }),
     foreignKey({ columns: [t.chainId, t.blockNumber], foreignColumns: [blocks.chainId, blocks.number] }).onDelete(
       "cascade",
     ),
@@ -347,8 +432,9 @@ export const mmProfiles = pgTable(
 export const proposalStatus = pgEnum("proposal_status", ["draft", "sent", "accepted", "declined", "withdrawn", "expired", "executed"]);
 
 /**
- * Terms an issuer Safe offers a market maker. `terms` is the SDK's MandateTermsJson; `terms_hash` is the EIP-712
- * digest the market maker signs (it covers the id, Safe, terms and expiry), so terms cannot change after sending.
+ * A strategy an issuer Safe offers a market maker under its policy for the pair. `terms` is the SDK's
+ * StrategyTermsJson; `terms_hash` is the EIP-712 digest the market maker signs (it covers the id, Safe, terms and
+ * expiry), so terms cannot change after sending.
  */
 export const proposals = pgTable(
   "proposals",
@@ -363,13 +449,15 @@ export const proposals = pgTable(
     mm: text("mm").notNull(),
     base: text("base").notNull(),
     quote: text("quote").notNull(),
+    /** StrategyKind of the offered strategy: 0 market making, 1 buyback. */
+    kind: smallint("kind").notNull(),
     terms: jsonb("terms").notNull(),
     termsHash: text("terms_hash").notNull(),
     status: proposalStatus("status").notNull().default("draft"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     mmSignature: text("mm_signature"),
-    /** Set when the Safe executed createMandate for these terms (verified onchain). */
-    mandateId: text("mandate_id"),
+    /** Set when the Safe executed addStrategy for these terms (verified onchain). */
+    strategyId: text("strategy_id"),
     note: text("note").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -379,20 +467,21 @@ export const proposals = pgTable(
   (t) => [
     index("proposals_safe_idx").on(t.chainId, t.safe),
     index("proposals_mm_idx").on(t.chainId, t.mm),
-    // A mandate is the outcome of at most one proposal.
-    uniqueIndex("proposals_mandate_uq").on(t.chainId, t.mandateId),
+    // A strategy is the outcome of at most one proposal.
+    uniqueIndex("proposals_strategy_uq").on(t.chainId, t.strategyId),
     check(
       "proposals_fmt",
       sql`${t.safe} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.issuer} ~ ${sql.raw(`'${ADDRESS}'`)}
         AND ${t.mm} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.base} ~ ${sql.raw(`'${ADDRESS}'`)}
         AND ${t.quote} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.termsHash} ~ ${sql.raw(`'${HASH}'`)}
-        AND (${t.mandateId} IS NULL OR ${t.mandateId} ~ ${sql.raw(`'${HASH}'`)}) AND char_length(${t.note}) <= 1000`,
+        AND (${t.strategyId} IS NULL OR ${t.strategyId} ~ ${sql.raw(`'${HASH}'`)}) AND char_length(${t.note}) <= 1000
+        AND ${t.kind} BETWEEN 0 AND 1`,
     ),
     // Each lifecycle state carries exactly the evidence it needs.
     check(
       "proposals_state",
       sql`(${t.status} <> 'accepted' OR ${t.mmSignature} IS NOT NULL)
-        AND (${t.status} <> 'executed' OR (${t.mmSignature} IS NOT NULL AND ${t.mandateId} IS NOT NULL))`,
+        AND (${t.status} <> 'executed' OR (${t.mmSignature} IS NOT NULL AND ${t.strategyId} IS NOT NULL))`,
     ),
   ],
 );
@@ -402,15 +491,15 @@ export const proposals = pgTable(
 /**
  * Probe outcome, from the market maker's point of view:
  * - `ok`: the probe trade would fill inside every rail.
- * - `mm_fault`: refused for a reason the market maker controls (strategy priced outside the anchor band, or the
- *   market maker paused it).
- * - `neutral`: refused by an issuer rail (floor, daily cap, release), by the anchor itself (history, manipulation
- *   breaker) or by an RPC error; excluded from availability.
+ * - `mm_fault`: refused for a reason the market maker controls (its order priced off the market, its inventory
+ *   exhausted, or the market maker paused it).
+ * - `neutral`: refused by an issuer rail (floor, caps, release), by the policy's risk mode (market conditions) or by
+ *   an RPC error; excluded from availability.
  */
 export const probeOutcome = pgEnum("probe_outcome", ["ok", "mm_fault", "neutral"]);
 
 /**
- * Periodic read-only quotes against each live mandate (one small buy and one small sell at the indexed head).
+ * Periodic read-only quotes against each live strategy (one small buy and one small sell at the indexed head).
  * Evidence for the availability and responsiveness score components; references `blocks`, so reorgs remove them.
  */
 export const mmProbes = pgTable(
@@ -418,7 +507,7 @@ export const mmProbes = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     chainId: integer("chain_id").notNull(),
-    mandateId: text("mandate_id").notNull(),
+    strategyId: text("strategy_id").notNull(),
     mm: text("mm").notNull(),
     blockNumber: blockNumber("block_number").notNull(),
     /** Chain time of `block_number`, seconds. */
@@ -432,7 +521,7 @@ export const mmProbes = pgTable(
     foreignKey({ columns: [t.chainId, t.blockNumber], foreignColumns: [blocks.chainId, blocks.number] }).onDelete(
       "cascade",
     ),
-    uniqueIndex("mm_probes_uq").on(t.chainId, t.mandateId, t.blockNumber, t.side),
+    uniqueIndex("mm_probes_uq").on(t.chainId, t.strategyId, t.blockNumber, t.side),
     index("mm_probes_mm_idx").on(t.chainId, t.mm, t.timestamp),
     check("mm_probes_fmt", sql`${t.side} IN ('sell', 'buy') AND ${t.mm} ~ ${sql.raw(`'${ADDRESS}'`)}`),
   ],
