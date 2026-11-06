@@ -3,7 +3,7 @@
 Verified facts, decisions and spec conflicts. Every entry names its source. If this file and
 `.agents/README.md` disagree, this file reflects what the code/chain actually does.
 
-Last verified: Nov 6, 2026, mainnet block ~26,355,100.
+Last verified: Nov 6, 2026, mainnet block ~26,355,100. Updated after Segment 2.
 
 ---
 
@@ -98,20 +98,45 @@ Source: `aqua/src/Aqua.sol`, `swap-vm/src/SwapVM.sol`. Verified on fork.
 
 > **Conflict with spec §5 / REPORT §4:** router 1.0.2 does not gate takers itself. Gating is the
 > opt-in opcode 33 `onlyTxOriginTokenBalanceNonZero` placed in a strategy's program. Whether 1inch
-> requires dApps to include it is policy, not code. Our fork demo can omit or include it; decide in
-> Segment 2.
+> requires dApps to include it is policy, not code.
 
-## 7. Design implications for MandateQuoter (Segment 2)
+**Decision (Segment 2):** the fork demo omits opcode 33; the pitch mentions gating as a live-launch feature.
 
-1. **Router gate is not enough.** Anyone can ship their *own* strategy that points at our quoter
-   with our `mandateId` in args and then swap through the real router, so `msg.sender == router`
-   passes and they could burn the epoch cap. The quoter must also check `query.maker == mandate.safe`
-   and, ideally, `query.orderHash == mandate.activeStrategyHash` (registered by MandateModule on reship).
-2. `orderHash` changes on every reship (strategies are immutable), so epoch/net-sold state is keyed by
-   `mandateId`, not `orderHash`.
-3. Mandate args must fit in 235 bytes → pass only `mandateId` (32 bytes); read terms from storage.
-4. Router 1.0.2 has `flatFeeAmountInXD` (opcode 21). Spread/fee could use it instead of quoter math;
-   decide in Segment 2.
+## 7. MandateQuoter design (decided in Segment 2)
+
+Code: `contracts/src/quoter/MandateQuoter.sol`. Strategy program: `[Salt(nonce), Extruction(quoter, mandateId)]`.
+
+1. **Identity, not just router gating.** `msg.sender == router` alone lets anyone ship their own strategy
+   pointing at our quoter and burn a mandate's cap through the real router. The quoter also requires
+   `query.maker == mandate.safe` and `query.orderHash == mandate.activeStrategyHash` (set by the module
+   on every reship), plus the exact base/quote pair. Tested in unit, integration and griefing tests.
+2. **State keyed by `mandateId`**, since `orderHash` changes on every reship.
+3. **Args = 32-byte `mandateId` only** (fits the 235-byte limit); terms are read from the registry.
+4. **Pricing and spread inside the quoter** (not opcode 21): constant product over Aqua balances with the
+   spread taken from the gross input. One place for pricing and fee accounting.
+5. **Fees accrue per token, in tokenIn:** quote on sells, base on buybacks. Converting to one unit
+   would need a price assumption. Payout accounting (`mmFeeShareBps`, paid amounts) belongs to the module.
+6. **Prices are `quoteRaw * 1e36 / baseRaw`.** Decimal-agnostic and precise for sub-cent tokens.
+   UI converts with token decimals.
+7. **Anchor check uses the execution price, both directions** (spec says "Aqua price"). That bounds both
+   a drifted pool and large price impact. `anchorStatus()` reports the Aqua *spot* price for the UI.
+   Consequence: a single fill's impact plus spread must stay inside `maxAnchorDeviationBps`, so the
+   module should require `spreadBpsMax < maxAnchorDeviationBps`.
+8. **Floor, epoch cap and release apply to sells only.** Buybacks subtract from both counters, floored at 0.
+9. **Epochs count from `releaseStart`.** Effective cap = `min(params.epochCap, bounds.maxEpochCap)` as
+   defence in depth.
+10. **Quote reverts exactly like swap**, so takers and the UI see the blocking rule before sending a tx.
+11. **Errors carry more context than the spec** for plain-language UI copy, e.g.
+    `EpochCapReached(used, requested, cap)`, `ReleaseExceeded(totalNetSold, requested, released)`,
+    `AnchorDeviation(price, twap, deviationBps, maxBps)`.
+
+### For Segment 4 (MandateModule)
+
+- **Every (re)ship needs a fresh salt.** Aqua never re-ships a docked hash (`StrategiesMustBeImmutable`).
+- The module must implement `IMandateRegistry.getMandate` and update `activeStrategyHash` atomically with
+  dock + ship.
+- Validate on create/update: `epochLength > 0`, `spreadBpsMin <= spreadBpsMax < maxAnchorDeviationBps`,
+  `spreadBpsMax < 10_000`, `anchor != 0`, `quoter` = the deployed MandateQuoter.
 
 ## 8. Infra
 
