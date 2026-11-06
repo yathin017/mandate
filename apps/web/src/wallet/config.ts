@@ -47,8 +47,8 @@ declare module "wagmi" {
 }
 
 /**
- * Demo roles. Local fork: Anvil's public development accounts. Live: the throwaway keys created for the
- * deployment (addresses only; keys never reach the app).
+ * Testing wallets per role. Local fork: Anvil's public development accounts. Live (Base): the testing wallets
+ * recorded in deployments/8453.json (addresses only; keys never reach the app).
  */
 export const DEMO_ACCOUNTS: { safeOwner1: Address; safeOwner2: Address; marketMaker: Address } = isLiveDeployment(deployment)
   ? { safeOwner1: deployment.deployer, safeOwner2: deployment.owner2, marketMaker: deployment.mm }
@@ -57,6 +57,17 @@ export const DEMO_ACCOUNTS: { safeOwner1: Address; safeOwner2: Address; marketMa
       safeOwner2: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
       marketMaker: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
     };
+
+const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
+
+/** Role name for a known testing wallet, e.g. to label the connected account. */
+const ROLE_LABELS = new Map<string, string>([
+  [DEMO_ACCOUNTS.safeOwner1.toLowerCase(), "Safe Owner 1"],
+  [DEMO_ACCOUNTS.safeOwner2.toLowerCase(), "Safe Owner 2"],
+  [DEMO_ACCOUNTS.marketMaker.toLowerCase(), "Market Maker"],
+]);
+export const roleOf = (address: string | undefined): string | undefined =>
+  address ? ROLE_LABELS.get(address.toLowerCase()) : undefined;
 
 /** Issuer Safes offered in the console. */
 export const DEMO_SAFES: readonly { address: Address; label: string }[] = isLiveDeployment(deployment)
@@ -69,5 +80,5 @@ export const DEMO_SAFES: readonly { address: Address; label: string }[] = isLive
 
 /** How to get the right wallet accounts for this deployment. */
 export const ACCOUNT_HELP = isLive
-  ? `Connect one of the Safe's owners (${DEMO_ACCOUNTS.safeOwner1.slice(0, 6)}… or ${DEMO_ACCOUNTS.safeOwner2.slice(0, 6)}…) on ${demoChain.name}. One owner approves; the other executes.`
+  ? `Connect Safe Owner 1 (${short(DEMO_ACCOUNTS.safeOwner1)}) or Safe Owner 2 (${short(DEMO_ACCOUNTS.safeOwner2)}) on ${demoChain.name}. One owner approves; the other executes.`
   : `Import Anvil accounts #0 and #1 into your wallet (public development keys only), add network ${RPC_URL} (chain ${CHAIN_ID}), then connect. One owner approves; the other executes.`;

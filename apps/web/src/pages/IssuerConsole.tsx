@@ -15,7 +15,7 @@ import { Hex, StatusPill } from "@/components/status";
 import { api } from "@/lib/api";
 import type { MandateListItem, TokenDisplay } from "@/lib/types";
 import { CreateMandateForm } from "@/issuer/CreateMandateForm";
-import { ACCOUNT_HELP, DEMO_SAFES, demoChain, deployment, isLive } from "@/wallet/config";
+import { ACCOUNT_HELP, DEMO_ACCOUNTS, DEMO_SAFES, demoChain, deployment, isLive, roleOf } from "@/wallet/config";
 import { SafeActionPanel } from "@/wallet/SafeActionPanel";
 import { useSafeInfo } from "@/wallet/useSafe";
 
@@ -61,7 +61,9 @@ export function IssuerConsole() {
         <CardHeader>
           <CardTitle>Treasury Safe</CardTitle>
           <CardDescription>
-            {isLive ? "The live demo Safe is 2-of-2, owned by the deployment's two throwaway keys." : "Demo Safes are 2-of-2, owned by Anvil dev accounts #0 and #1."}
+            {isLive
+              ? `The live demo Safe is 2-of-2: Safe Owner 1 (${DEMO_ACCOUNTS.safeOwner1.slice(0, 6)}…) and Safe Owner 2 (${DEMO_ACCOUNTS.safeOwner2.slice(0, 6)}…).`
+              : "Demo Safes are 2-of-2, owned by Anvil dev accounts #0 and #1."}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
@@ -89,6 +91,7 @@ export function IssuerConsole() {
               {info.owners?.map((o) => (
                 <li key={o}>
                   <Hex value={o} />
+                  {roleOf(o) && <span className="ml-2 text-xs text-muted-foreground">{roleOf(o)}</span>}
                   {address && o.toLowerCase() === address.toLowerCase() && <span className="ml-2 text-xs text-filled">you</span>}
                 </li>
               ))}

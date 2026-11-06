@@ -52,8 +52,8 @@ export function MMDesk() {
         <Alert>
           <AlertTitle>Connect the market maker's wallet</AlertTitle>
           <AlertDescription>
-            The demo market maker is <Hex value={DEMO_ACCOUNTS.marketMaker} />
-            {isLive ? " (the live mandate's MM)." : " (Anvil account #2): create a mandate for it in the Issuer console, then connect it here."}
+            The testing Market Maker wallet is <Hex value={DEMO_ACCOUNTS.marketMaker} />
+            {isLive ? ", the market maker of the live mandate. Connect it here." : " (Anvil account #2): create a mandate for it in the Issuer console, then connect it here."}
           </AlertDescription>
         </Alert>
       )}

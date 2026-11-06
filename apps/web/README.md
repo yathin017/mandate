@@ -33,7 +33,20 @@ origin to the API's `API_CORS_ORIGINS`. `MANDATE_API_PROXY` changes the dev prox
 | `/desk` | MM desk: mandates where the connected wallet is the MM; spread and daily-cap sliders clamped to the issuer's bounds, inventory caps, live vs new preview, re-ship, pause, claim fees, and a simulate-only "exceed the cap" probe |
 | `/mandates/:id` | Public mandate page: sell-limit ring, release curve vs sold, spot/TWAP band and floor, anchor health, MM pay, live activity feed, server-simulated "try a trade", numbered term sheet |
 
-## Wallet demo (Issuer console → MM desk)
+## Wallet demo on Base (live deployment)
+
+`pnpm base:web` (with `pnpm base:worker` and `pnpm base:server` running). Wallets on Base mainnet:
+
+| Role | Address | Can |
+|---|---|---|
+| Safe Owner 1 | `0x54f75F0E0da2b43b3a6AC0a0e5c4f5Df6B73308e` | approve / execute issuer actions |
+| Safe Owner 2 | `0x6a4fb4561051dD5B25619ab997152892008C7bF6` | approve / execute issuer actions |
+| Market Maker | `0xbDafcA30260a4a5550cAD1F11928b26f1B063126` | reship within bounds, pause, claim fees on the MM desk |
+
+Issuer actions need both owners: one clicks **Approve as owner**, the other **Execute**. The connected wallet's role
+is shown next to its address in the header.
+
+## Wallet demo on the local fork (Issuer console → MM desk)
 
 1. Add a network to MetaMask/Rabby: RPC `http://127.0.0.1:8547`, chain id `31337`, currency ETH.
 2. Import Anvil's **public development** accounts (never use them elsewhere):

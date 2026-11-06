@@ -4,7 +4,7 @@ import { useConnect, useConnection, useConnectors, useDisconnect, useSwitchChain
 import { Button } from "@/components/ui/button";
 import { shortHex } from "@/lib/format";
 
-import { demoChain } from "./config";
+import { demoChain, roleOf } from "./config";
 
 /** Connect an injected wallet; prompts a network switch when it is not on the demo chain. */
 export function ConnectButton() {
@@ -33,7 +33,10 @@ export function ConnectButton() {
 
   return (
     <div className="flex items-center gap-1">
-      <span className="rounded-md bg-muted px-2 py-1 font-mono text-xs">{shortHex(connection.address)}</span>
+      <span className="rounded-md bg-muted px-2 py-1 font-mono text-xs">
+        {shortHex(connection.address)}
+        {roleOf(connection.address) && <span className="ml-1.5 font-sans text-muted-foreground">· {roleOf(connection.address)}</span>}
+      </span>
       <Button size="icon" variant="ghost" aria-label="Disconnect wallet" onClick={() => disconnect()}>
         <LogOut />
       </Button>

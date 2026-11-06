@@ -77,19 +77,42 @@ Indexer stack and blocked-attempt ingestion choices remain for that gate's user 
 
 The contracts are also deployed on Base (chain 8453) with **mock tokens** (Mandate Demo Launch `mLAUNCH`,
 Mandate Demo Dollar `mUSD`; owner-mintable, no value) against the canonical Aqua, SwapVM router, Uniswap v4
-PoolManager and Safe 1.4.1. Addresses: [`deployments/8453.json`](deployments/8453.json).
+PoolManager and Safe 1.4.1. Source of truth: [`deployments/8453.json`](deployments/8453.json).
 
-| Contract | Basescan |
+| Contract | Address |
 |---|---|
-| MandateModule | [0xC10E…544d](https://basescan.org/address/0xC10ED38aDfB53c5E1262194d4Db420f6Fa82544d) |
-| MandateQuoter | [0xBb25…D6D8](https://basescan.org/address/0xBb259F8DB3A9d3A48989cfb9B970D0B481aEd6D8) |
-| MandateOracleHook | [0x30Ff…1080](https://basescan.org/address/0x30Ff096F8582363807a9b5Cb15b84E7d98371080) |
-| UniswapV4TwapAnchor | [0x9B78…522B](https://basescan.org/address/0x9B78f6553A921D1bea0722CAd111CDAE4299522B) |
-| Issuer Safe (2-of-2) | [0xf152…7D4d](https://basescan.org/address/0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d) |
+| MandateModule | [`0xC10ED38aDfB53c5E1262194d4Db420f6Fa82544d`](https://basescan.org/address/0xC10ED38aDfB53c5E1262194d4Db420f6Fa82544d) |
+| MandateQuoter | [`0xBb259F8DB3A9d3A48989cfb9B970D0B481aEd6D8`](https://basescan.org/address/0xBb259F8DB3A9d3A48989cfb9B970D0B481aEd6D8) |
+| MandateOracleHook | [`0x30Ff096F8582363807a9b5Cb15b84E7d98371080`](https://basescan.org/address/0x30Ff096F8582363807a9b5Cb15b84E7d98371080) |
+| UniswapV4TwapAnchor | [`0x9B78f6553A921D1bea0722CAd111CDAE4299522B`](https://basescan.org/address/0x9B78f6553A921D1bea0722CAd111CDAE4299522B) |
+| Issuer Safe (2-of-2) | [`0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d`](https://basescan.org/address/0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d) |
+| mLAUNCH / mUSD | [`0x66e185Dd1a99B36E955b8966fd8BbC430Cc64e8a`](https://basescan.org/token/0x66e185Dd1a99B36E955b8966fd8BbC430Cc64e8a) / [`0x6f0f1764A727E1e160D4735cc656ddaeBE2879C9`](https://basescan.org/token/0x6f0f1764A727E1e160D4735cc656ddaeBE2879C9) |
+| Active mandate | `0xb699954439ee4a37cde5dc2b21f8bcfe8458d78977cc7d4e99a2b16886a2bde8` |
 
-Real fills through the canonical router: [buy](https://basescan.org/tx/0x32d0ac09f07a57c109cad6fc9f64ed3cb824456a86e36de89db5202b146c8e1b),
+**TWAP pool.** Uniswap v4 pools are not contracts: they live inside the singleton
+[PoolManager `0x498581fF718922c3f8e6A244956aF099B2652b2b`](https://basescan.org/address/0x498581fF718922c3f8e6A244956aF099B2652b2b)
+and are identified by a PoolId. The mLAUNCH/mUSD anchor pool is PoolId
+`0x5c3b24653373b7140cb57a53a28d5ab38cb5eb5c3c18dc3cc28fc5c214eea83c` (fee 0.3%, tick spacing 60, hook
+`MandateOracleHook`, full-range liquidity, 300-slot observation buffer), seeded at 0.40 mUSD per mLAUNCH. The anchor
+adapter's `POOL_ID()` returns this id.
+
+**Testing wallets** (Base mainnet):
+
+| Role | Address |
+|---|---|
+| Safe Owner 1 (also deployer and demo taker) | `0x54f75F0E0da2b43b3a6AC0a0e5c4f5Df6B73308e` |
+| Safe Owner 2 | `0x6a4fb4561051dD5B25619ab997152892008C7bF6` |
+| Market Maker | `0xbDafcA30260a4a5550cAD1F11928b26f1B063126` |
+
+**History.** The first mandate (`0xe41668bb…a6`, market maker `0x6D89…6B59`) took real fills through the canonical
+router: [buy](https://basescan.org/tx/0x32d0ac09f07a57c109cad6fc9f64ed3cb824456a86e36de89db5202b146c8e1b),
 [buyback](https://basescan.org/tx/0x9d1c4c6905a8c2c9bc14b5f166895b1e4c7592dfd2a5841a6486ca1d8541f4e1),
 MM [reship](https://basescan.org/tx/0xdf020edf1fabe4445f203a2f8257c263fc59fe2cb7f821edeb80e67c2fedc461) and
 [fee claim](https://basescan.org/tx/0xc206be514f7091f50db3c35322708874184fc860dc3e87bbe92205083a155f07).
-Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`); run the Base stack with `pnpm base:worker`,
-`pnpm base:server` and `pnpm base:web` (needs a keyed `BASE_INDEXER_RPC_URL`).
+It was then [revoked](https://basescan.org/tx/0x1a39831c68cc3bb572d75e880d73804ddffae92f121c710e036c9d7f2db443d2),
+the [current mandate created](https://basescan.org/tx/0x9aa05ccc1455fd40a491333716bcaa3b4df847ca35c4371edf0b48a84b4f1f67)
+for the Market Maker above, and Safe Owner 2 [swapped](https://basescan.org/tx/0x5e45689c1f616f3a134cf295f2b2b0809e171667e185602e17c97057d06775d8)
+to the testing wallet, all as 2-of-2 Safe transactions.
+
+Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`, `RotateRoles`). Run the Base stack with
+`pnpm base:worker`, `pnpm base:server` and `pnpm base:web`.

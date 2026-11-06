@@ -3,7 +3,7 @@
 Verified facts, decisions and spec conflicts. Every entry names its source. If this file and
 `.agents/README.md` disagree, this file reflects what the code/chain actually does.
 
-Last verified: Nov 6, 2026. Fork tests pin mainnet block 26,355,000. Updated through Segment 6.
+Last verified: Nov 6, 2026. Fork tests pin mainnet block 26,355,000. Updated through Segment 10 (live Base).
 
 ---
 
@@ -389,6 +389,19 @@ for Safe owner 2 and the MM (gitignored .env only); contracts first, then app wi
   an always-on indexer needs a keyed RPC (`BASE_INDEXER_RPC_URL`). Pending from the user.
 - **Key hygiene.** The deployer key was shared in chat: treat it as exposed; keep only gas on it. No key appears in
   committed broadcast records or manifests (scanned).
+
+### Testing wallets and role rotation
+
+- `RotateRoles` (Base blocks 53948106–53948116) revoked mandate `0xe416…a6`, created `0xb699…bde8` with Market Maker
+  `0xbDafcA30260a4a5550cAD1F11928b26f1B063126`, and swapped Safe Owner 2 to `0x6a4fb4561051dD5B25619ab997152892008C7bF6`.
+  Safe Owner 1 stays `0x54f75F0E0da2b43b3a6AC0a0e5c4f5Df6B73308e`. A mandate's market maker cannot be changed in place
+  (it is part of the deal), hence revoke + create. `swapOwner` was verified in the Base Safe singleton first.
+- The generated owner-2 and MM keys are retired (kept in .env only because the old MM still holds its earned fees).
+  Future Safe actions need Safe Owner 2's wallet, i.e. go through the Issuer console's approveHash flow.
+- **TWAP pool:** PoolId `0x5c3b2465…eea83c` on PoolManager `0x4985…2b2b` (fee 3000, spacing 60, hook `0x30Ff…1080`,
+  liquidity 6e17 full range, cardinality 300). Matches `UniswapV4TwapAnchor.POOL_ID()`.
+- **Indexer RPC:** `mainnet.base.org` refuses every `eth_getLogs` (-32011); the Tenderly public gateway serves logs up
+  to ~1000-block ranges (2000 hangs). `.env` uses it with 15 s polling, concurrency 1, 500-block ranges.
 
 ## 16. Infra
 

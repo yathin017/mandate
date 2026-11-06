@@ -7,7 +7,7 @@ and uses no filesystem, process environment or Node-only APIs.
 then run `pnpm packages:build` from the repository root. `pnpm generate:check` rejects stale generated files.
 
 ```ts
-import { getChainConfig, getDeployment, getLocalForkDeployment, getTransactionUrl } from '@mandate/chains';
+import { getChainConfig, getDeployment, getLocalForkDeployment, getTransactionUrl, isLiveDeployment } from '@mandate/chains';
 
 const mainnetVenue = getChainConfig(1); // Canonical external Aqua, SwapVM, v4 and Safe addresses.
 const fork = getLocalForkDeployment(1);
@@ -24,11 +24,23 @@ getDeployment(31337);            // Same recorded local deployment.
 `parseLocalForkDeployment(unknown)` validates the manifest's runtime/source distinction, addresses, hashes and
 synthetic-data labels. Registry objects and nested configuration objects are frozen.
 
-`MandateDeployment` is the contract context accepted by SDK helpers. `LocalForkDeployment` extends it with
-the recorded demo's parties, pools, mandate ids and provenance. Only the Ethereum configuration and its local
-fork deployment are currently registered. Adding source chain configurations goes through the same generator
-and validation; registering an actual production deployment requires an explicit manifest format and rollout.
+`MandateDeployment` is the contract context accepted by SDK helpers. `getDeployment(chainId)` returns a
+`Deployment`, either kind below; narrow it with `isLiveDeployment` or `environment`.
 
-The checked-in deployment is a reference export. A running RPC must actually contain those contracts before
+| Kind | Registered | Extra context |
+|---|---|---|
+| `LocalForkDeployment` (`environment: "local-mainnet-fork"`) | runtime chain 31337, forked from Ethereum (1) | the recorded demo's Safes, pools, scenario actors, mandate ids; no explorer links |
+| `LiveDeployment` (`environment: "live"`) | Base mainnet (8453) | deploy block, issuer Safe, owner 2, market maker, the active mandate; Basescan links |
+
+```ts
+const base = getDeployment(8453);
+if (isLiveDeployment(base)) console.log(base.safe, base.mm, base.mandate);
+getTransactionUrl(8453, hash); // https://basescan.org/tx/<hash>
+```
+
+`parseLiveDeployment` requires the runtime chain to be its own source chain, a chain config for it, and the
+mock-token disclosure. Chain configurations exist for Ethereum (1) and Base (8453).
+
+The checked-in fork deployment is a reference export. A running RPC must actually contain those contracts before
 the SDK can read it. The replay exporter stops its temporary Anvil after export; `pnpm sdk:test:fork` creates,
 deploys and verifies a fresh temporary node automatically.
