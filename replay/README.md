@@ -12,7 +12,8 @@ pnpm replay:verify
 
 `replay:run` loads the optional root `.env`, starts its own Anvil on `127.0.0.1:8547`, forks the block in
 `config/chains/1.json`, broadcasts the scripts, validates the results and stops its node. It refuses an occupied
-RPC port rather than resetting another node. Override the port with `LOCAL_RPC_URL=http://127.0.0.1:8550`.
+RPC port rather than resetting another node. `pnpm replay:serve` does the same but keeps the verified node running until Ctrl+C,
+so the indexer (`apps/indexer`) can follow the live demo chain. Override the port with `LOCAL_RPC_URL=http://127.0.0.1:8550`.
 `MAINNET_RPC_URL` selects the archive provider; the public default is `https://eth.drpc.org`.
 
 All scripts require runtime chain id **31337**. They use Anvil's public development mnemonic and unlocked account

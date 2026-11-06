@@ -11,6 +11,7 @@
     "contracts:test": "set -a; [ -f .env ] && . ./.env; set +a; cd contracts && forge test",
     "fork": "set -a; . ./.env; set +a; anvil --fork-url \"$MAINNET_RPC_URL\" --fork-block-number $(jq -r .forkBlock config/chains/1.json)",
     "replay:run": "pnpm packages:build && node --env-file-if-exists=.env replay/export.ts",
+    "replay:serve": "pnpm packages:build && node --env-file-if-exists=.env replay/export.ts --keep-alive",
     "replay:test": "pnpm packages:build && node --test replay/replay.test.ts",
     "replay:verify": "node replay/verify.ts",
     "generate": "pnpm contracts:build && cd contracts && RUST_LOG=error forge script script/GenerateSdkFixtures.s.sol:GenerateSdkFixtures --quiet && cd .. && node scripts/generate.ts",

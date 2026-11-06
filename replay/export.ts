@@ -195,6 +195,11 @@ async function main() {
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
     committed = true;
     console.log(`Replay verified: ${summary.steps} steps, ${summary.blocked} blocked inner calls. Exported replay/data/acts.json.`);
+    if (process.argv.includes("--keep-alive")) {
+      // Serve the verified demo chain to the indexer and web app. The SIGINT/SIGTERM handler stops the node.
+      console.log(`Keeping the fork alive at ${local.href} (chain 31337). Press Ctrl+C to stop.`);
+      await nodeClosed;
+    }
   } finally {
     stop();
     if (nodeClosed) await nodeClosed;
