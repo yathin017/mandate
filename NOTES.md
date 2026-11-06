@@ -3,7 +3,7 @@
 Verified facts, decisions and spec conflicts. Every entry names its source. If this file and
 `.agents/README.md` disagree, this file reflects what the code/chain actually does.
 
-Last verified: Nov 6, 2026, mainnet block ~26,355,100. Updated after Segment 2.
+Last verified: Nov 6, 2026, mainnet block ~26,355,100. Updated after Segment 3.
 
 ---
 
@@ -36,6 +36,8 @@ Other routers seen on mainnet, **not used**:
 | solidity-utils | `6.9.7` | swap-vm v1.0.2 dependency |
 | openzeppelin-contracts | `v5.4.0` | swap-vm v1.0.2 dependency |
 | forge-std | `v1.11.0` | swap-vm v1.0.2 dependency |
+| uniswap-hooks (OZ) | `v1.2.1` (`acbd604`) | Latest stable; ships `BaseOracleHook` |
+| v4-core / v4-periphery | nested in uniswap-hooks (`d153b04` = v4.0.0 + 19 CI-only commits) | The revision OZ tests the hook against |
 | solc | `0.8.30`, via-IR, 700 runs | swap-vm v1.0.2 `foundry.toml` |
 
 **Do not use swap-vm `main`.** It moved to a library layout and reordered opcodes on Oct 22, 2026
@@ -138,9 +140,42 @@ Code: `contracts/src/quoter/MandateQuoter.sol`. Strategy program: `[Salt(nonce),
 - Validate on create/update: `epochLength > 0`, `spreadBpsMin <= spreadBpsMax < maxAnchorDeviationBps`,
   `spreadBpsMax < 10_000`, `anchor != 0`, `quoter` = the deployed MandateQuoter.
 
-## 8. Infra
+## 8. Uniswap v4 anchor (Segment 3)
+
+Code: `src/hook/MandateOracleHook.sol`, `src/anchor/UniswapV4TwapAnchor.sol`.
+
+- **Canonical PoolManager** `0x000000000004444c5dc75cB358380D2e3dE08A90` (mainnet). `PoolManager.sol` is pinned to
+  solc `0.8.26`, so it cannot compile in our 0.8.30 project; v4 integration tests run on the fork only.
+  The adapter's maths has offline unit tests with a mock observer.
+- **Hook** = OZ `BaseOracleHook` (Panoptic-derived oracle). Flags: `afterInitialize | beforeSwap`; must live at an
+  address with exactly those low bits (tests use `deployCodeTo`; deploy scripts will mine a CREATE2 salt with
+  v4-periphery `HookMiner`). One hook serves many pools.
+- **Plain (untruncated) TWAP.** The hook also keeps a truncated series that caps per-block tick moves. We use the
+  plain geometric-mean TWAP (Uniswap v3 style): with a 30-min window, manipulation must hold a price for many
+  blocks, and the truncated series lags real crashes, which would keep a stale treasury price "in band" for longer.
+  The hook is deployed with `maxAbsTickDelta = MAX_TICK` so the truncated series does nothing.
+- **Observation buffer must cover the window.** A new pool stores 1 observation. One swap then wipes the history,
+  and `observe(window)` reverts until a full window passes, which halts trading (fail-safe, but anyone can trigger
+  it). Writes happen at most once per block, so the buffer needs ≥ window / block time entries: 30 min / 12 s = 150.
+  **Use 300.** Growth takes effect at the next swap. Tested by `test_insufficientHistory_haltsTrading`.
+- **Price units:** adapter converts `TickMath.getSqrtPriceAtTick(meanTick)` to `quoteRaw * 1e36 / baseRaw`, inverting
+  when base is `currency1`. Below 1e-36 the value rounds to 0, so `consult` **reverts** (`PriceOutOfRange`) rather
+  than return 0.
+- **Any failure blocks trading.** Unknown pair, zero window, missing history and out-of-range price all revert, and
+  the quoter propagates the revert.
+
+> **Conflict with spec §11 Act 2:** "the attacker pumps the v4 pool first and tries to sell to the treasury →
+> AnchorDeviation" does not happen with a TWAP anchor, and that is by design: a same-block pump moves v4 spot but
+> not the TWAP (`test_flashPump_doesNotMoveAnchor`). What the anchor does block is a **sustained** market move that
+> leaves the treasury's Aqua price stale: after the v4 price falls to 0.30 and holds for the window, dumpers cannot
+> sell into the treasury at 0.40; when the market recovers, the same trade fills
+> (`test_sustainedCrash_blocksStaleExit_thenRecovers`). The Act 2 script should use this sequence. Adding a
+> v4 spot-vs-TWAP circuit breaker is possible later if we also want to pause during the pump itself.
+
+## 9. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.
-- Fork block `26355000` (in `config/chains/1.json`). Foundry caches fork state after first run.
+- Fork block `26355000` (in `config/chains/1.json`). Foundry caches fork state after the first run (the first v4
+  fork run takes about 2 min).
 - Foundry does not read the repo-root `.env`; use `pnpm contracts:test` / `pnpm fork`.
