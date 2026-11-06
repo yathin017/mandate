@@ -15,24 +15,24 @@ import { ModifyLiquidityParams, SwapParams } from "@uniswap/v4-core/src/types/Po
 import { PoolModifyLiquidityTest } from "@uniswap/v4-core/src/test/PoolModifyLiquidityTest.sol";
 import { PoolSwapTest } from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 
-import { UniswapV4TwapAnchor } from "../../src/anchor/UniswapV4TwapAnchor.sol";
+import { UniswapV4MarketOracle } from "../../src/anchor/UniswapV4MarketOracle.sol";
 import { MandateOracleHook } from "../../src/hook/MandateOracleHook.sol";
 import { MockERC20 } from "../../src/mocks/MockERC20.sol";
 
 import { MandateVenueSetup } from "./MandateVenueSetup.sol";
 
 /// @title V4AnchorSetup
-/// @notice Adds a LAUNCH/USDC Uniswap v4 pool with MandateOracleHook on the canonical PoolManager, plus helpers to
-///         move its price. Pool history created here is SYNTHETIC (time-warped on a fork).
+/// @notice Adds a LAUNCH/USDC Uniswap v4 pool with MandateOracleHook on the canonical PoolManager and a
+///         UniswapV4MarketOracle over it, plus helpers to move its price. Pool history created here is SYNTHETIC
+///         (time-warped on a fork).
 abstract contract V4AnchorSetup is MandateVenueSetup {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
     uint24 internal constant POOL_FEE = 3000;
     int24 internal constant TICK_SPACING = 60;
-    uint32 internal constant TWAP_WINDOW = 30 minutes;
-    /// @dev Circuit breaker: spot more than 2% from the TWAP halts treasury fills.
-    uint16 internal constant MAX_SPOT_DEVIATION_BPS = 200;
+    /// @dev Liquidity added within this many seconds does not count as trusted depth yet.
+    uint32 internal constant SETTLE_SECONDS = 10 minutes;
     /// @dev >= blocks per TWAP window (1800s / 12s = 150) with margin; see NOTES.md.
     uint16 internal constant OBSERVATION_CARDINALITY = 300;
     /// @dev Truncation is unused by the anchor; max tick delta keeps the truncated series non-binding.
@@ -43,7 +43,7 @@ abstract contract V4AnchorSetup is MandateVenueSetup {
     PoolSwapTest internal swapRouter;
     PoolModifyLiquidityTest internal liquidityRouter;
     PoolKey internal poolKey;
-    UniswapV4TwapAnchor internal v4Anchor;
+    UniswapV4MarketOracle internal marketOracle;
 
     function _setUpV4(IPoolManager pm, uint256 initialPriceX36) internal {
         poolManager = pm;
@@ -62,26 +62,29 @@ abstract contract V4AnchorSetup is MandateVenueSetup {
         pm.initialize(poolKey, sqrtPriceX96For(initialPriceX36));
         hook.increaseObservationCardinalityNext(OBSERVATION_CARDINALITY, poolKey.toId());
 
-        // ~1M LAUNCH / 400k USDC of full-range liquidity at 0.40.
+        // ~100M LAUNCH / 40M USDC of full-range liquidity at 0.40: about 1M LAUNCH moves the price by 2%.
         liquidityRouter.modifyLiquidity(
             poolKey,
             ModifyLiquidityParams({
                 tickLower: TickMath.minUsableTick(TICK_SPACING),
                 tickUpper: TickMath.maxUsableTick(TICK_SPACING),
-                liquidityDelta: 6e17,
+                liquidityDelta: 6e19,
                 salt: 0
             }),
             ""
         );
 
-        v4Anchor = new UniswapV4TwapAnchor(pm, poolKey, address(launch), address(usdc), MAX_SPOT_DEVIATION_BPS);
+        marketOracle = new UniswapV4MarketOracle(pm, poolKey, address(launch), address(usdc));
     }
 
-    /// @dev Places the hook at an address whose low bits encode exactly afterInitialize + beforeSwap.
+    /// @dev Places the hook at an address whose low bits encode exactly afterInitialize + beforeAddLiquidity +
+    ///      beforeSwap.
     function _deployHook(IPoolManager pm) internal returns (MandateOracleHook) {
-        uint160 flags = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG;
+        uint160 flags = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG;
         address target = address(uint160(0x4444) << 144 | flags);
-        deployCodeTo("MandateOracleHook.sol:MandateOracleHook", abi.encode(pm, MAX_ABS_TICK_DELTA), target);
+        deployCodeTo(
+            "MandateOracleHook.sol:MandateOracleHook", abi.encode(pm, MAX_ABS_TICK_DELTA, SETTLE_SECONDS), target
+        );
         return MandateOracleHook(target);
     }
 

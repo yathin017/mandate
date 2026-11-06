@@ -9,11 +9,11 @@ import { StateLibrary } from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import { PoolId, PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
-import { Oracle } from "@openzeppelin/uniswap-hooks/oracles/panoptic/libraries/Oracle.sol";
 
 import { AnchorLauncher } from "../../src/anchor/AnchorLauncher.sol";
-import { UniswapV4TwapAnchor } from "../../src/anchor/UniswapV4TwapAnchor.sol";
+import { UniswapV4MarketOracle } from "../../src/anchor/UniswapV4MarketOracle.sol";
 import { MandateOracleHook } from "../../src/hook/MandateOracleHook.sol";
+import { IMarketOracle } from "../../src/interfaces/IMarketOracle.sol";
 import { MockERC20 } from "../../src/mocks/MockERC20.sol";
 import { ChainConfig, ChainConfigLib } from "../../script/lib/ChainConfig.sol";
 
@@ -49,7 +49,7 @@ contract AnchorLauncherForkTest is Test {
 
     function test_launch_createsPoolGrowsBufferAndDeploysAnchorAtPredictedAddress() public {
         address predicted = launcher.predictAnchor(address(base), address(quote));
-        (UniswapV4TwapAnchor anchor, PoolId poolId, bool created) =
+        (UniswapV4MarketOracle anchor, PoolId poolId, bool created) =
             launcher.launch(address(base), address(quote), PRICE);
 
         assertTrue(created, "pool created");
@@ -58,7 +58,7 @@ contract AnchorLauncherForkTest is Test {
         assertEq(PoolId.unwrap(anchor.POOL_ID()), PoolId.unwrap(poolId), "anchor reads this pool");
         assertEq(anchor.BASE(), address(base));
         assertEq(anchor.QUOTE(), address(quote));
-        assertEq(anchor.MAX_SPOT_DEVIATION_BPS(), launcher.MAX_SPOT_DEVIATION_BPS());
+        assertEq(hook.initializedAt(poolId), block.timestamp, "pool age starts at launch");
 
         (uint160 sqrtPriceX96,,,) = pm.getSlot0(poolId);
         assertEq(sqrtPriceX96, launcher.sqrtPriceX96For(address(base), address(quote), PRICE), "initial price");
@@ -66,20 +66,22 @@ contract AnchorLauncherForkTest is Test {
         assertEq(cardinalityNext, launcher.OBSERVATION_CARDINALITY(), "buffer grown");
     }
 
-    /// @notice The init observation is history: one window after launch the anchor prices without any swap.
-    function test_anchor_pricesAfterOneWindow_noSwapsNeeded() public {
-        (UniswapV4TwapAnchor anchor,,) = launcher.launch(address(base), address(quote), PRICE);
-
-        vm.expectPartialRevert(Oracle.TargetPredatesOldestObservation.selector);
-        anchor.consult(address(base), address(quote), WINDOW);
+    /// @notice The init observation is history: one window after launch the oracle prices without any swap. Before
+    ///         that it reports unpriced instead of reverting, so the quoter can pause with a reason.
+    function test_oracle_pricesAfterOneWindow_noSwapsNeeded() public {
+        (UniswapV4MarketOracle anchor,,) = launcher.launch(address(base), address(quote), PRICE);
+        assertFalse(_health(anchor, address(base), address(quote)).priced);
 
         vm.warp(block.timestamp + WINDOW + 1);
-        assertApproxEqRel(anchor.consult(address(base), address(quote), WINDOW), PRICE, 1e14); // within 1 tick
+        IMarketOracle.Health memory h = _health(anchor, address(base), address(quote));
+        assertTrue(h.priced);
+        assertApproxEqRel(h.twapX36, PRICE, 1e14); // within 1 tick
+        assertEq(h.trustedDepthBase, 0, "no liquidity yet");
     }
 
     function test_launch_isIdempotent() public {
-        (UniswapV4TwapAnchor first, PoolId id1,) = launcher.launch(address(base), address(quote), PRICE);
-        (UniswapV4TwapAnchor again, PoolId id2, bool created) = launcher.launch(address(base), address(quote), 1);
+        (UniswapV4MarketOracle first, PoolId id1,) = launcher.launch(address(base), address(quote), PRICE);
+        (UniswapV4MarketOracle again, PoolId id2, bool created) = launcher.launch(address(base), address(quote), 1);
         assertEq(address(again), address(first));
         assertEq(PoolId.unwrap(id1), PoolId.unwrap(id2));
         assertFalse(created);
@@ -87,8 +89,8 @@ contract AnchorLauncherForkTest is Test {
 
     /// @notice The reverse orientation gets its own anchor on the same pool, priced as the inverse.
     function test_reverseOrientation_sharesPool() public {
-        (UniswapV4TwapAnchor forward, PoolId poolId,) = launcher.launch(address(base), address(quote), PRICE);
-        (UniswapV4TwapAnchor reverse, PoolId reversePoolId, bool created) =
+        (UniswapV4MarketOracle forward, PoolId poolId,) = launcher.launch(address(base), address(quote), PRICE);
+        (UniswapV4MarketOracle reverse, PoolId reversePoolId, bool created) =
             launcher.launch(address(quote), address(base), 123);
 
         assertTrue(address(reverse) != address(forward));
@@ -96,8 +98,8 @@ contract AnchorLauncherForkTest is Test {
         assertFalse(created, "pool reused, price argument ignored");
 
         vm.warp(block.timestamp + WINDOW + 1);
-        uint256 p = forward.consult(address(base), address(quote), WINDOW);
-        uint256 inverse = reverse.consult(address(quote), address(base), WINDOW);
+        uint256 p = _health(forward, address(base), address(quote)).twapX36;
+        uint256 inverse = _health(reverse, address(quote), address(base)).twapX36;
         assertApproxEqRel(p * inverse, 1e72, 1e14);
     }
 
@@ -154,10 +156,19 @@ contract AnchorLauncherForkTest is Test {
         new AnchorLauncher(pm, foreign);
     }
 
-    /// @dev Places a hook at an address whose low bits encode exactly afterInitialize + beforeSwap.
+    function _health(UniswapV4MarketOracle o, address b, address q) internal view returns (IMarketOracle.Health memory) {
+        return o.health(b, q, WINDOW, 5 minutes, 200);
+    }
+
+    /// @dev Places a hook at an address whose low bits encode exactly afterInitialize + beforeAddLiquidity +
+    ///      beforeSwap.
     function _hookAt(IPoolManager manager, uint160 prefix) internal returns (MandateOracleHook) {
-        address target = address(prefix << 144 | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG);
-        deployCodeTo("MandateOracleHook.sol:MandateOracleHook", abi.encode(manager, TickMath.MAX_TICK), target);
+        address target = address(
+            prefix << 144 | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG
+        );
+        deployCodeTo(
+            "MandateOracleHook.sol:MandateOracleHook", abi.encode(manager, TickMath.MAX_TICK, uint32(10 minutes)), target
+        );
         return MandateOracleHook(target);
     }
 }

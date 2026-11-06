@@ -12,18 +12,19 @@ import { PoolId, PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 import { MandateOracleHook } from "../hook/MandateOracleHook.sol";
-import { UniswapV4TwapAnchor } from "./UniswapV4TwapAnchor.sol";
+import { UniswapV4MarketOracle } from "./UniswapV4MarketOracle.sol";
 
 /// @title AnchorLauncher
 /// @notice Self-serve setup of a price anchor for any ERC20 pair: creates the Uniswap v4 pool with the
 ///         MandateOracleHook (if it does not exist yet), grows its observation buffer so a swap cannot wipe the TWAP
-///         history, and deploys a UniswapV4TwapAnchor for the (base, quote) orientation at a predictable address.
+///         history, and deploys a UniswapV4MarketOracle (the pair's anchor) for the (base, quote) orientation at a
+///         predictable address.
 ///
 /// @dev Permissionless and immutable: no owner, no funds held. Liquidity is not added here; the pool is a normal
-///      v4 pool that LPs fund with Uniswap's own tools. An anchor is only as strong as its pool's liquidity, so
-///      integrators must show it to issuers. If someone else created the pool first, its existing price is kept
+///      v4 pool that LPs fund (the issuer Safe can, through the canonical PositionManager). An anchor is only as strong
+///      as its pool's liquidity; the oracle reports trusted depth and pool age so each policy decides what to accept. If someone else created the pool first, its existing price is kept
 ///      (reported by `poolCreated = false`); the TWAP then reflects whatever trades in that pool.
-///      Quotes become available once the pool has one TWAP window of history (30 minutes for Mandate's default).
+///      Readings become available once the pool has one TWAP window (chosen per policy) of history.
 contract AnchorLauncher {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -33,8 +34,6 @@ contract AnchorLauncher {
     int24 public constant TICK_SPACING = 60;
     /// @dev >= blocks per TWAP window with margin, so a burst of swaps cannot erase the window (NOTES §8).
     uint16 public constant OBSERVATION_CARDINALITY = 300;
-    /// @dev Spot-vs-TWAP circuit breaker of every anchor deployed here.
-    uint16 public constant MAX_SPOT_DEVIATION_BPS = 200;
 
     IPoolManager public immutable POOL_MANAGER;
     MandateOracleHook public immutable HOOK;
@@ -70,7 +69,7 @@ contract AnchorLauncher {
         uint256 initialPriceX36
     )
         external
-        returns (UniswapV4TwapAnchor anchor, PoolId poolId, bool poolCreated)
+        returns (UniswapV4MarketOracle anchor, PoolId poolId, bool poolCreated)
     {
         require(base != quote && base != address(0) && quote != address(0), InvalidPair(base, quote));
         _requireToken(base);
@@ -79,7 +78,7 @@ contract AnchorLauncher {
         PoolKey memory key = poolKeyFor(base, quote);
         poolId = key.toId();
         address existing = anchorOf[base][quote];
-        if (existing != address(0)) return (UniswapV4TwapAnchor(existing), poolId, false);
+        if (existing != address(0)) return (UniswapV4MarketOracle(existing), poolId, false);
 
         (uint160 sqrtPriceX96,,,) = POOL_MANAGER.getSlot0(poolId);
         if (sqrtPriceX96 == 0) {
@@ -91,7 +90,7 @@ contract AnchorLauncher {
         HOOK.increaseObservationCardinalityNext(OBSERVATION_CARDINALITY, poolId);
 
         anchor =
-            new UniswapV4TwapAnchor{ salt: _salt(base, quote) }(POOL_MANAGER, key, base, quote, MAX_SPOT_DEVIATION_BPS);
+            new UniswapV4MarketOracle{ salt: _salt(base, quote) }(POOL_MANAGER, key, base, quote);
         anchorOf[base][quote] = address(anchor);
         emit AnchorLaunched(poolId, base, quote, address(anchor), poolCreated, sqrtPriceX96);
     }
@@ -111,8 +110,8 @@ contract AnchorLauncher {
     /// @notice Address `launch` deploys (or deployed) the anchor for this orientation to.
     function predictAnchor(address base, address quote) external view returns (address) {
         bytes memory initCode = abi.encodePacked(
-            type(UniswapV4TwapAnchor).creationCode,
-            abi.encode(POOL_MANAGER, poolKeyFor(base, quote), base, quote, MAX_SPOT_DEVIATION_BPS)
+            type(UniswapV4MarketOracle).creationCode,
+            abi.encode(POOL_MANAGER, poolKeyFor(base, quote), base, quote)
         );
         bytes32 digest =
             keccak256(abi.encodePacked(bytes1(0xff), address(this), _salt(base, quote), keccak256(initCode)));
