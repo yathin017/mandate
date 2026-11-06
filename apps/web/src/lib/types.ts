@@ -204,3 +204,50 @@ export interface LaunchedToken {
   timestamp: string;
   txHash: string;
 }
+
+export type ProposalStatus = "draft" | "sent" | "accepted" | "declined" | "withdrawn" | "expired" | "executed";
+
+/** Terms an issuer Safe offers a market maker (`/v1/proposals`). `terms` is the SDK's MandateTermsJson. */
+export interface Proposal {
+  id: string;
+  chainId: number;
+  safe: string;
+  issuer: string;
+  mm: string;
+  base: string;
+  quote: string;
+  terms: import("@mandate/sdk").MandateTermsJson;
+  termsHash: string;
+  status: ProposalStatus;
+  /** Unix seconds. */
+  expiresAt: number;
+  mmSignature: string | null;
+  mandateId: string | null;
+  note: string;
+  createdAt: string;
+  sentAt: string | null;
+  decidedAt: string | null;
+}
+
+/** One mandate in an issuer Safe's overview (`/v1/chains/:id/safes/:safe/summary`); amounts are raw units. */
+export interface SafeMandateSummary {
+  mandateId: string;
+  status: MandateStatus;
+  mm: string;
+  base: string;
+  quote: string;
+  allotment: string;
+  totalNetSold: string;
+  released: string;
+  soldToday: string;
+  dailyCap: string;
+  feesBase: string;
+  feesQuote: string;
+  claimedBase: string;
+  claimedQuote: string;
+  anchorStatus: AnchorStatus | null;
+  fills: number;
+  quoteVolume: string;
+  refused: number;
+  tokens: Tokens;
+}

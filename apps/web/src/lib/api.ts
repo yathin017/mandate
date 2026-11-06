@@ -1,9 +1,13 @@
+import type { MandateTermsJson } from "@mandate/sdk";
+
 import type {
   ActivityPage,
   AuthNonce,
   LaunchedToken,
   MmProfile,
   MmScore,
+  Proposal,
+  SafeMandateSummary,
   Session,
   Envelope,
   Health,
@@ -36,10 +40,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const message =
-      body && typeof body === "object" && "error" in body && typeof body.error === "string"
-        ? body.error
-        : `request failed (${response.status})`;
+    const fields = body && typeof body === "object" ? (body as { error?: unknown; reason?: unknown }) : {};
+    const error = typeof fields.error === "string" ? fields.error : `request failed (${response.status})`;
+    // Module refusals come back with the contract's plain-language reason.
+    const message = typeof fields.reason === "string" ? `${error}: ${fields.reason}` : error;
     throw new ApiError(response.status, message);
   }
   return body as T;
@@ -75,6 +79,18 @@ export const api = {
   mmProfiles: () => request<{ data: MmProfile[] }>("/v1/mms"),
   mmProfile: (address: string) => request<{ data: MmProfile }>(`/v1/mms/${address}`),
   mmScores: () => request<Envelope<{ weights: Record<string, number>; scores: MmScore[] }>>(`${chainPath}/mms/scores`),
+  safeSummary: (safe: string) => request<Envelope<SafeMandateSummary[]>>(`${chainPath}/safes/${safe}/summary`),
+  // Proposals: owners of the issuer Safe draft and send; the named market maker accepts with a signature.
+  proposalsForSafe: (safe: string) => request<{ data: Proposal[] }>(`/v1/proposals?safe=${safe}`),
+  proposalsForMe: () => request<{ data: Proposal[] }>("/v1/proposals?as=mm"),
+  createProposal: (body: { safe: string; terms: MandateTermsJson; expiresAt: number; note: string; send: boolean }) =>
+    request<{ data: Proposal }>("/v1/proposals", { method: "POST", body: JSON.stringify({ chainId: CHAIN_ID, ...body }) }),
+  proposalAction: (id: string, action: "send" | "withdraw" | "decline") =>
+    request<{ data: Proposal }>(`/v1/proposals/${id}/${action}`, { method: "POST" }),
+  acceptProposal: (id: string, signature: string) =>
+    request<{ data: Proposal }>(`/v1/proposals/${id}/accept`, { method: "POST", body: JSON.stringify({ signature }) }),
+  markExecuted: (id: string, mandateId: string) =>
+    request<{ data: Proposal }>(`/v1/proposals/${id}/executed`, { method: "POST", body: JSON.stringify({ mandateId }) }),
   launchedTokens: () => request<Envelope<LaunchedToken[]>>(`${chainPath}/tokens/launched`),
   streamUrl: (id: string) => `${API_BASE}${chainPath}/mandates/${id}/stream`,
 };
