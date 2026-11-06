@@ -1,50 +1,44 @@
-import type { IssuerBounds, MandateParams } from "@mandate/sdk";
+import type { StrategyBounds, StrategyParams } from "@mandate/sdk";
 import { getAddress, isAddress, type Address } from "viem";
 
 import { parseUnits } from "../lib/format.ts";
 
 /**
- * Mandate terms as the issuer types them, and their conversion into the module's bounds and params.
- * Pure (no React, no chain reads) so the conversion is unit-tested and every owner builds identical calldata
- * from the same terms. Imports are relative so `node --test` can load this file directly.
+ * A strategy as the issuer types it, and its conversion into the module's StrategyBounds and StrategyParams. A
+ * strategy is one market maker's Aqua order under the Safe's treasury policy: the bounds are the market maker's
+ * rails (spread range, most inventory, fee share, and for buybacks the highest price), the params its first order.
+ *
+ * Every value is the issuer's decision: nothing here supplies a default. Pure (no React, no chain reads) so the
+ * conversion is unit-tested and every owner builds identical calldata. Imports are relative so `node --test` can
+ * load this file directly.
  */
 
-/** Human-entered terms. Every value is a string exactly as typed; nothing here depends on chain time. */
+/** "marketMaking" sells and buys back around the price; "buyback" only buys, at or below a set price. */
+export type StrategyKindName = "marketMaking" | "buyback";
+export const KIND_INDEX: Record<StrategyKindName, number> = { marketMaking: 0, buyback: 1 };
+
+/** Human-entered strategy. Every value is a string exactly as typed. */
 export interface Terms {
   mm: string;
-  allotment: string;
-  /** UTC date (YYYY-MM-DD) from which inventory unlocks; may be in the past or the future. */
-  releaseStart: string;
-  releaseDays: string;
-  dailyCap: string;
-  floor: string;
-  anchorPct: string;
+  kind: string;
   spreadMinPct: string;
   spreadMaxPct: string;
-  spreadPct: string;
   feeSharePct: string;
+  maxShippedBase: string;
+  maxShippedQuote: string;
+  /** Buyback strategies only: the highest price the treasury pays. */
+  maxBuyPrice: string;
+  spreadPct: string;
   shippedBase: string;
   shippedQuote: string;
 }
 
 export const TERM_KEYS = [
-  "mm", "allotment", "releaseStart", "releaseDays", "dailyCap", "floor", "anchorPct",
-  "spreadMinPct", "spreadMaxPct", "spreadPct", "feeSharePct", "shippedBase", "shippedQuote",
+  "mm", "kind", "spreadMinPct", "spreadMaxPct", "feeSharePct", "maxShippedBase", "maxShippedQuote", "maxBuyPrice",
+  "spreadPct", "shippedBase", "shippedQuote",
 ] as const satisfies readonly (keyof Terms)[];
 
-/** Risk rails that do not depend on the token: mirror contracts/script/lib/DemoConfig.sol. */
-export const STANDARD_RAILS = {
-  releaseDays: "180",
-  anchorPct: "3",
-  spreadMinPct: "0.1",
-  spreadMaxPct: "2",
-  spreadPct: "0.8",
-  feeSharePct: "50",
-} as const satisfies Partial<Terms>;
-
-/** Fixed for every mandate built here: one-day epochs and the anchor launcher's 30-minute TWAP window. */
-export const EPOCH_LENGTH = 86_400n;
-export const TWAP_WINDOW = 1800;
+export const EMPTY_TERMS: Terms = Object.fromEntries(TERM_KEYS.map((k) => [k, ""])) as unknown as Terms;
 
 export interface TokenRef {
   address: Address;
@@ -52,16 +46,26 @@ export interface TokenRef {
   decimals: number;
 }
 
-/** What the Safe holds now; shipping more than this would let fills fail at transfer time. */
+/**
+ * What the Safe can still back: its balances minus what its other live strategies already committed in Aqua.
+ * Shipping more makes the module refuse with InsufficientBacking.
+ */
 export interface Holdings {
   base?: bigint;
   quote?: bigint;
 }
 
+/** The parts of the Safe's policy a strategy is checked against before anyone signs. */
+export interface PolicyRules {
+  floorPriceX36: bigint;
+  maxQuoteDeviationBps: number;
+}
+
 export interface BuiltTerms {
   marketMaker: Address;
-  bounds: IssuerBounds;
-  params: MandateParams;
+  kind: number;
+  bounds: StrategyBounds;
+  params: StrategyParams;
   /** Non-blocking observations the owners should see before approving. */
   warnings: string[];
 }
@@ -89,8 +93,8 @@ export function priceToX36(price: string, base: TokenRef, quote: TokenRef): bigi
 }
 
 /**
- * Converts terms into the createMandate arguments, or returns the first problem as a plain sentence.
- * The module re-validates every bound onchain; checks here exist to explain a refusal before anyone approves.
+ * Converts terms into the addStrategy arguments, or returns the first problem as a plain sentence. The rules mirror
+ * MandateModule._validateStrategyBounds / _validateParams and the backing check; the module re-checks them onchain.
  */
 export function buildTerms(
   terms: Terms,
@@ -99,10 +103,10 @@ export function buildTerms(
     owners?: readonly Address[];
     base: TokenRef;
     quote: TokenRef;
-    anchor: Address;
     holdings?: Holdings;
-    /** The anchor pool's current price (X36). When given, the starting price is checked against it and the floor. */
+    /** The anchor pool's current price (X36). With `policy`, the starting price is checked against it. */
     anchorPriceX36?: bigint;
+    policy?: PolicyRules;
   },
 ): { error: string } | BuiltTerms {
   const { base, quote, holdings } = ctx;
@@ -116,78 +120,66 @@ export function buildTerms(
     if (raw === null || raw > 10_000n) throw new Error(`${name}: enter a percentage between 0 and 100`);
     return Number(raw);
   };
-  const days = (v: string, name: string) => {
-    if (!/^\d{1,4}$/.test(v.trim()) || BigInt(v.trim()) === 0n) throw new Error(`${name}: whole days, at least 1`);
-    return BigInt(v.trim()) * 86_400n;
-  };
   /** The two ways to ship at `targetX36`: more quote for the same base, or less base for the same quote. */
   const rebalance = (targetX36: bigint) => {
     const sb = parseUnits(terms.shippedBase, base.decimals) ?? 0n;
     const sq = parseUnits(terms.shippedQuote, quote.decimals) ?? 0n;
-    return `ship about ${fmt((sb * targetX36) / 10n ** 36n, quote, 2)} ${quote.symbol} with this inventory, or about ${fmt((sq * 10n ** 36n) / targetX36, base, 2)} ${base.symbol} with this buyback inventory`;
+    return `ship about ${fmt((sb * targetX36) / 10n ** 36n, quote, 2)} ${quote.symbol} with this inventory, or about ${fmt((sq * 10n ** 36n) / targetX36, base, 2)} ${base.symbol} with this quote inventory`;
   };
   try {
     if (!isAddress(terms.mm)) throw new Error("Market maker address: not a valid address");
     const marketMaker = getAddress(terms.mm);
     if (marketMaker === getAddress(ctx.safe)) throw new Error("Market maker address: cannot be the Safe itself");
-    const releaseStart = parseUtcDate(terms.releaseStart);
-    if (releaseStart === null) throw new Error("Release start: enter a date as YYYY-MM-DD");
-    const floorPriceX36 = priceToX36(terms.floor, base, quote);
-    if (floorPriceX36 === null) throw new Error("Price floor: enter a price");
-    const allotment = amount(terms.allotment, base, "Allotment");
-    const dailyCap = amount(terms.dailyCap, base, "Daily sell limit");
-    const shippedBase = amount(terms.shippedBase, base, "Initial inventory");
-    const shippedQuote = amount(terms.shippedQuote, quote, "Buyback inventory");
-    const anchorBps = bps(terms.anchorPct, "Anchor tolerance");
+    if (terms.kind !== "marketMaking" && terms.kind !== "buyback") throw new Error("Strategy kind: choose market making or buyback");
+    const kind = KIND_INDEX[terms.kind];
     const spreadMin = bps(terms.spreadMinPct, "Minimum spread");
     const spreadMax = bps(terms.spreadMaxPct, "Maximum spread");
     const spread = bps(terms.spreadPct, "Initial spread");
+    const feeShare = bps(terms.feeSharePct, "MM fee share");
+    const maxShippedBase = amount(terms.maxShippedBase, base, "Most token inventory");
+    const maxShippedQuote = amount(terms.maxShippedQuote, quote, "Most quote inventory");
+    const shippedBase = amount(terms.shippedBase, base, "Initial token inventory");
+    const shippedQuote = amount(terms.shippedQuote, quote, "Initial quote inventory");
+    let maxBuyPriceX36 = 0n;
+    if (kind === KIND_INDEX.buyback) {
+      const price = priceToX36(terms.maxBuyPrice, base, quote);
+      if (price === null || price === 0n) throw new Error("Highest buyback price: enter a positive price");
+      maxBuyPriceX36 = price;
+    }
 
-    // Same rules as MandateModule._validateBounds / _validateParams, phrased for the form.
+    // Same rules as the module, phrased for the form.
     if (spreadMin > spreadMax) throw new Error("Minimum spread: must not exceed the maximum spread");
-    if (spreadMax >= anchorBps) throw new Error("Maximum spread: must stay below the anchor tolerance");
+    if (spreadMax >= 10_000) throw new Error("Maximum spread: must be below 100%");
     if (spread < spreadMin || spread > spreadMax) throw new Error("Initial spread: must be within the spread range");
-    if (shippedBase > allotment) throw new Error("Initial inventory: cannot exceed the allotment");
+    if (shippedBase > maxShippedBase) throw new Error("Initial token inventory: cannot exceed the most token inventory");
+    if (shippedQuote > maxShippedQuote) throw new Error("Initial quote inventory: cannot exceed the most quote inventory");
     if (holdings?.base !== undefined && shippedBase > holdings.base)
-      throw new Error(`Initial inventory: the Safe holds only ${fmt(holdings.base, base)} ${base.symbol}`);
+      throw new Error(`Initial token inventory: the Safe can back only ${fmt(holdings.base, base)} ${base.symbol} more`);
     if (holdings?.quote !== undefined && shippedQuote > holdings.quote)
-      throw new Error(`Buyback inventory: the Safe holds only ${fmt(holdings.quote, quote)} ${quote.symbol}`);
+      throw new Error(`Initial quote inventory: the Safe can back only ${fmt(holdings.quote, quote)} ${quote.symbol} more`);
 
-    // Fills are priced over the shipped balances (constant product), so their ratio is the starting price.
-    // Too far from the anchor and every fill fails AnchorDeviation; below the floor and every sell fails BelowFloor.
+    // Fills are priced over the shipped balances (constant product), so their ratio is the starting price. Too far
+    // from the market and every fill fails QuoteOffMarket; below the floor and every sell fails BelowFloor.
     const startX36 = (shippedQuote * 10n ** 36n) / shippedBase;
-    if (startX36 < floorPriceX36)
-      throw new Error(`Starting price: ${shownPrice(startX36, base, quote)} is below the floor, so every sell would be refused; ${rebalance(ctx.anchorPriceX36 ?? floorPriceX36)}`);
-    if (ctx.anchorPriceX36 !== undefined && ctx.anchorPriceX36 > 0n) {
+    if (ctx.policy && kind === KIND_INDEX.marketMaking && startX36 < ctx.policy.floorPriceX36)
+      throw new Error(`Starting price: ${shownPrice(startX36, base, quote)} is below the policy's floor, so every sell would be refused; ${rebalance(ctx.anchorPriceX36 ?? ctx.policy.floorPriceX36)}`);
+    if (ctx.policy && ctx.anchorPriceX36 !== undefined && ctx.anchorPriceX36 > 0n) {
       const diff = startX36 > ctx.anchorPriceX36 ? startX36 - ctx.anchorPriceX36 : ctx.anchorPriceX36 - startX36;
-      if (diff * 10_000n >= ctx.anchorPriceX36 * BigInt(anchorBps))
-        throw new Error(`Starting price: ${shownPrice(startX36, base, quote)} is outside the anchor tolerance of the pool price ${shownPrice(ctx.anchorPriceX36, base, quote)}, so every fill would be refused; ${rebalance(ctx.anchorPriceX36)}`);
+      if (diff * 10_000n > ctx.anchorPriceX36 * BigInt(ctx.policy.maxQuoteDeviationBps))
+        throw new Error(`Starting price: ${shownPrice(startX36, base, quote)} is outside the policy's quote tolerance of the pool price ${shownPrice(ctx.anchorPriceX36, base, quote)}, so every fill would be refused; ${rebalance(ctx.anchorPriceX36)}`);
     }
 
     const warnings: string[] = [];
     if (ctx.owners?.some((o) => getAddress(o) === marketMaker))
       warnings.push("The market maker is also an owner of this Safe, so the issuer and the market maker are not separated.");
-    if (holdings?.base !== undefined && allotment > holdings.base)
-      warnings.push(`The allotment exceeds the Safe's ${base.symbol} balance; fund the Safe before inventory beyond it can be shipped.`);
+    if (kind === KIND_INDEX.buyback)
+      warnings.push("A buyback strategy never sells: its token inventory only prices the curve and is not sold.");
 
     return {
       marketMaker,
-      bounds: {
-        allotment,
-        releaseStart,
-        releaseDuration: days(terms.releaseDays, "Release duration"),
-        epochLength: EPOCH_LENGTH,
-        maxEpochCap: dailyCap,
-        maxShippedQuote: shippedQuote,
-        floorPriceX36,
-        maxAnchorDeviationBps: anchorBps,
-        twapWindow: TWAP_WINDOW,
-        spreadBpsMin: spreadMin,
-        spreadBpsMax: spreadMax,
-        mmFeeShareBps: bps(terms.feeSharePct, "MM fee share"),
-        anchor: ctx.anchor,
-      },
-      params: { spreadBps: spread, epochCap: dailyCap, shippedBase, shippedQuote },
+      kind,
+      bounds: { spreadBpsMin: spreadMin, spreadBpsMax: spreadMax, maxShippedBase, maxShippedQuote, mmFeeShareBps: feeShare, maxBuyPriceX36 },
+      params: { spreadBps: spread, shippedBase, shippedQuote },
       warnings,
     };
   } catch (error) {
@@ -209,7 +201,7 @@ function fmt(raw: bigint, token: TokenRef, maxFraction = token.decimals): string
 }
 
 /**
- * Terms travel in the page URL so every co-owner opens the same link and builds the same Safe transaction.
+ * Strategy terms travel in the page URL so every co-owner opens the same link and builds the same Safe transaction.
  * Decoding is defensive: the link may come from anyone, so only known string fields are kept, and the owners
  * still review every decoded term before approving.
  */
