@@ -10,12 +10,20 @@ export const qk = {
   mandate: (id: string) => ["mandate", id, "detail"] as const,
   activity: (id: string) => ["mandate", id, "activity"] as const,
   series: (id: string) => ["mandate", id, "series"] as const,
+  session: ["session"] as const,
+  mmProfiles: ["mm-profiles"] as const,
+  mmProfile: (address: string) => ["mm-profile", address.toLowerCase()] as const,
+  mmScores: ["mm-scores"] as const,
+  launchedTokens: ["launched-tokens"] as const,
 };
 
 export const useHealth = () => useQuery({ queryKey: qk.health, queryFn: api.health, refetchInterval: 15_000 });
 export const useMandates = () => useQuery({ queryKey: qk.mandates, queryFn: api.mandates });
 export const useMandate = (id: string) => useQuery({ queryKey: qk.mandate(id), queryFn: () => api.mandate(id) });
 export const useSeries = (id: string) => useQuery({ queryKey: qk.series(id), queryFn: () => api.series(id) });
+export const useMmProfiles = () => useQuery({ queryKey: qk.mmProfiles, queryFn: api.mmProfiles });
+export const useMmScores = () => useQuery({ queryKey: qk.mmScores, queryFn: api.mmScores });
+export const useLaunchedTokens = () => useQuery({ queryKey: qk.launchedTokens, queryFn: api.launchedTokens });
 
 export const useActivity = (id: string) =>
   useInfiniteQuery({

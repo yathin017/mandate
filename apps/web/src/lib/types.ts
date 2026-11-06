@@ -148,3 +148,59 @@ export interface Health {
   chainId: number;
   head: Head | null;
 }
+
+// ---------------------------------------------------------------- platform (sign-in, marketplace, launches)
+
+/** Signed-in wallet session (`/v1/auth/session`). */
+export interface Session {
+  id: string;
+  address: string;
+  chainId: number;
+  expiresAt: string;
+}
+
+export interface AuthNonce {
+  nonce: string;
+  chainId: number;
+  statement: string;
+  expiresInSeconds: number;
+}
+
+/** Public market-maker listing (`/v1/mms`). Never carries performance: see `MmScore`. */
+export interface MmProfile {
+  address: string;
+  displayName: string;
+  bio: string;
+  website: string | null;
+  contact: string | null;
+  coverage: string[];
+  minDealUsd: number | null;
+  listed: boolean;
+  updatedAt: string;
+}
+
+export type ScoreComponent = "availability" | "priceQuality" | "volume" | "reliability" | "responsiveness";
+
+/** Onchain market-maker score (`/v1/chains/:id/mms/scores`). */
+export interface MmScore {
+  mm: string;
+  status: "scored" | "new";
+  score: number | null;
+  components: Record<ScoreComponent, { value: number | null; weight: number; evidence: string }>;
+  window: { from: string; to: string };
+}
+
+/** Token deployed through the chain's TokenFactory (`/v1/chains/:id/tokens/launched`). */
+export interface LaunchedToken {
+  chainId: number;
+  token: string;
+  factory: string;
+  creator: string;
+  recipient: string;
+  name: string;
+  symbol: string;
+  supply: string;
+  blockNumber: string;
+  timestamp: string;
+  txHash: string;
+}

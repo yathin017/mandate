@@ -1,5 +1,10 @@
 import type {
   ActivityPage,
+  AuthNonce,
+  LaunchedToken,
+  MmProfile,
+  MmScore,
+  Session,
   Envelope,
   Health,
   MandateDetail,
@@ -26,6 +31,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { accept: "application/json", ...(init?.body ? { "content-type": "application/json" } : {}) },
+    // The session cookie is HttpOnly and SameSite=Strict; the API must be on the same site as the app.
+    credentials: "include",
   });
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
@@ -58,5 +65,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  // Sign-in (EIP-4361) and the session cookie.
+  nonce: () => request<AuthNonce>("/v1/auth/nonce"),
+  verify: (message: string, signature: string) =>
+    request<{ data: Session }>("/v1/auth/verify", { method: "POST", body: JSON.stringify({ message, signature }) }),
+  session: () => request<{ data: Session }>("/v1/auth/session"),
+  logout: () => fetch(`${API_BASE}/v1/auth/logout`, { method: "POST", credentials: "include" }),
+  // Marketplace.
+  mmProfiles: () => request<{ data: MmProfile[] }>("/v1/mms"),
+  mmProfile: (address: string) => request<{ data: MmProfile }>(`/v1/mms/${address}`),
+  mmScores: () => request<Envelope<{ weights: Record<string, number>; scores: MmScore[] }>>(`${chainPath}/mms/scores`),
+  launchedTokens: () => request<Envelope<LaunchedToken[]>>(`${chainPath}/tokens/launched`),
   streamUrl: (id: string) => `${API_BASE}${chainPath}/mandates/${id}/stream`,
 };
