@@ -6,10 +6,14 @@ import { chains, getChainConfig, getDeployment, getLocalForkDeployment, getTrans
   parseChainConfig, parseLocalForkDeployment } from "@mandate/chains";
 
 const config = JSON.parse(await readFile(new URL("../../../config/chains/1.json", import.meta.url), "utf8"));
+const baseConfig = JSON.parse(await readFile(new URL("../../../config/chains/8453.json", import.meta.url), "utf8"));
 const manifest = JSON.parse(await readFile(new URL("../../../deployments/1.json", import.meta.url), "utf8"));
 
 test("chain registry is sourced from the checked-in chain config", () => {
-  assert.equal(chains.length, 1);
+  assert.deepEqual(chains.map((c) => c.chainId), [1, 8453]);
+  const base = getChainConfig(8453);
+  assert.equal(base.uniswapV4.poolManager, getAddress(baseConfig.uniswapV4.poolManager));
+  assert.equal(base.rpcEnv, "BASE_RPC_URL");
   const chain = getChainConfig(1);
   assert.equal(chain.chainId, config.chainId);
   assert.equal(chain.forkBlock, config.forkBlock);

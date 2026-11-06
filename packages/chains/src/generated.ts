@@ -22,6 +22,29 @@ export const chainData = [
       "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
       "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
     }
+  },
+  {
+    "chainId": 8453,
+    "name": "Base",
+    "rpcEnv": "BASE_RPC_URL",
+    "forkBlock": 53925000,
+    "explorer": "https://basescan.org",
+    "aqua": {
+      "aqua": "0x1111113CCf1426A8E30e2bfF5E005d929bF6a90a",
+      "swapVmRouter": "0x111111338c5091e8440b67B168Bae16a668ac0dE"
+    },
+    "uniswapV4": {
+      "poolManager": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+      "stateView": "0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71"
+    },
+    "safe": {
+      "singletonL2": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
+      "proxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"
+    },
+    "tokens": {
+      "weth": "0x4200000000000000000000000000000000000006",
+      "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    }
   }
 ] as const;
 export const deploymentData = [

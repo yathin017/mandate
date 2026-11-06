@@ -24,6 +24,17 @@ contract ChainConfigTest is Test {
         assertTrue(cfg.usdc != address(0), "usdc");
     }
 
+    function test_load_base() public view {
+        ChainConfig memory cfg = ChainConfigLib.load(8453);
+        assertEq(cfg.chainId, 8453);
+        assertEq(cfg.rpcEnv, "BASE_RPC_URL");
+        // Aqua and the SwapVM router use the same deterministic addresses on every chain.
+        ChainConfig memory mainnet = ChainConfigLib.load(1);
+        assertEq(cfg.aqua, mainnet.aqua);
+        assertEq(cfg.swapVmRouter, mainnet.swapVmRouter);
+        assertTrue(cfg.v4PoolManager != mainnet.v4PoolManager, "v4 PoolManager differs per chain");
+    }
+
     function test_load_revertsForUnknownChain() public {
         vm.expectRevert();
         this.loadExternal(999_999);
