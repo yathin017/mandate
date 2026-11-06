@@ -569,13 +569,32 @@ issuer). The only constants are technical bounds (array caps for gas, BPS ≤ 10
   otherwise an approximation of the in-range book. Not a dollar TVL.
 - **Volatility proxy** = distance between the short-window and long-window TWAPs. **Move** = spot vs long TWAP.
 
-### Off-chain
+### Off-chain (as built)
 
-- Execution quality: for each fill, the indexer asks the v4 Quoter for the same direction and size at the **parent
-  block** (same state, pool fee included) and records the difference. Fills whose taker is the strategy's MM, its Safe,
-  or a wallet that funded either are excluded; thin benchmark pools (below the policy's minimum trusted depth) too.
-- Proposals sign policy terms (by hash) plus strategy terms.
-- v1 contracts and their Base demo stay deployed and readable; v2 is a new deployment.
+- **Execution quality**: for each fill the indexer reads the policy's market oracle at the **parent block** and
+  stores its spot (`fills.reference_spot_x36`) and the fill's signed distance from it in bps (`fills.quality_bps`,
+  positive when it favoured the treasury). The score's price-quality component is 1 − volume-weighted |distance| ÷
+  the policy's quote tolerance. Differs from the plan above: it compares with the pre-fill *spot*, not a v4 Quoter
+  quote of the same size (so pool fee and the fill's own impact are not netted out), and fills by the MM's own
+  wallets are not yet excluded. Both are follow-ups.
+- **Proposals** sign the **strategy** terms only (EIP-712 `StrategyTerms`, domain version `2`). The policy is the
+  issuer's own, applies to every strategy and can be tightened at any time, so the MM sees it next to the proposal but
+  does not sign it. Differs from the plan ("policy terms by hash"); revisit if MMs need the policy pinned at
+  acceptance.
+- **Indexer**: `policies`, `strategies`, `policy_snapshots`, `strategy_snapshots`; migration `0006` rebuilds the
+  chain-derived tables and keeps v1 proposals as `proposals_v1`. Change feeds per policy and per strategy.
+- **Web**: every economic field starts empty (policy and strategy forms); edits start from the current onchain values.
+  Readiness of an anchor is judged against the policy's own TWAP window, never a built-in one.
+- **Base**: the v1 manifest is archived in `deployments/archive/8453-v1.json`; its contracts stay deployed and
+  readable. v2 is a new deployment (`DeployBase`), broadcast only with the user's confirmation.
+
+### Verified (2026-11-07)
+
+- Contracts: 141 tests (unit, integration on pinned Aqua/SwapVM source, mainnet-fork on canonical Safe/Aqua/SwapVM/v4),
+  including a hooked v4 pool driven through a pump, a crash, JIT liquidity and a young pool.
+- Fork scenario: 179 steps, 157 blocked inner calls, all receipt-backed (`replay/data/acts.json`).
+- SDK 35 unit + 4 fork; indexer 59 (ingest, API, SSE, simulations, scoring, proposals, full lifecycle); web 29
+  (pure term modules and fork flows); headless render of every page against the fork with no console errors.
 
 ## 19. Infra
 

@@ -29,12 +29,12 @@ synthetic-data labels. Registry objects and nested configuration objects are fro
 
 | Kind | Registered | Extra context |
 |---|---|---|
-| `LocalForkDeployment` (`environment: "local-mainnet-fork"`) | runtime chain 31337, forked from Ethereum (1) | the recorded demo's Safes, pools, scenario actors, mandate ids; no explorer links |
-| `LiveDeployment` (`environment: "live"`) | Base mainnet (8453) | deploy block, issuer Safe, owner 2, market maker, the active mandate; Basescan links |
+| `LocalForkDeployment` (`environment: "local-mainnet-fork"`) | runtime chain 31337, forked from Ethereum (1) | the recorded demo's Safes, pools, scenario actors, each act's policy and strategy ids; no explorer links |
+| `LiveDeployment` (`environment: "live"`) | Base mainnet (8453) | deploy block, issuer Safe, owner 2, market maker, the demo policy and strategy ids; Basescan links. A v1 manifest (a single mandate id) is rejected |
 
 ```ts
 const base = getDeployment(8453);
-if (isLiveDeployment(base)) console.log(base.safe, base.mm, base.mandate);
+if (isLiveDeployment(base)) console.log(base.safe, base.mm, base.policy, base.strategy);
 getTransactionUrl(8453, hash); // https://basescan.org/tx/<hash>
 ```
 

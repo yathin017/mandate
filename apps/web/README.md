@@ -31,15 +31,16 @@ for issuers, Desk for market makers).
 | Route | What it shows |
 |---|---|
 | `/` | Landing for issuers and market makers: calls to action, live counts, how it works, honest limits |
-| `/explore` | Mandates (cards) and tokens launched through the TokenFactory (`?tab=tokens`) |
+| `/explore` | Strategies (cards) and tokens launched through the TokenFactory (`?tab=tokens`) |
 | `/market-makers` | Listed market makers ranked by onchain score |
-| `/market-makers/:address` | Profile, score with each component's weight, value and evidence, and the market maker's mandates |
-| `/launch` | Self-serve wizard: treasury Safe → token pair (launch a new token) → enable Mandate → price anchor (launch it, then add full-range liquidity from the Safe in one batched transaction) → mandate: propose to a market maker from the marketplace (default) or create directly |
-| `/issuer` | One Safe at a glance: Safe-wide counts, proposals with their next step (send, withdraw, execute once the market maker signed), each mandate's progress (sold of released, today vs cap, fills, volume, MM fees, refused trades) and pause/unpause/revoke as Safe transactions |
-| `/desk` | Market maker's workspace (`?tab=`): **Inbox** (proposals with the full terms, accept by signing or decline), **My mandates** (spread and daily-cap sliders inside the issuer's bounds, inventory caps, re-ship, pause, claim fees, a simulate-only "exceed the cap" probe), **Profile** (marketplace listing), **Performance** (score with evidence; per mandate fills, volume, earned and claimable fee share, refused trades) |
-| `/mandates/:id` | Public mandate page: sell-limit ring, release curve vs sold, spot/TWAP band and floor, anchor health, MM pay, live activity feed, server-simulated "try a trade", numbered term sheet |
+| `/market-makers/:address` | Profile, score with each component's weight, value and evidence, and the strategies it runs |
+| `/launch` | Self-serve wizard: treasury Safe → token pair (launch a new token) → enable Mandate → price anchor (launch it, then add full-range liquidity from the Safe in one batched transaction) → treasury policy (release, shared per-period limits, price rules, market-risk thresholds and per-mode limits; every field starts empty) → strategy: propose to a market maker from the marketplace (default) or add directly |
+| `/issuer` | One Safe at a glance: counts, proposals with their next step (send, withdraw, add once the market maker signed), and per token its policy (net/gross/buyback limits used this period, sold of released, risk mode) with edit (from the policy's current values), pause, resume and revoke, and its strategies (fills, volume, execution vs market, MM pay, refusals) with pause/unpause/revoke, all as Safe transactions |
+| `/desk` | Market maker's workspace (`?tab=`): **Inbox** (proposals with the full strategy terms and the policy they would trade under; accept by signing or decline), **My strategies** (spread slider inside the issuer's range, inventory within the bounds and what the Safe can back, the treasury's risk reading, re-ship, pause, claim fees, a simulate-only "exceed the spread range" probe), **Profile** (marketplace listing), **Performance** (score with evidence; per strategy fills, volume, execution vs market, earned and claimable fee share, refusals) |
+| `/strategies/:id` | Public strategy page: the treasury's shared limits, market risk panel (spot, TWAPs, move and volatility vs thresholds, trusted depth, pool age, current limits), release curve vs sold, price with floor and quote band, the strategy's own spread, inventory and fees, live activity with execution quality, server-simulated "try a trade", strategy and policy term sheets |
+| `/policies/:id` | Public policy page: the same treasury readings, every strategy under the policy, their combined activity and the policy's terms |
 
-`/mandates` and `/onboard` redirect to `/explore` and `/launch` (query strings kept).
+`/mandates/*` (v1 links) and `/onboard` redirect to `/explore` and `/launch` (query strings kept).
 
 **Sign-in.** Connecting a wallet is enough to browse and send transactions. Profiles and proposals also need
 **Sign in** in the header: an EIP-4361 message for this site, no gas. The session is an HttpOnly cookie, so the API
@@ -48,13 +49,14 @@ connected, and disconnecting signs out.
 
 ## Proposing to a market maker
 
-1. In `/launch` step 5 (or from a market maker's page, which opens it with `?mm=`), pick a market maker, set the
-   terms and **Send proposal** (signed-in Safe owner).
-2. The market maker accepts in its Desk inbox by signing the exact terms (EIP-712; no gas), after reading them back
-   field by field with the Safe's balance.
-3. Any owner opens the proposal (wizard or `/issuer`): one approves, another executes `createMandate`; the app then
-   links the new mandate to the proposal. It re-checks for an existing match first, so a retry never creates a second
-   mandate from the same terms.
+1. In `/launch` (or from a market maker's page, which opens it with `?mm=`), once the Safe has a treasury policy for
+   the token, pick a market maker, set the strategy terms and **Send proposal** (signed-in Safe owner). Sending
+   simulates `addStrategy` from the Safe, so terms the module would refuse are caught first.
+2. The market maker accepts in its Desk inbox by signing the exact strategy terms (EIP-712; no gas), after reading them
+   back field by field next to the policy it would trade under.
+3. Any owner opens the proposal (wizard or `/issuer`): one approves, another executes `addStrategy` under the policy;
+   the app then links the new strategy to the proposal. It re-checks for an existing match first, so a retry never
+   adds a second strategy from the same terms.
 
 ## Wallet demo on Base (live deployment)
 

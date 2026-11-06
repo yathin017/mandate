@@ -33,22 +33,25 @@ import { createMandateClient } from '@mandate/sdk';
 const deployment = getLocalForkDeployment(1);
 const publicClient = createPublicClient({ transport: http('http://127.0.0.1:8547') });
 const sdk = await createMandateClient(publicClient, deployment);
-const snapshot = await sdk.readSnapshot(deployment.mandates.act1);
-console.log(snapshot.epoch.netSold, snapshot.remainingThisEpoch, snapshot.source.blockHash);
+const policy = await sdk.readPolicy(deployment.policies.act1);
+console.log(policy.counters.netSold, policy.risk.mode, policy.risk.reason, policy.source.blockHash);
+const strategy = await sdk.readStrategy(deployment.strategies.act1, policy.source.blockNumber);
 ```
 
 Construction checks the RPC chain id, module bytecode, and its immutable quoter/Aqua/router links. Each read
-checks network identity again. `readSnapshot(id, blockNumber?)` pins the mandate, counters, release, fees,
-claims, active order and anchor reads to one confirmed block, then verifies the block hash again. A changed
-block rejects the snapshot so callers can retry. No cache, polling, wallet or RPC URL is created implicitly.
+checks network identity again. `readPolicy(id, blockNumber?)` pins the policy's terms, shared counters
+(`policyCounters`), risk mode with its reason and the oracle readings behind it (`riskMode`), and its strategy ids
+to one confirmed block, then verifies the block hash again. `readStrategy(id, blockNumber?)` does the same for a
+strategy's terms, active order, version and fee accounting. A changed block rejects the read so callers can retry.
+`policiesOf` and `activePolicyOf(safe, base)` return provenance too. No cache, polling, wallet or RPC URL is
+created implicitly.
 
-`snapshot.anchor` reports the v4 spot/TWAP circuit breaker. Its states are `within-spot-band`, `blocked` and
-`unavailable`. Missing history remains unavailable. `quote()` evaluates the full fill rules, including execution
-price deviation, floor, release, sell cap and lifecycle. Other `IPriceAnchor` implementations may lack the v4
-snapshot API; their health is reported unavailable by this v4-focused reader.
+The risk mode is what the quoter would apply to a fill in that block: `0` Normal, `1` Defensive, `2` Paused, with
+`reason` one of `RISK_REASONS` (`riskReasonText` gives the plain sentence). `quote()` evaluates the full fill rules
+(statuses, risk mode, quote tolerance and impact, fill size, floor, gross/net/release limits, buyback rules).
 
 ```ts
-const quote = await sdk.quote(deployment.mandates.act1, {
+const quote = await sdk.quote(deployment.strategies.act1, {
   taker: deployment.deployer,
   tokenIn: deployment.quote,
   tokenOut: deployment.base,
@@ -64,18 +67,18 @@ else console.log(quote.error.message);
 ```
 
 `quote` returns a discriminated result with block provenance. A docked order can fail in Aqua before entering
-the quoter; its actual `SafeBalancesForTokenNotInActiveStrategy` error is explained accordingly. `mandatesOf`
-also returns provenance. Exported `MandateClient`, `MandateSnapshot`, `Mandate`, `MandateBounds`, `MandateParams`
-and `SwapOrder` types derive from the generated contract shapes.
+the quoter; its actual `SafeBalancesForTokenNotInActiveStrategy` error is explained accordingly. Exported
+`MandateClient`, `PolicySnapshot`, `StrategySnapshot`, `Policy`, `PolicyConfig`, `Strategy`, `StrategyBounds`,
+`StrategyParams` and `SwapOrder` types derive from the generated contract shapes.
 
 ## Prepared calls
 
 ```ts
-import { buildClaimFeesCall, buildRevokeCall, buildReshipCall } from '@mandate/sdk';
+import { buildClaimFeesCall, buildRevokePolicyCall, buildReshipCall } from '@mandate/sdk';
 
-const claim = buildClaimFeesCall(deployment, deployment.mandates.act1);
-const revoke = buildRevokeCall(deployment, deployment.mandates.act1);
-const reship = buildReshipCall(deployment, deployment.mandates.act1, snapshot.mandate.params);
+const claim = buildClaimFeesCall(deployment, deployment.strategies.act1);
+const revoke = buildRevokePolicyCall(deployment, deployment.policies.act1);
+const reship = buildReshipCall(deployment, deployment.strategies.act1, strategy.strategy.params);
 ```
 
 Each payload contains `{ chainId, to, data, value: 0n, operation: 0, role }`. The role describes the required
@@ -83,12 +86,13 @@ caller; the contracts enforce permission and bounds. Builders never sign, approv
 
 | Builder | Caller |
 |---|---|
-| `buildCreateMandateCall`, `buildUpdateBoundsCall`, `buildUnpauseCall`, `buildRevokeCall` | Issuer Safe, via its owners' signed transaction |
-| `buildReshipCall`, `buildClaimFeesCall` | Mandate MM |
-| `buildPauseCall` | Issuer Safe or MM |
+| `buildCreatePolicyCall`, `buildUpdatePolicyCall`, `buildPausePolicyCall`, `buildUnpausePolicyCall`, `buildRevokePolicyCall` | Issuer Safe, via its owners' signed transaction |
+| `buildAddStrategyCall`, `buildUpdateStrategyBoundsCall`, `buildUnpauseStrategyCall`, `buildRevokeStrategyCall` | Issuer Safe |
+| `buildReshipCall`, `buildClaimFeesCall` | The strategy's MM |
+| `buildPauseStrategyCall` | Issuer Safe or the strategy's MM |
 | `buildSwapCall`, `buildApproveRouterCall` | Taker |
 
-Creation and bounds builders supply the module's quoter automatically. Fees are claimed directly by the MM.
+Builders encode exactly the values given: no defaults are filled in. Fees are claimed directly by the MM.
 `buildSwapCall` requires a positive slippage threshold and deadline: minimum output for exact-input swaps,
 maximum input for exact-output swaps. Its EOA settlement mode approves the router, which transfers input
 tokens and pushes them to Aqua. The issuer Safe's Aqua approval is managed by the module. This helper does
@@ -105,8 +109,8 @@ import { explainError, parsePriceX36, formatPriceX36 } from '@mandate/sdk';
 const issue = explainError(providerError, {
   base: { decimals: 18, symbol: 'LAUNCH' },
   quote: { decimals: 6, symbol: 'sUSDC' },
-  now: snapshot.source.timestamp,
-  epochResetsAt: snapshot.epochResetsAt,
+  now: policy.source.timestamp,
+  periodEndsAt: policy.counters.periodEndsAt,
 });
 console.log(issue.message);
 const price = parsePriceX36('0.40', 18, 6); // 400000000000000000000000n.
@@ -123,14 +127,20 @@ It never scans transaction calldata or arbitrary error text for a matching selec
 sub-display-unit price as `<…`; it never labels that price zero. `formatTokenAmount` preserves exact integer
 precision. Token metadata ABIs are exported so callers can obtain decimals and symbols explicitly.
 
-All ABIs come from Foundry artifacts: module, quoter, v4 hook/anchor, Aqua, SwapVM interfaces/router, Safe,
-ERC20 metadata/errors and demo evidence readers. Import the constants from `@mandate/sdk` or `@mandate/sdk/abis`.
-The replay exporter uses this same error mapper. Storage, authentication, caching and indexer policy remain
-Segment 7 work.
+All ABIs come from Foundry artifacts: module, quoter, v4 hook and market oracle, Aqua, SwapVM interfaces/router,
+Safe, ERC20 metadata/errors and demo evidence readers. Import the constants from `@mandate/sdk` or
+`@mandate/sdk/abis`. The replay exporter and the indexer use this same error mapper.
+
+## Proposals
+
+`strategyTermsTypedData` / `hashStrategyTerms` give the EIP-712 message a market maker signs to accept a proposed
+strategy (`StrategyTerms`: proposal id, Safe, market maker, pair, kind, bounds, params, expiry; domain = chain +
+module, version `2`, so v1 mandate acceptances cannot be replayed). `termsToJson` / `termsFromJson` are the
+range-checked storage form. The treasury policy is the issuer's own and is not part of the signed terms.
 
 ## Self-serve onboarding
 
-Helpers for letting any project set up a mandate on a live chain. Builders return `PreparedCall`s with a `role`
+Helpers for letting any project set up a treasury policy and strategies on a live chain. Builders return `PreparedCall`s with a `role`
 (`anyone`, `issuer-safe`, `token-owner`, …) and never sign.
 
 | Helper | Purpose |
@@ -139,8 +149,8 @@ Helpers for letting any project set up a mandate on a live chain. Builders retur
 | `buildEnableModuleCall(chainId, safe, module)` | The Safe enables the Mandate module on itself (run it as a Safe transaction) |
 | `readTokenInfo(client, token)` / `labelToken(chainId, token, symbol)` | ERC20 metadata or a reason it is not a token; canonical USDC/WETH labels and look-alike warnings |
 | `mockTokenDeployment(name, symbol, decimals)` / `buildMintCall(...)` | Demo-only tokens; names must start with "Demo " |
-| `buildLaunchAnchorCall(chainId, launcher, { base, quote, initialPriceX36 })` | AnchorLauncher: pool with the oracle hook (if missing) + anchor |
-| `readAnchorStatus(client, { chainId, launcher, base, quote })` | Anchor (existing/predicted), PoolId, pool price, liquidity, observation buffer and TWAP readiness at one block |
+| `buildLaunchAnchorCall(chainId, launcher, { base, quote, initialPriceX36 })` | AnchorLauncher: pool with the oracle hook (if missing) + market oracle |
+| `readAnchorStatus(client, { chainId, launcher, base, quote, window? })` | Oracle (existing/predicted), PoolId, pool price, liquidity and trusted liquidity, pool age, observation buffer and history at one block; with the policy's TWAP `window`, whether it is covered (`ready` is `null` without one) |
 
 `anchorPoolKey` / `poolIdOf` compute the launcher's pool offline (checked against a Solidity `PoolIdLibrary`
 vector). `pnpm sdk:test:base` runs read-only checks of these helpers against the live Base deployment.
