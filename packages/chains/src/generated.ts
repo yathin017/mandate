@@ -12,11 +12,14 @@ export const chainData = [
     },
     "uniswapV4": {
       "poolManager": "0x000000000004444c5dc75cB358380D2e3dE08A90",
-      "stateView": "0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227"
+      "stateView": "0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227",
+      "positionManager": "0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e",
+      "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
     },
     "safe": {
       "singletonL2": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
-      "proxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"
+      "proxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
+      "multiSendCallOnly": "0x9641d764fc13c8B624c04430C7356C1C7C8102e2"
     },
     "tokens": {
       "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
@@ -35,11 +38,14 @@ export const chainData = [
     },
     "uniswapV4": {
       "poolManager": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
-      "stateView": "0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71"
+      "stateView": "0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71",
+      "positionManager": "0x7C5f5A4bBd8fD63184577525326123B519429bDc",
+      "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
     },
     "safe": {
       "singletonL2": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
-      "proxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"
+      "proxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
+      "multiSendCallOnly": "0x9641d764fc13c8B624c04430C7356C1C7C8102e2"
     },
     "tokens": {
       "weth": "0x4200000000000000000000000000000000000006",

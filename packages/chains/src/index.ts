@@ -8,8 +8,10 @@ export interface ChainConfig {
   readonly forkBlock: number;
   readonly explorer: string;
   readonly aqua: { readonly aqua: Address; readonly swapVmRouter: Address };
-  readonly uniswapV4: { readonly poolManager: Address; readonly stateView: Address };
-  readonly safe: { readonly singletonL2: Address; readonly proxyFactory: Address };
+  /** PositionManager and Permit2 are the canonical periphery the Safe uses to add pool liquidity. */
+  readonly uniswapV4: { readonly poolManager: Address; readonly stateView: Address; readonly positionManager: Address; readonly permit2: Address };
+  /** MultiSendCallOnly is the only contract a Safe transaction built by this app may delegatecall (batches). */
+  readonly safe: { readonly singletonL2: Address; readonly proxyFactory: Address; readonly multiSendCallOnly: Address };
   readonly tokens: { readonly weth: Address; readonly usdc: Address };
 }
 
@@ -128,8 +130,8 @@ export function parseChainConfig(value: unknown): ChainConfig {
     chainId: integer(c.chainId, "chainId"), name: text(c.name, "name"), rpcEnv,
     forkBlock: integer(c.forkBlock, "forkBlock"), explorer: explorer.href.replace(/\/$/, ""),
     aqua: Object.freeze(addresses(c.aqua, ["aqua", "swapVmRouter"] as const)),
-    uniswapV4: Object.freeze(addresses(c.uniswapV4, ["poolManager", "stateView"] as const)),
-    safe: Object.freeze(addresses(c.safe, ["singletonL2", "proxyFactory"] as const)),
+    uniswapV4: Object.freeze(addresses(c.uniswapV4, ["poolManager", "stateView", "positionManager", "permit2"] as const)),
+    safe: Object.freeze(addresses(c.safe, ["singletonL2", "proxyFactory", "multiSendCallOnly"] as const)),
     tokens: Object.freeze(addresses(c.tokens, ["weth", "usdc"] as const)),
   });
 }
