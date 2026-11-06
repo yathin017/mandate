@@ -4,9 +4,10 @@ Mandate's dashboard: Vite 8 + React 19 + TypeScript, Tailwind 4 and [shadcn/ui](
 Nova preset) with the project's [tweakcn theme](https://tweakcn.com/themes/cmmea3qbd000004jvb99v39cd). Mandate
 status colours (`filled`, `blocked`, `warning`) are added on top of the theme in `src/index.css`.
 
-**Dashboards read only the indexer API.** The chain RPC is used only inside wallet flows (Issuer console and MM
-desk): Safe owners/nonce/approvals, pre-send simulation and receipts. Contract addresses for anything a user signs
-come from the build-time `@mandate/chains` registry, never from API responses.
+**Dashboards read only the indexer API.** The chain RPC is used only inside wallet flows (Issuer console, MM desk
+and onboarding): Safe owners/nonce/approvals, token and anchor reads, pre-send simulation and receipts. The onboarding
+wizard reads everything it needs from the chain, so it works without a running indexer. Contract addresses for
+anything a user signs come from the build-time `@mandate/chains` registry, never from API responses.
 
 ## Run it
 
@@ -31,6 +32,7 @@ origin to the API's `API_CORS_ORIGINS`. `MANDATE_API_PROXY` changes the dev prox
 | `/mandates` | Indexed mandates |
 | `/issuer` | Issuer console: pick a Safe, see owners/threshold/module, pause/unpause/revoke, create-mandate wizard; every action is a Safe transaction approved onchain by its owners |
 | `/desk` | MM desk: mandates where the connected wallet is the MM; spread and daily-cap sliders clamped to the issuer's bounds, inventory caps, live vs new preview, re-ship, pause, claim fees, and a simulate-only "exceed the cap" probe |
+| `/onboard` | Self-serve onboarding wizard: treasury Safe → token pair → enable Mandate → price anchor → create the mandate (see below) |
 | `/mandates/:id` | Public mandate page: sell-limit ring, release curve vs sold, spot/TWAP band and floor, anchor health, MM pay, live activity feed, server-simulated "try a trade", numbered term sheet |
 
 ## Wallet demo on Base (live deployment)
@@ -46,6 +48,35 @@ origin to the API's `API_CORS_ORIGINS`. `MANDATE_API_PROXY` changes the dev prox
 Issuer actions need both owners: one clicks **Approve as owner**, the other **Execute**. The connected wallet's role
 is shown next to its address in the header.
 
+## Self-serve onboarding (`/onboard`)
+
+Five steps, each read back from the chain; choices live in the URL (`?safe=…&base=…&quote=…`), so every owner can
+open the same link and continue.
+
+1. **Treasury Safe:** create a Safe 1.4.1 (owners, threshold) or use an existing one.
+2. **Token pair:** base by address (or, on demo deployments, mint a "Demo …" token straight into the Safe); quote from
+   the chain's canonical USDC/WETH, the demo quote, or any address. Look-alike symbols are flagged.
+3. **Enable Mandate:** the owners enable the module through the Safe.
+4. **Price anchor:** one `AnchorLauncher` transaction creates the Uniswap v4 pool (if missing) with the oracle hook and
+   deploys the anchor. The step shows the pool price, its depth (or a no-liquidity warning) and a countdown until the
+   30-minute TWAP window is covered. Liquidity is added with Uniswap's own tools.
+5. **Create the mandate:** market maker, amounts and floor start blank. The form refuses what the module or the
+   market would refuse (spread outside the anchor band, inventory above the allotment or the Safe's balance) and
+   checks the **starting price**: fills are priced over the shipped balances, so `shippedQuote / shippedBase` must sit
+   inside the anchor tolerance of the pool price and above the floor. The review lists every value that will be signed.
+   The reviewed terms are added to the URL; Safes with several owners get a **Copy link** prompt so co-owners approve
+   the same transaction. Release start is a UTC date, so approvals on different days still match.
+
+An owner whose key lives in a local `.env` (not a browser wallet) can approve shared terms from the CLI. It rebuilds
+the call through the same terms module and prints every term; `--broadcast` sends `approveHash`:
+
+```sh
+node apps/web/scripts/approve-terms.ts --rpc "$BASE_RPC_URL" --link '<wizard url>' [--nonce <n>] [--key-env BASE_DEPLOYER_PRIVATE_KEY] [--broadcast]
+```
+
+On the local fork, the recorded deployment has no launcher: deploy `AnchorLauncher` on the fork and set
+`VITE_ANCHOR_LAUNCHER` in `apps/web/.env` (ignored on live chains, which read it from the manifest).
+
 ## Wallet demo on the local fork (Issuer console → MM desk)
 
 1. Add a network to MetaMask/Rabby: RPC `http://127.0.0.1:8547`, chain id `31337`, currency ETH.
@@ -59,11 +90,12 @@ is shown next to its address in the header.
    slider, **Re-ship strategy**.
 
 Every action is simulated first; a refusal shows the BLOCKED stamp and its reason and sends nothing. After a
-confirmation the app waits for the indexer before refreshing. The create payload rounds release start to the UTC
-day so both owners sign the same Safe transaction hash.
+confirmation the app waits for the indexer before refreshing. Release start is entered as a UTC date, so both
+owners build the same Safe transaction hash.
 
-`pnpm web:test` runs the same Safe and MM flows against the live fork with Anvil's unlocked accounts, using the
-app's own `safeTx` helpers, and restores the fork afterwards.
+`pnpm web:test` runs the terms unit tests and, against the live fork with Anvil's unlocked accounts, the Safe and MM
+flows and every onboarding step up to a taker fill on a new mandate, using the app's own `safeTx` and terms helpers.
+Each fork file snapshots and restores the fork, so the files run one at a time.
 
 ## Data flow
 
