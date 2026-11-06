@@ -109,7 +109,7 @@ export function Onboarding() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-serif text-3xl font-semibold tracking-tight">Onboard a project</h1>
+        <h1 className="font-serif text-3xl font-semibold tracking-tight">Launch</h1>
         <p className="text-muted-foreground">
           Set up a mandate for your own token on {demoChain.name}. Every step is a transaction you sign; nothing is custodial.
         </p>

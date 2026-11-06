@@ -1,4 +1,4 @@
-import { getDeployment, getTransactionUrl, isLiveDeployment } from "@mandate/chains";
+import { getAddressUrl, getDeployment, getTransactionUrl, isLiveDeployment } from "@mandate/chains";
 import { defineChain, isAddress, type Address, type Hash } from "viem";
 import { base } from "viem/chains";
 import { createConfig, http, injected } from "wagmi";
@@ -52,6 +52,8 @@ function devAddress(name: string, value: string | undefined): Address | undefine
 
 /** Explorer link for live chains; undefined on the local fork. */
 export const txUrl = (hash: string): string | undefined => getTransactionUrl(CHAIN_ID, hash as Hash);
+/** Explorer link for an address on live chains; undefined on the local fork. */
+export const addressUrl = (address: string): string | undefined => getAddressUrl(CHAIN_ID, address as Address);
 
 export const wagmiConfig = createConfig({
   chains: [demoChain],

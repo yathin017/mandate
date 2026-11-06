@@ -11,11 +11,13 @@ import { cn } from "@/lib/utils";
 
 import { applyTheme, readTheme, type Theme } from "./theme";
 
+/** Public discovery first, then each role's workspace: issuers launch and manage, market makers run the desk. */
 const NAV = [
-  { to: "/mandates", label: "Mandates" },
-  { to: "/onboard", label: "Onboard" },
+  { to: "/explore", label: "Explore" },
+  { to: "/market-makers", label: "Market makers" },
+  { to: "/launch", label: "Launch" },
   { to: "/issuer", label: "Issuer" },
-  { to: "/desk", label: "MM Desk" },
+  { to: "/desk", label: "Desk" },
 ];
 
 export function Layout() {
