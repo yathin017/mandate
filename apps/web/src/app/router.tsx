@@ -11,6 +11,7 @@ import { Layout } from "./Layout";
 // Chart-heavy pages load on demand so the landing page ships without recharts.
 const MandatePage = lazy(() => import("@/pages/MandatePage").then((m) => ({ default: m.MandatePage })));
 const IssuerConsole = lazy(() => import("@/pages/IssuerConsole").then((m) => ({ default: m.IssuerConsole })));
+const MMDesk = lazy(() => import("@/pages/MMDesk").then((m) => ({ default: m.MMDesk })));
 const ReplayTheater = lazy(() => import("@/pages/ReplayTheater").then((m) => ({ default: m.ReplayTheater })));
 
 const page = (element: React.ReactNode) => <Suspense fallback={<Skeleton className="h-96 w-full" />}>{element}</Suspense>;
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: "mandates", element: <MandateList /> },
       { path: "mandates/:mandateId", element: page(<MandatePage />) },
       { path: "issuer", element: page(<IssuerConsole />) },
+      { path: "desk", element: page(<MMDesk />) },
       { path: "*", element: <NotFound /> },
     ],
   },

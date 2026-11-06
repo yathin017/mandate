@@ -15,6 +15,8 @@ export type TxState =
   | { status: "signing" }
   | { status: "pending"; hash: Hash }
   | { status: "confirmed"; hash: Hash; blockNumber: bigint }
+  /** simulateOnly run whose checks passed; nothing was sent. */
+  | { status: "simulated" }
   | { status: "failed"; message: string; hash?: Hash };
 
 export interface Call {
@@ -28,6 +30,8 @@ export interface TxRequest {
   /** eth_calls that must succeed first, e.g. the module call as the Safe would make it. Defaults to `send`. */
   readonly checks?: readonly (Call & { from: Address })[];
   readonly context?: ErrorContext;
+  /** Run the checks only and never send, e.g. to demonstrate a refusal. */
+  readonly simulateOnly?: boolean;
 }
 
 /**
@@ -57,6 +61,11 @@ export function useTx() {
           setState({ status: "blocked", error: explainError(error, request.context) });
           return false;
         }
+      }
+
+      if (request.simulateOnly) {
+        setState({ status: "simulated" });
+        return true;
       }
 
       setState({ status: "signing" });

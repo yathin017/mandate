@@ -12,6 +12,8 @@ export function TxStatus({ state }: { state: TxState }) {
       return null;
     case "simulating":
       return <Line icon={<Loader2 className="size-4 animate-spin" />}>Checking with the contracts…</Line>;
+    case "simulated":
+      return <Line icon={<CheckCircle2 className="size-4 text-filled" />}>Simulation passed. Nothing was sent.</Line>;
     case "signing":
       return <Line icon={<Loader2 className="size-4 animate-spin" />}>Confirm in your wallet…</Line>;
     case "pending":

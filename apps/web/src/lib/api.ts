@@ -44,6 +44,7 @@ const chainPath = `/v1/chains/${CHAIN_ID}`;
 export const api = {
   health: () => request<Health>("/health"),
   mandates: () => request<Envelope<MandateListItem[]>>(`${chainPath}/mandates`),
+  mandatesByMm: (mm: string) => request<Envelope<MandateListItem[]>>(`${chainPath}/mandates?mm=${encodeURIComponent(mm)}`),
   mandate: (id: string) => request<Envelope<MandateDetail>>(`${chainPath}/mandates/${id}`),
   activity: (id: string, before?: string | null, limit = 25) =>
     request<Envelope<ActivityPage>>(
