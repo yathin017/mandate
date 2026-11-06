@@ -34,7 +34,8 @@
     "base:worker": "set -a; . ./.env; set +a; export INDEXER_CHAIN_ID=8453 INDEXER_RPC_URL=\"$BASE_INDEXER_RPC_URL\" DATABASE_URL=\"$BASE_DATABASE_URL\" INDEXER_CONFIRMATIONS=2 INDEXER_POLL_INTERVAL_MS=\"${BASE_INDEXER_POLL_INTERVAL_MS:-3000}\" INDEXER_SNAPSHOT_CONCURRENCY=\"${BASE_INDEXER_SNAPSHOT_CONCURRENCY:-2}\" INDEXER_LOG_RANGE=\"${BASE_INDEXER_LOG_RANGE:-500}\" API_PORT=8788 && cd apps/indexer && node src/worker.ts",
     "base:server": "set -a; . ./.env; set +a; export INDEXER_CHAIN_ID=8453 INDEXER_RPC_URL=\"$BASE_INDEXER_RPC_URL\" DATABASE_URL=\"$BASE_DATABASE_URL\" INDEXER_CONFIRMATIONS=2 INDEXER_POLL_INTERVAL_MS=\"${BASE_INDEXER_POLL_INTERVAL_MS:-3000}\" INDEXER_SNAPSHOT_CONCURRENCY=\"${BASE_INDEXER_SNAPSHOT_CONCURRENCY:-2}\" INDEXER_LOG_RANGE=\"${BASE_INDEXER_LOG_RANGE:-500}\" API_PORT=8788 && cd apps/indexer && node src/server.ts",
     "base:web": "VITE_CHAIN_ID=8453 MANDATE_API_PROXY=http://127.0.0.1:8788 pnpm --filter @mandate/web run dev",
-    "base:fills": "set -a; . ./.env; set +a; cd contracts && forge script script/live/LiveFills.s.sol --rpc-url \"$BASE_RPC_URL\""
+    "base:fills": "set -a; . ./.env; set +a; cd contracts && forge script script/live/LiveFills.s.sol --rpc-url \"$BASE_RPC_URL\"",
+    "sdk:test:base": "pnpm packages:build && set -a; [ -f .env ] && . ./.env; set +a; node --test packages/sdk/integration/base.test.ts"
   },
   "type": "module",
   "devDependencies": {

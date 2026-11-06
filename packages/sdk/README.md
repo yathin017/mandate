@@ -127,3 +127,20 @@ All ABIs come from Foundry artifacts: module, quoter, v4 hook/anchor, Aqua, Swap
 ERC20 metadata/errors and demo evidence readers. Import the constants from `@mandate/sdk` or `@mandate/sdk/abis`.
 The replay exporter uses this same error mapper. Storage, authentication, caching and indexer policy remain
 Segment 7 work.
+
+## Self-serve onboarding
+
+Helpers for letting any project set up a mandate on a live chain. Builders return `PreparedCall`s with a `role`
+(`anyone`, `issuer-safe`, `token-owner`, …) and never sign.
+
+| Helper | Purpose |
+|---|---|
+| `buildCreateSafeCall(chainId, { owners, threshold, saltNonce })` | Safe 1.4.1 proxy from the chain's canonical factory/singleton (`encodeSafeSetup` validates owners/threshold) |
+| `buildEnableModuleCall(chainId, safe, module)` | The Safe enables the Mandate module on itself (run it as a Safe transaction) |
+| `readTokenInfo(client, token)` / `labelToken(chainId, token, symbol)` | ERC20 metadata or a reason it is not a token; canonical USDC/WETH labels and look-alike warnings |
+| `mockTokenDeployment(name, symbol, decimals)` / `buildMintCall(...)` | Demo-only tokens; names must start with "Demo " |
+| `buildLaunchAnchorCall(chainId, launcher, { base, quote, initialPriceX36 })` | AnchorLauncher: pool with the oracle hook (if missing) + anchor |
+| `readAnchorStatus(client, { chainId, launcher, base, quote })` | Anchor (existing/predicted), PoolId, pool price, liquidity, observation buffer and TWAP readiness at one block |
+
+`anchorPoolKey` / `poolIdOf` compute the launcher's pool offline (checked against a Solidity `PoolIdLibrary`
+vector). `pnpm sdk:test:base` runs read-only checks of these helpers against the live Base deployment.

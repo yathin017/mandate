@@ -14,7 +14,8 @@ export interface PreparedCall {
   readonly data: Hex;
   readonly value: 0n;
   readonly operation: 0;
-  readonly role: "issuer-safe" | "market-maker" | "either" | "taker";
+  /** Who must send it: the issuer Safe (via owners), the MM, either, a taker, anyone, or a mock token's owner. */
+  readonly role: "issuer-safe" | "market-maker" | "either" | "taker" | "anyone" | "token-owner";
 }
 
 function call(deployment: MandateDeployment, data: Hex, role: PreparedCall["role"], to = deployment.module): PreparedCall {
