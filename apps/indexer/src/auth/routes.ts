@@ -6,7 +6,8 @@ import { generateSiweNonce, parseSiweMessage, verifySiweMessage } from "viem/siw
 import { z } from "zod";
 
 import type { Cache } from "../cache/cache.ts";
-import { keys, TTL } from "../cache/keys.ts";
+import { TTL } from "../cache/keys.ts";
+import { rateLimit } from "../api/rateLimit.ts";
 import type { ChainContext } from "../chain.ts";
 import type { Config } from "../config.ts";
 import type { Db } from "../db/client.ts";
@@ -88,17 +89,8 @@ export function createAuthRoutes(deps: AuthDeps) {
     await next();
   });
 
-  /** Fixed one-minute window per client on the sign-in steps; fails closed because nonces need Redis anyway. */
-  const limit: MiddlewareHandler<AuthEnv> = async (c, next) => {
-    const window = Math.floor(Date.now() / 60_000);
-    const hits = await cache.hit(keys.rateLimit("auth", deps.clientIp(c), window), TTL.rateLimitSeconds);
-    if (hits === undefined) return c.json({ error: "sign-in unavailable" }, 503);
-    if (hits > config.API_AUTH_PER_MINUTE) {
-      c.header("retry-after", String(60 - (Math.floor(Date.now() / 1000) % 60)));
-      return c.json({ error: "too many requests" }, 429);
-    }
-    await next();
-  };
+  /** Sign-in steps are limited per client; fails closed because nonces need Redis anyway. */
+  const limit = rateLimit({ cache, scope: "auth", perMinute: config.API_AUTH_PER_MINUTE, clientIp: deps.clientIp, unavailable: "sign-in unavailable" });
 
   app.get("/nonce", limit, async (c) => {
     const nonce = generateSiweNonce();

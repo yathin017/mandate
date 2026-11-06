@@ -9,6 +9,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { streamSSE } from "hono/streaming";
 
 import { createAuthRoutes } from "../auth/routes.ts";
+import { rateLimit } from "./rateLimit.ts";
 import type { Cache } from "../cache/cache.ts";
 import type { ChainContext } from "../chain.ts";
 import { keys, TTL } from "../cache/keys.ts";
@@ -270,18 +271,11 @@ export function createApp(deps: AppDeps) {
     "/v1/chains/:chainId/mandates/:mandateId/attempts",
     zValidator("param", mandateParam, invalid),
     zValidator("json", attemptBody, invalid),
+    // Each request costs RPC calls.
+    rateLimit({ cache, scope: "attempts", perMinute: config.API_ATTEMPTS_PER_MINUTE, clientIp, unavailable: "rate limiter unavailable" }),
     async (c) => {
       const { chainId, mandateId } = c.req.valid("param");
       if (chainId !== config.INDEXER_CHAIN_ID || !deps.chain) return c.json({ error: "chain not simulated here" }, 404);
-
-      // Fixed one-minute window per client. Fails closed: each request costs RPC calls.
-      const window = Math.floor(Date.now() / 60_000);
-      const hits = await cache.hit(keys.rateLimit("attempts", clientIp(c), window), TTL.rateLimitSeconds);
-      if (hits === undefined) return c.json({ error: "rate limiter unavailable" }, 503);
-      if (hits > config.API_ATTEMPTS_PER_MINUTE) {
-        c.header("retry-after", String(60 - (Math.floor(Date.now() / 1000) % 60)));
-        return c.json({ error: "too many attempts" }, 429);
-      }
 
       let chain: ChainContext;
       try {
