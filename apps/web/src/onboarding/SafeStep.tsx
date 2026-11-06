@@ -127,7 +127,7 @@ function CreateSafe({ onCreated }: { onCreated: (safe: Address) => void }) {
   async function create() {
     if (!call || !predicted || !publicClient) return;
     setError(null);
-    const outcome = await tx.run({ send: { to: call.to, data: call.data } });
+    const outcome = await tx.run({ send: { to: call.to, data: call.data }, skipIndexerWait: true });
     if (!outcome.ok) return;
     const code = await publicClient.getCode({ address: predicted });
     if (!code || code === "0x") {

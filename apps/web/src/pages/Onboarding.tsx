@@ -5,6 +5,8 @@ import type { Address } from "viem";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SafeStep } from "@/onboarding/SafeStep";
+import { TokenStep } from "@/onboarding/TokenStep";
+import { useTokenInfo } from "@/onboarding/useTokenInfo";
 import { useSafeCheck } from "@/onboarding/useSafeCheck";
 import { cn } from "@/lib/utils";
 import { demoChain, isLive } from "@/wallet/config";
@@ -20,6 +22,12 @@ export function Onboarding() {
   const safe = params.get("safe");
   const check = useSafeCheck(safe);
   const safeDone = Boolean(safe && check.isSafe);
+  const base = params.get("base");
+  const quote = params.get("quote");
+  const baseCheck = useTokenInfo(base, safe);
+  const quoteCheck = useTokenInfo(quote, safe);
+  const tokensDone =
+    safeDone && baseCheck.info?.ok === true && quoteCheck.info?.ok === true && base!.toLowerCase() !== quote!.toLowerCase();
 
   const select = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
@@ -35,8 +43,13 @@ export function Onboarding() {
       state: safeDone ? "done" : "current",
       body: <SafeStep safe={safe} check={check} onSelect={(address: Address) => select("safe", address)} />,
     },
-    { title: "Token pair", description: "Your token and the token you are paid in.", state: safeDone ? "current" : "upcoming" },
-    { title: "Enable Mandate", description: "The Safe's owners turn on the Mandate module.", state: "upcoming" },
+    {
+      title: "Token pair",
+      description: "Your token and the token you are paid in.",
+      state: tokensDone ? "done" : safeDone ? "current" : "upcoming",
+      body: safe ? <TokenStep safe={safe} base={base} quote={quote} onChange={select} /> : undefined,
+    },
+    { title: "Enable Mandate", description: "The Safe's owners turn on the Mandate module.", state: tokensDone ? "current" : "upcoming" },
     { title: "Price anchor", description: "A Uniswap v4 pool with the oracle hook and 30 minutes of history.", state: "upcoming" },
     { title: "Create the mandate", description: "Terms, market maker, owners' approval.", state: "upcoming" },
   ];
