@@ -396,3 +396,44 @@ export const proposals = pgTable(
     ),
   ],
 );
+
+// ---------------------------------------------------------------- market-maker scoring (DRAFT)
+
+/**
+ * Probe outcome, from the market maker's point of view:
+ * - `ok`: the probe trade would fill inside every rail.
+ * - `mm_fault`: refused for a reason the market maker controls (strategy priced outside the anchor band, or the
+ *   market maker paused it).
+ * - `neutral`: refused by an issuer rail (floor, daily cap, release), by the anchor itself (history, manipulation
+ *   breaker) or by an RPC error; excluded from availability.
+ */
+export const probeOutcome = pgEnum("probe_outcome", ["ok", "mm_fault", "neutral"]);
+
+/**
+ * Periodic read-only quotes against each live mandate (one small buy and one small sell at the indexed head).
+ * Evidence for the availability and responsiveness score components; references `blocks`, so reorgs remove them.
+ */
+export const mmProbes = pgTable(
+  "mm_probes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    chainId: integer("chain_id").notNull(),
+    mandateId: text("mandate_id").notNull(),
+    mm: text("mm").notNull(),
+    blockNumber: blockNumber("block_number").notNull(),
+    /** Chain time of `block_number`, seconds. */
+    timestamp: bigint("timestamp", { mode: "bigint" }).notNull(),
+    /** `sell`: the treasury sells base (taker buys); `buy`: the treasury buys back base. */
+    side: text("side").notNull(),
+    outcome: probeOutcome("outcome").notNull(),
+    errorName: text("error_name"),
+  },
+  (t) => [
+    foreignKey({ columns: [t.chainId, t.blockNumber], foreignColumns: [blocks.chainId, blocks.number] }).onDelete(
+      "cascade",
+    ),
+    uniqueIndex("mm_probes_uq").on(t.chainId, t.mandateId, t.blockNumber, t.side),
+    index("mm_probes_mm_idx").on(t.chainId, t.mm, t.timestamp),
+    check("mm_probes_fmt", sql`${t.side} IN ('sell', 'buy') AND ${t.mm} ~ ${sql.raw(`'${ADDRESS}'`)}`),
+  ],
+);
