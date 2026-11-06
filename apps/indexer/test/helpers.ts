@@ -59,3 +59,21 @@ export async function rpc<T>(url: string, method: string, params: unknown[] = []
   if (body.error) throw new Error(`${method}: ${body.error.message}`);
   return body.result as T;
 }
+
+/** Resets the test database and indexes the live demo chain up to its head. */
+export async function indexDemoChain(config: Config) {
+  const [{ createDb }, { createChainContext }, { Indexer }] = await Promise.all([
+    import("../src/db/client.ts"),
+    import("../src/chain.ts"),
+    import("../src/ingest/indexer.ts"),
+  ]);
+  await resetDatabase(config.DATABASE_URL);
+  const handle = createDb(config.DATABASE_URL);
+  const ctx = await createChainContext(config);
+  const indexer = new Indexer(ctx, handle.db, config, () => {}, () => {});
+  await indexer.init();
+  while (await indexer.step()) {
+    /* index to head */
+  }
+  return { ...handle, ctx, indexer };
+}
