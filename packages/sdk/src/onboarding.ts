@@ -97,17 +97,20 @@ export interface AnchorStatus {
   readonly cardinalityNext: number;
   /** Timestamp of the oldest stored observation, or null without history. */
   readonly oldestObservation: number | null;
-  /** When the issuer's TWAP window is first fully covered. */
+  /** Seconds of price history the pool has now (0 without any). */
+  readonly historySeconds: number;
+  /** When the issuer's TWAP window is first fully covered; null without history or without a window. */
   readonly readyAt: number | null;
-  readonly ready: boolean;
+  /** Whether the window is covered now; null when no window was given (no policy yet). */
+  readonly ready: boolean | null;
   readonly source: { readonly blockNumber: bigint; readonly timestamp: bigint };
 }
 
 /** Everything the onboarding UI shows about a pair's anchor, read at one block. */
 export async function readAnchorStatus(client: PublicClient, input: {
   chainId: number; launcher: Address; base: Address; quote: Address;
-  /** The policy's TWAP window in seconds; it decides when the anchor is ready. */
-  window: number;
+  /** The policy's TWAP window in seconds, when there is a policy; it decides when the anchor is ready. */
+  window?: number;
 }): Promise<AnchorStatus> {
   const block = await client.getBlock({ blockTag: "latest" });
   if (block.number === null) throw new Error("A confirmed block is required");
@@ -138,9 +141,9 @@ export async function readAnchorStatus(client: PublicClient, input: {
       functionName: "observationsById", args: [poolId, 0n], ...at });
     if (oldest[4]) oldestObservation = oldest[0];
   }
-  if (!Number.isInteger(input.window) || input.window <= 0) throw new Error("TWAP window must be a positive number of seconds");
-  const window = input.window;
-  const readyAt = oldestObservation === null ? null : oldestObservation + window;
+  const { window } = input;
+  if (window !== undefined && (!Number.isInteger(window) || window <= 0)) throw new Error("TWAP window must be a positive number of seconds");
+  const readyAt = oldestObservation === null || window === undefined ? null : oldestObservation + window;
   const baseIsCurrency0 = getAddress(input.base) === poolKey.currency0;
 
   return {
@@ -151,7 +154,8 @@ export async function readAnchorStatus(client: PublicClient, input: {
     spotPriceX36: priceX36FromSqrtPrice(sqrtPriceX96, baseIsCurrency0),
     liquidity, trustedLiquidity, initializedAt: initializedAt === 0 ? null : initializedAt,
     cardinality, cardinalityNext, oldestObservation, readyAt,
-    ready: readyAt !== null && BigInt(readyAt) <= block.timestamp,
+    historySeconds: oldestObservation === null ? 0 : Math.max(0, Number(block.timestamp) - oldestObservation),
+    ready: window === undefined ? null : readyAt !== null && BigInt(readyAt) <= block.timestamp,
     source: { blockNumber: block.number, timestamp: block.timestamp },
   };
 }
