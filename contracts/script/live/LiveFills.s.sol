@@ -13,7 +13,8 @@ import { LiveConfig } from "./LiveConfig.sol";
 
 /// @title LiveFills
 /// @notice Exercises the live Base mandate with real transactions: the deployer (as an EOA taker) buys from and
-///         sells to the treasury through the canonical router, then the market maker re-ships and claims fees.
+///         sells to the treasury through the canonical router, then, if .env holds the market maker's key, the MM
+///         re-ships and claims fees.
 /// @dev Needs >= 30 minutes of pool history since deployment (the anchor halts quotes until then).
 ///      Dry run: forge script script/live/LiveFills.s.sol --rpc-url $BASE_RPC_URL; add --broadcast to send.
 contract LiveFills is Script {
@@ -40,6 +41,12 @@ contract LiveFills is Script {
         vm.stopBroadcast();
 
         // The market maker's own key: tighten the spread inside the issuer's 0.1%-2% range, then claim fees.
+        // Market-maker steps need the MM's own key; skipped when the manifest's MM is a wallet we do not hold.
+        if (vm.envOr("BASE_MM_PRIVATE_KEY", uint256(0)) == 0 || vm.addr(LiveConfig.mmKey()) != json.readAddress(".mm"))
+        {
+            console.log("Skipping MM reship/claim: BASE_MM_PRIVATE_KEY is not the manifest's market maker.");
+            return;
+        }
         // Inventory can only be re-shipped up to what is still unsold (the module enforces this).
         Mandate memory m = module.getMandate(id);
         (,, uint256 totalNetSold) = module.QUOTER().epochState(id);

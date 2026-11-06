@@ -30,6 +30,9 @@ interface ISafeAccount is ISafe {
     /// @notice Non-zero when `owner` approved `hash` via approveHash.
     function approvedHashes(address owner, bytes32 hash) external view returns (uint256);
 
+    /// @notice Replaces `oldOwner` with `newOwner`; `prevOwner` precedes it in the owner list (0x1 if first).
+    function swapOwner(address prevOwner, address oldOwner, address newOwner) external;
+
     function enableModule(address module) external;
     function disableModule(address prevModule, address module) external;
 
