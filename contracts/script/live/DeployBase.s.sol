@@ -2,6 +2,7 @@
 pragma solidity 0.8.30;
 
 import { Script } from "forge-std/Script.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
@@ -16,7 +17,8 @@ import { HookMiner } from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
 import { MandateModule } from "../../src/module/MandateModule.sol";
 import { MandateOracleHook } from "../../src/hook/MandateOracleHook.sol";
-import { UniswapV4TwapAnchor } from "../../src/anchor/UniswapV4TwapAnchor.sol";
+import { AnchorLauncher } from "../../src/anchor/AnchorLauncher.sol";
+import { UniswapV4MarketOracle } from "../../src/anchor/UniswapV4MarketOracle.sol";
 import { MockERC20 } from "../../src/mocks/MockERC20.sol";
 import { ChainConfig, ChainConfigLib } from "../lib/ChainConfig.sol";
 import { DemoConfig } from "../lib/DemoConfig.sol";
@@ -24,13 +26,16 @@ import { ISafeAccount, SafeTransactions } from "../lib/SafeTransactions.sol";
 import { LiveConfig } from "./LiveConfig.sol";
 
 /// @title DeployBase
-/// @notice Deploys the full Mandate demo to Base mainnet with mock tokens: module + quoter, oracle hook, a seeded
-///         v4 anchor pool, a 2-of-2 issuer Safe and one live mandate whose market maker is a separate key.
+/// @notice Deploys Mandate v2 to Base mainnet: module + quoter, oracle hook and AnchorLauncher (the platform), plus a
+///         demo pair with mock tokens: a seeded v4 anchor pool, a 2-of-2 issuer Safe, its treasury policy and one
+///         market-making strategy whose market maker is a separate key. The TokenFactory is kept from the previous
+///         manifest (it does not depend on the module).
 /// @dev Dry run:  forge script script/live/DeployBase.s.sol --rpc-url $BASE_RPC_URL
 ///      Broadcast: add --broadcast. The manifest is written only when broadcasting.
 ///      Every issuer action goes through the Safe with both owners' EIP-712 signatures; nothing is impersonated.
 contract DeployBase is Script {
     using PoolIdLibrary for PoolKey;
+    using stdJson for string;
 
     struct Deployed {
         MockERC20 base;
@@ -39,9 +44,11 @@ contract DeployBase is Script {
         MandateOracleHook hook;
         PoolSwapTest swapRouter;
         PoolModifyLiquidityTest liquidityRouter;
-        UniswapV4TwapAnchor anchor;
+        AnchorLauncher launcher;
+        UniswapV4MarketOracle anchor;
         ISafeAccount safe;
-        bytes32 mandateId;
+        bytes32 policyId;
+        bytes32 strategyId;
     }
 
     function run() external {
@@ -61,7 +68,7 @@ contract DeployBase is Script {
         Deployed memory d = _deployContracts(cfg);
         _seedPool(cfg, d);
         d.safe = _createSafe(cfg, d, deployer, owner2);
-        d.mandateId = _createMandate(d, mm);
+        (d.policyId, d.strategyId) = _createPolicy(d, mm);
 
         // Gas for the second owner (approvals in the web app) and the MM (reship, pause, claim).
         payable(owner2).transfer(LiveConfig.GAS_TOPUP);
@@ -82,26 +89,23 @@ contract DeployBase is Script {
         // Broadcast CREATE2 goes through the standard deterministic deployer; the salt encodes the hook flags.
         (address predicted, bytes32 salt) = HookMiner.find(
             0x4e59b44847b379578588920cA78FbF26c0B4956C,
-            Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG,
+            Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG,
             type(MandateOracleHook).creationCode,
-            abi.encode(IPoolManager(cfg.v4PoolManager), TickMath.MAX_TICK)
+            abi.encode(IPoolManager(cfg.v4PoolManager), TickMath.MAX_TICK, LiveConfig.SETTLE_SECONDS)
         );
-        d.hook = new MandateOracleHook{ salt: salt }(IPoolManager(cfg.v4PoolManager), TickMath.MAX_TICK);
+        d.hook = new MandateOracleHook{ salt: salt }(
+            IPoolManager(cfg.v4PoolManager), TickMath.MAX_TICK, LiveConfig.SETTLE_SECONDS
+        );
         require(address(d.hook) == predicted, "Live: CREATE2 address mismatch");
 
         d.swapRouter = new PoolSwapTest(IPoolManager(cfg.v4PoolManager));
         d.liquidityRouter = new PoolModifyLiquidityTest(IPoolManager(cfg.v4PoolManager));
-        d.anchor = new UniswapV4TwapAnchor(
-            IPoolManager(cfg.v4PoolManager),
-            DemoConfig.pool(address(d.base), address(d.quote), address(d.hook), false),
-            address(d.base),
-            address(d.quote),
-            200
-        );
+        d.launcher = new AnchorLauncher(IPoolManager(cfg.v4PoolManager), d.hook);
     }
 
-    /// @dev Real-time history accrues from here: quotes need ~30 minutes before the TWAP window is covered.
-    function _seedPool(ChainConfig memory cfg, Deployed memory d) private {
+    /// @dev The launcher creates the pool and its market oracle. Real-time history accrues from here: fills wait for the
+    ///      policy's minimum pool age (1 hour in the demo policy) and for the liquidity to settle.
+    function _seedPool(ChainConfig memory, Deployed memory d) private {
         address deployer = vm.addr(LiveConfig.deployerKey());
         d.base.mint(deployer, 1e30);
         d.quote.mint(deployer, 1e30);
@@ -110,17 +114,15 @@ contract DeployBase is Script {
         d.base.approve(address(d.swapRouter), type(uint256).max);
         d.quote.approve(address(d.swapRouter), type(uint256).max);
 
-        PoolKey memory key = DemoConfig.pool(address(d.base), address(d.quote), address(d.hook), false);
-        IPoolManager(cfg.v4PoolManager)
-            .initialize(key, DemoConfig.sqrtPrice(address(d.base), address(d.quote), LiveConfig.PRICE));
-        d.hook.increaseObservationCardinalityNext(300, key.toId());
+        (d.anchor,,) = d.launcher.launch(address(d.base), address(d.quote), LiveConfig.PRICE);
+        PoolKey memory key = d.launcher.poolKeyFor(address(d.base), address(d.quote));
         d.liquidityRouter
             .modifyLiquidity(
                 key,
                 ModifyLiquidityParams({
                     tickLower: TickMath.minUsableTick(key.tickSpacing),
                     tickUpper: TickMath.maxUsableTick(key.tickSpacing),
-                    liquidityDelta: 6e17,
+                    liquidityDelta: LiveConfig.POOL_LIQUIDITY,
                     salt: 0
                 }),
                 ""
@@ -166,17 +168,24 @@ contract DeployBase is Script {
         );
     }
 
-    function _createMandate(Deployed memory d, address mm) private returns (bytes32) {
-        bytes memory call = abi.encodeCall(
-            MandateModule.createMandate,
-            (mm, address(d.base), address(d.quote), LiveConfig.bounds(address(d.anchor)), LiveConfig.params())
+    function _createPolicy(Deployed memory d, address mm) private returns (bytes32 policyId, bytes32 strategyId) {
+        bytes memory create = abi.encodeCall(
+            MandateModule.createPolicy, (address(d.base), address(d.quote), LiveConfig.policy(address(d.anchor)))
         );
         require(
-            SafeTransactions.execute(d.safe, address(d.module), call, LiveConfig.sortedOwnerKeys()),
-            "Live: createMandate failed"
+            SafeTransactions.execute(d.safe, address(d.module), create, LiveConfig.sortedOwnerKeys()),
+            "Live: createPolicy failed"
         );
-        bytes32[] memory ids = d.module.mandatesOf(address(d.safe));
-        return ids[ids.length - 1];
+        policyId = d.module.activePolicyOf(address(d.safe), address(d.base));
+        bytes memory add = abi.encodeCall(
+            MandateModule.addStrategy,
+            (policyId, mm, LiveConfig.kind(), LiveConfig.strategyBounds(), LiveConfig.params())
+        );
+        require(
+            SafeTransactions.execute(d.safe, address(d.module), add, LiveConfig.sortedOwnerKeys()),
+            "Live: addStrategy failed"
+        );
+        strategyId = d.module.strategiesOf(policyId)[0];
     }
 
     function _writeManifest(
@@ -203,10 +212,21 @@ contract DeployBase is Script {
         vm.serializeAddress(obj, "quoter", address(d.module.QUOTER()));
         vm.serializeAddress(obj, "hook", address(d.hook));
         vm.serializeAddress(obj, "anchor", address(d.anchor));
+        vm.serializeAddress(obj, "anchorLauncher", address(d.launcher));
+        address factory = _previousTokenFactory();
+        if (factory != address(0)) vm.serializeAddress(obj, "tokenFactory", factory);
         vm.serializeAddress(obj, "swapRouter", address(d.swapRouter));
         vm.serializeAddress(obj, "liquidityRouter", address(d.liquidityRouter));
         vm.serializeAddress(obj, "safe", address(d.safe));
-        string memory json = vm.serializeBytes32(obj, "mandate", d.mandateId);
+        vm.serializeBytes32(obj, "policy", d.policyId);
+        string memory json = vm.serializeBytes32(obj, "strategy", d.strategyId);
         vm.writeJson(json, LiveConfig.path());
+    }
+
+    /// @dev The TokenFactory is independent of the module, so a redeploy keeps the one already recorded.
+    function _previousTokenFactory() private view returns (address) {
+        if (!vm.exists(LiveConfig.path())) return address(0);
+        string memory previous = vm.readFile(LiveConfig.path());
+        return previous.keyExists(".tokenFactory") ? previous.readAddress(".tokenFactory") : address(0);
     }
 }

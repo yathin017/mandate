@@ -5,17 +5,19 @@ import { Script, console } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
 import { TakerTraitsLib } from "@1inch/swap-vm/src/libs/TakerTraits.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { MandateModule } from "../../src/module/MandateModule.sol";
-import { Mandate, MandateParams } from "../../src/libraries/MandateTypes.sol";
+import { Strategy, StrategyParams } from "../../src/libraries/MandateTypes.sol";
 import { ChainConfig, ChainConfigLib } from "../lib/ChainConfig.sol";
 import { LiveConfig } from "./LiveConfig.sol";
 
 /// @title LiveFills
-/// @notice Exercises the live Base mandate with real transactions: the deployer (as an EOA taker) buys from and
+/// @notice Exercises the live Base strategy with real transactions: the deployer (as an EOA taker) buys from and
 ///         sells to the treasury through the canonical router, then, if .env holds the market maker's key, the MM
 ///         re-ships and claims fees.
-/// @dev Needs >= 30 minutes of pool history since deployment (the anchor halts quotes until then).
+/// @dev Needs the demo policy's minimum pool age (1 hour) since deployment; until then the treasury is paused.
 ///      Dry run: forge script script/live/LiveFills.s.sol --rpc-url $BASE_RPC_URL; add --broadcast to send.
 contract LiveFills is Script {
     using stdJson for string;
@@ -29,7 +31,7 @@ contract LiveFills is Script {
         ChainConfig memory cfg = ChainConfigLib.load(LiveConfig.CHAIN_ID);
         ISwapVM router = ISwapVM(cfg.swapVmRouter);
         MandateModule module = MandateModule(json.readAddress(".module"));
-        bytes32 id = json.readBytes32(".mandate");
+        bytes32 id = json.readBytes32(".strategy");
         address base = json.readAddress(".base");
         address quote = json.readAddress(".quote");
 
@@ -47,12 +49,13 @@ contract LiveFills is Script {
             console.log("Skipping MM reship/claim: BASE_MM_PRIVATE_KEY is not the manifest's market maker.");
             return;
         }
-        // Inventory can only be re-shipped up to what is still unsold (the module enforces this).
-        Mandate memory m = module.getMandate(id);
-        (,, uint256 totalNetSold) = module.QUOTER().epochState(id);
-        MandateParams memory next = m.params;
+        // Inventory can only be re-shipped up to what the Safe still holds (the module's backing check).
+        Strategy memory s = module.getStrategy(id);
+        address safe = module.getPolicy(s.policyId).safe;
+        StrategyParams memory next = s.params;
         next.spreadBps = 30;
-        next.shippedBase = m.bounds.allotment - totalNetSold;
+        next.shippedBase = Math.min(s.bounds.maxShippedBase, IERC20(base).balanceOf(safe));
+        next.shippedQuote = Math.min(s.bounds.maxShippedQuote, IERC20(quote).balanceOf(safe));
         vm.startBroadcast(LiveConfig.mmKey());
         module.reship(id, next);
         (uint256 claimedBase, uint256 claimedQuote) = module.claimFees(id);

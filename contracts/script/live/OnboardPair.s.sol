@@ -10,7 +10,7 @@ import { ModifyLiquidityParams } from "@uniswap/v4-core/src/types/PoolOperation.
 import { PoolModifyLiquidityTest } from "@uniswap/v4-core/src/test/PoolModifyLiquidityTest.sol";
 
 import { AnchorLauncher } from "../../src/anchor/AnchorLauncher.sol";
-import { UniswapV4TwapAnchor } from "../../src/anchor/UniswapV4TwapAnchor.sol";
+import { UniswapV4MarketOracle } from "../../src/anchor/UniswapV4MarketOracle.sol";
 import { ISafe } from "../../src/interfaces/ISafe.sol";
 import { MockERC20 } from "../../src/mocks/MockERC20.sol";
 import { ChainConfig, ChainConfigLib } from "../lib/ChainConfig.sol";
@@ -22,7 +22,7 @@ import { LiveConfig } from "./LiveConfig.sol";
 ///         a new demo pair minted into a new 2-of-2 Safe (Owner 1 + the manifest's owner 2), the pair's anchor
 ///         created through the AnchorLauncher, a full-range liquidity position so the anchor price is not free to
 ///         move, and Owner 1's onchain approval of `enableModule` (Safe nonce 0).
-/// @dev The mandate itself is approved separately from the wizard's shared link (apps/web/scripts/approve-terms.ts),
+/// @dev The policy and strategy are approved separately from the wizard's shared link (apps/web/scripts/approve-terms.ts),
 ///      so both owners sign byte-identical calldata built by the web app's terms module.
 ///      Dry run:  forge script script/live/OnboardPair.s.sol --rpc-url $BASE_RPC_URL
 ///      Broadcast: add --broadcast. Only Owner 1's key is used; nothing is signed for owner 2.
@@ -33,8 +33,8 @@ contract OnboardPair is Script {
     uint256 internal constant PRICE = 4e23;
     uint256 internal constant SAFE_BASE = 1_000_000e18;
     uint256 internal constant SAFE_QUOTE = 400_000e6;
-    /// @dev Same depth as the live demo pool: ~0.95M base and ~0.38M quote across the full range at 0.40.
-    int256 internal constant LIQUIDITY = 6e17;
+    /// @dev Same depth as the live demo pool (LiveConfig.POOL_LIQUIDITY).
+    int256 internal constant LIQUIDITY = LiveConfig.POOL_LIQUIDITY;
 
     function run() external {
         LiveConfig.guard();
@@ -58,7 +58,7 @@ contract OnboardPair is Script {
         base.mint(address(safe), SAFE_BASE);
         quote.mint(address(safe), SAFE_QUOTE);
 
-        (UniswapV4TwapAnchor anchor,, bool poolCreated) = launcher.launch(address(base), address(quote), PRICE);
+        (UniswapV4MarketOracle anchor,, bool poolCreated) = launcher.launch(address(base), address(quote), PRICE);
         require(poolCreated, "Onboard: pool already existed");
         _seed(launcher, liquidityRouter, base, quote);
 
@@ -94,8 +94,9 @@ contract OnboardPair is Script {
         private
     {
         address owner1 = vm.addr(LiveConfig.deployerKey());
-        base.mint(owner1, SAFE_BASE);
-        quote.mint(owner1, SAFE_QUOTE);
+        // Full range at 0.40 needs ~9.5M base and ~3.8M quote for LIQUIDITY; mint with headroom.
+        base.mint(owner1, 20 * SAFE_BASE);
+        quote.mint(owner1, 20 * SAFE_QUOTE);
         IERC20(address(base)).approve(address(liquidityRouter), type(uint256).max);
         IERC20(address(quote)).approve(address(liquidityRouter), type(uint256).max);
         PoolKey memory key = launcher.poolKeyFor(address(base), address(quote));
