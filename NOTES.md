@@ -340,7 +340,31 @@ Code: `apps/web`. Decisions (user): Vite + React, shadcn/ui with the tweakcn the
   Chrome (driven over the DevTools protocol, since `--screenshot` fires before async data and the SSE stream keeps
   virtual time from settling), in light and dark mode, with no horizontal overflow at 375px.
 
-## 14. Infra
+## 14. Wallet flows: Issuer console and MM desk (Segment 9)
+
+Decisions (user): wagmi + injected wallets; onchain `approveHash` for Safe owners; chain reads allowed only inside
+wallet flows; demo MM created through the Issuer console (existing demo MMs are ScenarioActor contracts).
+
+- **Safe approvals.** `approveHash`/`approvedHashes` were verified in the canonical Safe v1.4.1 L2 singleton bytecode,
+  added to `ISafeAccount` and regenerated into the SDK. Execution uses `r = owner, s = 0, v = 1` signatures sorted by
+  owner; the executor's own entry counts without a prior approval. No signatures are stored off-chain.
+- **Pre-checks.** Every write is simulated first. Issuer actions simulate the module call *from the Safe*, so
+  module refusals (e.g. `InvalidBounds`) appear before any owner approves. The MM desk's "exceed the cap" probe is
+  `simulateOnly` and can never send.
+- **Trust boundary.** Transaction targets come from `@mandate/chains`; API data (mandate ids, params) only fills
+  arguments that the contracts validate.
+- **Findings (fixed):** (1) the create payload used the latest block's time, so owner 1's `approveHash` tx changed
+  owner 2's calldata and hash; release start is now day-rounded. (2) Views refreshed before the indexer had the new
+  block; `useTx` now waits for the indexer head. (3) An executed Safe action re-armed itself at the next nonce; the
+  panel now locks.
+- **Verification.** `apps/web/test/safe-flow.test.ts` (3 tests) runs approve → execute → new mandate → MM reship in
+  and out of bounds on the live fork and restores it. The full UI path was driven in headless Chrome with a test-only
+  EIP-1193 shim forwarding to Anvil's unlocked accounts: owner 1 approved, owner 2 executed, the MM's probe was
+  stamped, the slider stayed within rails and the re-ship confirmed. Reverting the fork afterwards was handled by
+  the worker as a reorg (3 blocks rolled back).
+- Bundle: wagmi + viem raise the shared chunk to ~540 KB (175 KB gzip); route pages are split.
+
+## 15. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.
