@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { MandateMath } from "../../src/libraries/MandateMath.sol";
+import {MandateMath} from "../../src/libraries/MandateMath.sol";
 
 contract MandateMathTest is Test {
     uint256 internal constant BAL_IN = 4_000_000e6; // USDC

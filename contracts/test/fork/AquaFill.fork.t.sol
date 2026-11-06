@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { TokenMock } from "@1inch/solidity-utils/contracts/mocks/TokenMock.sol";
-import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
-import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
-import { MakerTraitsLib } from "@1inch/swap-vm/src/libs/MakerTraits.sol";
+import {TokenMock} from "@1inch/solidity-utils/contracts/mocks/TokenMock.sol";
+import {IAqua} from "@1inch/aqua/src/interfaces/IAqua.sol";
+import {ISwapVM} from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
+import {MakerTraitsLib} from "@1inch/swap-vm/src/libs/MakerTraits.sol";
 
-import { ChainConfig, ChainConfigLib } from "../../script/lib/ChainConfig.sol";
-import { AquaProgram } from "../../src/libraries/AquaProgram.sol";
-import { AquaTaker } from "../utils/AquaTaker.sol";
-import { ProbeExtruction } from "../utils/ProbeExtruction.sol";
+import {ChainConfig, ChainConfigLib} from "../../script/lib/ChainConfig.sol";
+import {AquaProgram} from "../../src/libraries/AquaProgram.sol";
+import {AquaTaker} from "../utils/AquaTaker.sol";
+import {ProbeExtruction} from "../utils/ProbeExtruction.sol";
 
 /// @title AquaFillForkTest
 /// @notice Proves the end-to-end Aqua flow against the canonical deployed contracts on a mainnet fork:
@@ -66,8 +66,7 @@ contract AquaFillForkTest is Test {
         ISwapVM.Order memory order = _order(AquaProgram.xycSwap());
         bytes32 strategyHash = _ship(order);
 
-        (uint256 quotedIn, uint256 quotedOut) =
-            taker.quote(order, address(tokenA), address(tokenB), SWAP_IN, true);
+        (uint256 quotedIn, uint256 quotedOut) = taker.quote(order, address(tokenA), address(tokenB), SWAP_IN, true);
 
         tokenA.mint(address(taker), SWAP_IN);
         (uint256 amountIn, uint256 amountOut) = taker.swap(order, address(tokenA), address(tokenB), SWAP_IN, true);
@@ -105,8 +104,7 @@ contract AquaFillForkTest is Test {
         assertEq(probe.swapCalls(), 1, "swap path writes once");
 
         // The query the target sees identifies the strategy, which MandateQuoter will key state on.
-        (bytes32 orderHash, address qMaker, address qTaker, address qIn, address qOut, bool exactIn) =
-            probe.lastQuery();
+        (bytes32 orderHash, address qMaker, address qTaker, address qIn, address qOut, bool exactIn) = probe.lastQuery();
         assertEq(orderHash, strategyHash, "orderHash == Aqua strategyHash");
         assertEq(qMaker, maker, "maker");
         assertEq(qTaker, address(taker), "taker");

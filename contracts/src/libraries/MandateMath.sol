@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title MandateMath
 /// @notice Pure math shared by the quote path, the swap path and the read views, so they can never diverge.
@@ -23,7 +23,12 @@ library MandateMath {
     /// @notice Constant-product output for an exact input, after deducting the spread from the input.
     /// @return amountOut floor of `inNet * balanceOut / (balanceIn + inNet)`
     /// @return fee spread kept by the maker, in tokenIn
-    function amountOutForExactIn(uint256 balanceIn, uint256 balanceOut, uint256 amountIn, uint256 spreadBps)
+    function amountOutForExactIn(
+        uint256 balanceIn,
+        uint256 balanceOut,
+        uint256 amountIn,
+        uint256 spreadBps
+    )
         internal
         pure
         returns (uint256 amountOut, uint256 fee)
@@ -39,7 +44,12 @@ library MandateMath {
     ///      the returned `amountIn` yields at least `amountOut`.
     /// @return amountIn ceil of the gross input
     /// @return fee spread kept by the maker, in tokenIn (same formula as exact-in)
-    function amountInForExactOut(uint256 balanceIn, uint256 balanceOut, uint256 amountOut, uint256 spreadBps)
+    function amountInForExactOut(
+        uint256 balanceIn,
+        uint256 balanceOut,
+        uint256 amountOut,
+        uint256 spreadBps
+    )
         internal
         pure
         returns (uint256 amountIn, uint256 fee)
