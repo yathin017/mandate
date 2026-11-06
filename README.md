@@ -72,3 +72,24 @@ against a fresh local fork; all temporary nodes are stopped afterward.
 
 Segments 1–6 are implemented. Next: Segment 7's indexer, draft Postgres schema, Redis views and REST API.
 Indexer stack and blocked-attempt ingestion choices remain for that gate's user review.
+
+## Live on Base mainnet
+
+The contracts are also deployed on Base (chain 8453) with **mock tokens** (Mandate Demo Launch `mLAUNCH`,
+Mandate Demo Dollar `mUSD`; owner-mintable, no value) against the canonical Aqua, SwapVM router, Uniswap v4
+PoolManager and Safe 1.4.1. Addresses: [`deployments/8453.json`](deployments/8453.json).
+
+| Contract | Basescan |
+|---|---|
+| MandateModule | [0xC10E…544d](https://basescan.org/address/0xC10ED38aDfB53c5E1262194d4Db420f6Fa82544d) |
+| MandateQuoter | [0xBb25…D6D8](https://basescan.org/address/0xBb259F8DB3A9d3A48989cfb9B970D0B481aEd6D8) |
+| MandateOracleHook | [0x30Ff…1080](https://basescan.org/address/0x30Ff096F8582363807a9b5Cb15b84E7d98371080) |
+| UniswapV4TwapAnchor | [0x9B78…522B](https://basescan.org/address/0x9B78f6553A921D1bea0722CAd111CDAE4299522B) |
+| Issuer Safe (2-of-2) | [0xf152…7D4d](https://basescan.org/address/0xf1528F50A58b95E75F7a2304Ab52618ACDDA7D4d) |
+
+Real fills through the canonical router: [buy](https://basescan.org/tx/0x32d0ac09f07a57c109cad6fc9f64ed3cb824456a86e36de89db5202b146c8e1b),
+[buyback](https://basescan.org/tx/0x9d1c4c6905a8c2c9bc14b5f166895b1e4c7592dfd2a5841a6486ca1d8541f4e1),
+MM [reship](https://basescan.org/tx/0xdf020edf1fabe4445f203a2f8257c263fc59fe2cb7f821edeb80e67c2fedc461) and
+[fee claim](https://basescan.org/tx/0xc206be514f7091f50db3c35322708874184fc860dc3e87bbe92205083a155f07).
+Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`); run the Base stack with `pnpm base:worker`,
+`pnpm base:server` and `pnpm base:web` (needs a keyed `BASE_INDEXER_RPC_URL`).

@@ -364,7 +364,33 @@ wallet flows; demo MM created through the Issuer console (existing demo MMs are 
   the worker as a reorg (3 blocks rolled back).
 - Bundle: wagmi + viem raise the shared chunk to ~540 KB (175 KB gzip); route pages are split.
 
-## 15. Infra
+## 15. Live deployment on Base mainnet (Segment 10)
+
+Decisions (user): Base mainnet; clearly-test mock tokens (mLAUNCH / mUSD, never named USDC); generated throwaway keys
+for Safe owner 2 and the MM (gitignored .env only); contracts first, then app wiring.
+
+- **Venue check.** On Base, Aqua and the router sit at the same deterministic addresses with identical code size,
+  router EIP-712 version `1.0.2`, `AQUA()` = canonical Aqua. v4 PoolManager `0x4985…2b2b`, StateView `0xA3c0…7A71`,
+  Safe 1.4.1 singleton/factory and the CREATE2 deployer exist. Recorded in `config/chains/8453.json`.
+- **Deploy** (`DeployBase`): dry run 26 txs / 25.6M gas; broadcast all successful in blocks 53927314–53927441,
+  actual cost ≈0.00011 ETH L2 + 0.0000004 ETH L1, plus 0.0004 ETH gas top-ups. Module enablement and mandate
+  creation are real 2-of-2 Safe transactions. The manifest is written only when broadcasting.
+- **Base block time.** Blocks arrive several per second, so block counts are not time: the 30-minute TWAP window
+  needed ~30 minutes of wall-clock time (the anchor reverted `TargetPredatesOldestObservation` until then).
+- **Fills** (`LiveFills`): 3 buys of 1,000 mUSD, 1 buyback of 500 mLAUNCH, MM reship 0.8%→0.3%, MM claim of
+  12 mUSD + 2 mLAUNCH (50% of the 0.8% spread). Balances reconcile exactly. The first dry run was refused with
+  `ParamsOutOfBounds(shippedBase)`: reshipping must not exceed the unsold allotment; the script now ships
+  `allotment − totalNetSold`.
+- **Takers on a public chain.** `AquaTaker` has no owner check, so on Base the deployer trades as an EOA through the
+  router (transferFrom + Aqua push) and no taker contract holds tokens anyone could spend.
+- **Public RPCs.** `public.1rpc.io/base` answered reads but returned 410 "discontinued" for gas price;
+  `mainnet.base.org` and `base.drpc.org` rate-limit the indexer's bursts (429 / "public endpoint rate limit"), and
+  drpc's free plan rejects some log queries. The worker now backs off and has configurable snapshot concurrency, but
+  an always-on indexer needs a keyed RPC (`BASE_INDEXER_RPC_URL`). Pending from the user.
+- **Key hygiene.** The deployer key was shared in chat: treat it as exposed; keep only gas on it. No key appears in
+  committed broadcast records or manifests (scanned).
+
+## 16. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.
