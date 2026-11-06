@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 
 import { getLocalForkDeployment } from "@mandate/chains";
-import { buildCreateMandateCall, buildReshipCall, explainError, mandateModuleAbi, safeAbi } from "@mandate/sdk";
+import { buildAddStrategyCall, buildMintCall, buildReshipCall, explainError, mandateModuleAbi, safeAbi } from "@mandate/sdk";
 import { createPublicClient, createWalletClient, encodeFunctionData, http, type Address, type Hash, type Hex } from "viem";
 
 import { approvalSignatures, execTxArgs, safeTxArgs } from "../src/wallet/safeTx.ts";
@@ -35,41 +35,34 @@ describe("issuer and MM wallet flows on the demo fork", { skip: reachable ? fals
 
   before(async () => {
     snapshot = (await rpc("evm_snapshot")) as string;
+    // The demo Safe's live strategy already uses all its tokens; owner 1 (the demo tokens' owner) mints more so a
+    // second strategy is backed.
+    for (const [token, amount] of [[deployment.base, 1_000_000n * 10n ** 18n], [deployment.quote, 400_000n * 10n ** 6n]] as const) {
+      const mint = buildMintCall(31337, token, safe, amount);
+      await send(OWNER_1, mint.to, mint.data);
+    }
   });
   after(async () => {
     await rpc("evm_revert", [snapshot]);
   });
 
-  let mandateId: Hash;
+  let strategyId: Hash;
+  const policyId = deployment.policies.act1;
 
-  test("two owners approve and execute createMandate through the Safe", async () => {
-    const now = (await publicClient.getBlock()).timestamp;
-    const call = buildCreateMandateCall(deployment, {
+  test("two owners approve and execute addStrategy through the Safe", async () => {
+    // Test inputs: a second market maker under the demo Safe's existing policy.
+    const call = buildAddStrategyCall(deployment, {
+      policyId,
       marketMaker: MM,
-      base: deployment.base,
-      quote: deployment.quote,
-      bounds: {
-        allotment: 1_000_000n * 10n ** 18n,
-        releaseStart: now - 20n * 86_400n,
-        releaseDuration: 180n * 86_400n,
-        epochLength: 86_400n,
-        maxEpochCap: 50_000n * 10n ** 18n,
-        maxShippedQuote: 400_000n * 10n ** 6n,
-        floorPriceX36: 3n * 10n ** 23n,
-        maxAnchorDeviationBps: 300,
-        twapWindow: 1800,
-        spreadBpsMin: 10,
-        spreadBpsMax: 200,
-        mmFeeShareBps: 5000,
-        anchor: deployment.anchor,
-      },
-      params: { spreadBps: 80, epochCap: 50_000n * 10n ** 18n, shippedBase: 1_000_000n * 10n ** 18n, shippedQuote: 400_000n * 10n ** 6n },
+      kind: 0,
+      bounds: { spreadBpsMin: 10, spreadBpsMax: 200, maxShippedBase: 1_000_000n * 10n ** 18n, maxShippedQuote: 400_000n * 10n ** 6n, mmFeeShareBps: 5000, maxBuyPriceX36: 0n },
+      params: { spreadBps: 80, shippedBase: 1_000_000n * 10n ** 18n, shippedQuote: 400_000n * 10n ** 6n },
     });
 
     // Pre-check exactly as the app does: the module call from the Safe must succeed.
     await publicClient.call({ account: safe, to: call.to, data: call.data });
 
-    const before = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "mandatesOf", args: [safe] });
+    const before = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "strategiesOf", args: [policyId] });
     const nonce = await publicClient.readContract({ address: safe, abi: safeAbi, functionName: "nonce" });
     const safeTxHash = await publicClient.readContract({ address: safe, abi: safeAbi, functionName: "getTransactionHash", args: safeTxArgs(call.to, call.data, nonce) });
 
@@ -85,21 +78,34 @@ describe("issuer and MM wallet flows on the demo fork", { skip: reachable ? fals
     const exec = await send(OWNER_2, safe, encodeFunctionData({ abi: safeAbi, functionName: "execTransaction", args: execTxArgs(call.to, call.data, approvalSignatures([OWNER_1, OWNER_2])) }));
     assert.equal(exec.status, "success");
 
-    const afterIds = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "mandatesOf", args: [safe] });
+    const afterIds = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "strategiesOf", args: [policyId] });
     assert.equal(afterIds.length, before.length + 1);
-    mandateId = afterIds.at(-1)!;
-    const mandate = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "getMandate", args: [mandateId] });
-    assert.equal(mandate.mm.toLowerCase(), MM.toLowerCase());
-    assert.equal(mandate.status, 1);
+    strategyId = afterIds.at(-1)!;
+    const strategy = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "getStrategy", args: [strategyId] });
+    assert.equal(strategy.mm.toLowerCase(), MM.toLowerCase());
+    assert.equal(strategy.status, 1);
+    assert.equal(strategy.policyId, policyId);
+  });
+
+  test("a strategy the Safe cannot back is refused before anyone signs", async () => {
+    const call = buildAddStrategyCall(deployment, {
+      policyId,
+      marketMaker: MM,
+      kind: 0,
+      bounds: { spreadBpsMin: 10, spreadBpsMax: 200, maxShippedBase: 10n ** 30n, maxShippedQuote: 10n ** 12n, mmFeeShareBps: 5000, maxBuyPriceX36: 0n },
+      params: { spreadBps: 80, shippedBase: 10n ** 24n, shippedQuote: 4n * 10n ** 11n },
+    });
+    const refused = await publicClient.call({ account: safe, to: call.to, data: call.data }).then(() => null, (e: unknown) => e);
+    assert.equal(explainError(refused).errorName, "InsufficientBacking");
   });
 
   test("the new MM reships inside bounds; outside bounds is refused in simulation", async () => {
-    const mandate = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "getMandate", args: [mandateId] });
-    const inside = buildReshipCall(deployment, mandateId, { ...mandate.params, spreadBps: 30 });
+    const strategy = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "getStrategy", args: [strategyId] });
+    const inside = buildReshipCall(deployment, strategyId, { ...strategy.params, spreadBps: 30 });
     const ok = await send(MM, inside.to, inside.data);
     assert.equal(ok.status, "success");
 
-    const outside = buildReshipCall(deployment, mandateId, { ...mandate.params, spreadBps: 500 });
+    const outside = buildReshipCall(deployment, strategyId, { ...strategy.params, spreadBps: 500 });
     const refused = await publicClient.call({ account: MM, to: outside.to, data: outside.data }).then(() => null, (e: unknown) => e);
     assert.ok(refused, "out-of-bounds reship must revert");
     const explained = explainError(refused);
@@ -108,8 +114,8 @@ describe("issuer and MM wallet flows on the demo fork", { skip: reachable ? fals
   });
 
   test("an owner cannot reship: only the MM can", async () => {
-    const mandate = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "getMandate", args: [mandateId] });
-    const reship = buildReshipCall(deployment, mandateId, mandate.params);
+    const strategy = await publicClient.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "getStrategy", args: [strategyId] });
+    const reship = buildReshipCall(deployment, strategyId, strategy.params);
     const refused = await publicClient.call({ account: OWNER_1, to: reship.to, data: reship.data }).then(() => null, (e: unknown) => e);
     assert.equal(explainError(refused).errorName, "NotMarketMaker");
   });

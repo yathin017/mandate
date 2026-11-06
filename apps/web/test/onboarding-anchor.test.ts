@@ -37,43 +37,50 @@ describe("onboarding: anchor launch and readiness", { skip: reachable ? false : 
     await rpc("evm_revert", [snapshot]);
   });
 
-  test("new pair: no pool, then a priced empty pool that becomes ready after one window", async () => {
+  test("new pair: no pool, then a priced empty pool that covers a policy's window once its history does", async () => {
     const token = mockTokenDeployment("Demo Launch", "dLAUNCH", 18);
     const base = (await send(encodeDeployData({ abi: token.abi, bytecode: token.bytecode, args: token.args }))).contractAddress!;
     const quote = getChainConfig(chainId).tokens.usdc;
 
-    const before = await readAnchorStatus(publicClient, { chainId, launcher, base, quote });
+    // The window is the issuer's (a test input here); without one readiness is not judged.
+    const window = 1800;
+    const before = await readAnchorStatus(publicClient, { chainId, launcher, base, quote, window });
     assert.equal(before.poolExists, false);
     assert.equal(before.anchor, null);
     assert.equal(before.ready, false);
+    assert.equal((await readAnchorStatus(publicClient, { chainId, launcher, base, quote })).ready, null);
 
     const price = parsePriceX36("0.40", 18, 6);
     const call = buildLaunchAnchorCall(chainId, launcher, { base, quote, initialPriceX36: price });
     assert.equal((await send(call.data, call.to)).status, "success");
 
-    const after = await readAnchorStatus(publicClient, { chainId, launcher, base, quote });
+    const after = await readAnchorStatus(publicClient, { chainId, launcher, base, quote, window });
     assert.equal(after.anchor, before.predictedAnchor, "deployed where predicted");
+    assert.ok(after.initializedAt !== null, "pool age starts at launch");
     assert.ok(after.poolExists);
     assert.equal(after.liquidity, 0n, "no liquidity until LPs add it");
     assert.ok(Math.abs(Number(after.spotPriceX36 - price)) / Number(price) < 1e-4, "starting price");
     assert.equal(after.cardinalityNext, 300);
     assert.equal(after.ready, false);
-    assert.equal(after.readyAt, after.oldestObservation! + 1800);
+    assert.equal(after.readyAt, after.oldestObservation! + window);
 
     // Advance chain time past the window and mine.
     await rpc("evm_mine", [`0x${(after.readyAt! + 1).toString(16)}`]);
-    assert.equal((await readAnchorStatus(publicClient, { chainId, launcher, base, quote })).ready, true);
+    const later = await readAnchorStatus(publicClient, { chainId, launcher, base, quote, window });
+    assert.equal(later.ready, true);
+    assert.ok(later.historySeconds >= window);
   });
 
   test("existing demo pair: the launch reuses the pool, keeps its price and is ready at once", async () => {
-    const status = await readAnchorStatus(publicClient, { chainId, launcher, base: deployment.base, quote: deployment.quote });
+    const status = await readAnchorStatus(publicClient, { chainId, launcher, base: deployment.base, quote: deployment.quote, window: 1800 });
     assert.ok(status.poolExists);
     assert.equal(status.anchor, null);
-    assert.equal(status.liquidity, 600_000_000_000_000_000n);
+    assert.ok(status.liquidity > 0n);
+    assert.equal(status.trustedLiquidity, status.liquidity, "the demo seed has settled");
 
     const call = buildLaunchAnchorCall(chainId, launcher, { base: deployment.base, quote: deployment.quote, initialPriceX36: 1n });
     assert.equal((await send(call.data, call.to)).status, "success");
-    const after = await readAnchorStatus(publicClient, { chainId, launcher, base: deployment.base, quote: deployment.quote });
+    const after = await readAnchorStatus(publicClient, { chainId, launcher, base: deployment.base, quote: deployment.quote, window: 1800 });
     assert.ok(after.anchor);
     assert.equal(after.sqrtPriceX96, status.sqrtPriceX96, "price untouched");
     assert.ok(after.ready);
