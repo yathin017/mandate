@@ -62,8 +62,14 @@ export function decodeLogs(logs: readonly Log[], sources: EventSources): Decoded
   return out.sort((a, b) => (a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1));
 }
 
-/** Mandate an event belongs to, if any. */
-export function mandateIdOf(event: DecodedEvent): Hex | null {
-  const id = event.args.mandateId;
+/** Lowercase bytes32 arg, if the event has one under `name`. */
+function idArg(event: DecodedEvent, name: string): Hex | null {
+  const id = event.args[name];
   return typeof id === "string" ? (id.toLowerCase() as Hex) : null;
 }
+
+/** Policy an event names, if any (module policy events and the quoter's `Filled`). */
+export const policyIdOf = (event: DecodedEvent) => idArg(event, "policyId");
+
+/** Strategy an event names, if any (module strategy events, `Filled`, `FeeAccrued`). */
+export const strategyIdOf = (event: DecodedEvent) => idArg(event, "strategyId");

@@ -25,7 +25,7 @@ const schema = z.object({
     .string()
     .regex(/^0x[0-9a-fA-F]{40}$/)
     .optional(),
-  /** Market-maker availability probes (read-only quotes per live mandate and side). 0 turns them off. */
+  /** Market-maker availability probes (read-only quotes per live strategy and side). 0 turns them off. */
   INDEXER_PROBE_INTERVAL_S: z.coerce.number().int().min(0).max(86_400).default(600),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(8787),
   API_CORS_ORIGINS: z

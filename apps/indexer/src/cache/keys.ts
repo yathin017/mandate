@@ -2,6 +2,12 @@
  * Every Redis key and channel the indexer uses. Redis holds no source-of-truth data: deleting all keys is
  * always safe and only costs recomputation.
  */
+/** What a change feed is about: a treasury policy or one of its strategies. Ids are lowercase 0x-hex. */
+export interface Subject {
+  readonly kind: "policy" | "strategy";
+  readonly id: string;
+}
+
 export const keys = {
   /** `{ number, hash }` of the latest committed block. Response-cache keys embed its hash. */
   head: (chainId: number) => `mandate:v1:head:${chainId}`,
@@ -9,8 +15,8 @@ export const keys = {
   response: (chainId: number, headHash: string, route: string) => `mandate:v1:api:${chainId}:${headHash}:${route}`,
   /** Fixed-window request counter per client per minute. */
   rateLimit: (scope: string, client: string, window: number) => `mandate:v1:rl:${scope}:${client}:${window}`,
-  /** Per-mandate counter bumped on writes that do not move the head (simulated attempts); part of feed keys. */
-  mandateVersion: (chainId: number, mandateId: string) => `mandate:v1:ver:${chainId}:${mandateId}`,
+  /** Per-subject counter bumped on writes that do not move the head (simulated attempts); part of feed keys. */
+  subjectVersion: (chainId: number, subject: Subject) => `mandate:v2:ver:${chainId}:${subject.kind}:${subject.id}`,
   /** One-time sign-in nonce. Consumed with GETDEL, so a signed message can be used once. */
   authNonce: (nonce: string) => `mandate:v1:auth:nonce:${nonce}`,
   /** Cached session lookup by token hash; deleted on sign-out, so revocation is immediate. */
@@ -19,8 +25,8 @@ export const keys = {
   safeOwners: (chainId: number, safe: string) => `mandate:v1:safe-owners:${chainId}:${safe}`,
   /** Public market-maker list; deleted whenever a profile is written. */
   mmList: () => `mandate:v1:mms:list`,
-  /** Pub/sub channel announcing committed changes for one mandate. */
-  mandateChannel: (chainId: number, mandateId: string) => `mandate:v1:events:${chainId}:${mandateId}`,
+  /** Pub/sub channel announcing committed changes for one policy or strategy. */
+  subjectChannel: (chainId: number, subject: Subject) => `mandate:v2:events:${chainId}:${subject.kind}:${subject.id}`,
 } as const;
 
 export const TTL = {

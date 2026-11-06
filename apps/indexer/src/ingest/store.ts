@@ -2,7 +2,20 @@ import { and, desc, eq, gt, sql } from "drizzle-orm";
 import type { Hash } from "viem";
 
 import type { Db } from "../db/client.ts";
-import { attempts, blocks, chains, fills, launchedTokens, mandates, rawEvents, snapshots, syncCursors, tokens } from "../db/schema.ts";
+import {
+  attempts,
+  blocks,
+  chains,
+  fills,
+  launchedTokens,
+  policies,
+  policySnapshots,
+  rawEvents,
+  strategies,
+  strategySnapshots,
+  syncCursors,
+  tokens,
+} from "../db/schema.ts";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -10,8 +23,10 @@ export type BlockRow = typeof blocks.$inferInsert;
 export type RawEventRow = typeof rawEvents.$inferInsert;
 export type FillRow = typeof fills.$inferInsert;
 export type AttemptRow = typeof attempts.$inferInsert;
-export type SnapshotRow = typeof snapshots.$inferInsert;
-export type MandateRow = typeof mandates.$inferInsert;
+export type PolicySnapshotRow = typeof policySnapshots.$inferInsert;
+export type StrategySnapshotRow = typeof strategySnapshots.$inferInsert;
+export type PolicyRow = typeof policies.$inferInsert;
+export type StrategyRow = typeof strategies.$inferInsert;
 export type TokenRow = typeof tokens.$inferInsert;
 export type LaunchedTokenRow = typeof launchedTokens.$inferInsert;
 
@@ -20,8 +35,10 @@ export interface Batch {
   readonly events: RawEventRow[];
   readonly fills: FillRow[];
   readonly attempts: AttemptRow[];
-  readonly snapshots: SnapshotRow[];
-  readonly mandates: MandateRow[];
+  readonly policySnapshots: PolicySnapshotRow[];
+  readonly strategySnapshots: StrategySnapshotRow[];
+  readonly policies: PolicyRow[];
+  readonly strategies: StrategyRow[];
   readonly tokens: TokenRow[];
   readonly launchedTokens: LaunchedTokenRow[];
   readonly cursor: { readonly number: bigint; readonly hash: Hash };
@@ -34,30 +51,44 @@ export async function writeBatch(db: Db, chainId: number, batch: Batch): Promise
     if (batch.events.length) await tx.insert(rawEvents).values(batch.events).onConflictDoNothing();
     if (batch.fills.length) await tx.insert(fills).values(batch.fills).onConflictDoNothing();
     if (batch.attempts.length) await tx.insert(attempts).values(batch.attempts).onConflictDoNothing();
-    if (batch.snapshots.length) await tx.insert(snapshots).values(batch.snapshots).onConflictDoNothing();
+    if (batch.policySnapshots.length) await tx.insert(policySnapshots).values(batch.policySnapshots).onConflictDoNothing();
+    if (batch.strategySnapshots.length) await tx.insert(strategySnapshots).values(batch.strategySnapshots).onConflictDoNothing();
     if (batch.tokens.length) await tx.insert(tokens).values(batch.tokens).onConflictDoNothing();
     if (batch.launchedTokens.length) await tx.insert(launchedTokens).values(batch.launchedTokens).onConflictDoNothing();
-    for (const row of batch.mandates) await upsertMandate(tx, row);
+    // Policies first: strategies reference them.
+    for (const row of batch.policies) await upsertPolicy(tx, row);
+    for (const row of batch.strategies) await upsertStrategy(tx, row);
     await setCursor(tx, chainId, batch.cursor);
   });
 }
 
-async function upsertMandate(tx: Tx, row: MandateRow) {
+async function upsertPolicy(tx: Tx, row: PolicyRow) {
   await tx
-    .insert(mandates)
+    .insert(policies)
     .values(row)
     .onConflictDoUpdate({
-      target: [mandates.chainId, mandates.mandateId],
+      target: [policies.chainId, policies.policyId],
       // created_block is kept from the first sighting; everything else follows the chain.
+      set: { status: row.status, config: row.config, updatedBlock: row.updatedBlock },
+      setWhere: sql`${policies.updatedBlock} <= ${row.updatedBlock}`,
+    });
+}
+
+async function upsertStrategy(tx: Tx, row: StrategyRow) {
+  await tx
+    .insert(strategies)
+    .values(row)
+    .onConflictDoUpdate({
+      target: [strategies.chainId, strategies.strategyId],
+      // The policy, market maker, pair and kind never change onchain; status and terms follow the chain.
       set: {
         status: row.status,
-        mm: row.mm,
         activeStrategyHash: row.activeStrategyHash,
         bounds: row.bounds,
         params: row.params,
         updatedBlock: row.updatedBlock,
       },
-      setWhere: sql`${mandates.updatedBlock} <= ${row.updatedBlock}`,
+      setWhere: sql`${strategies.updatedBlock} <= ${row.updatedBlock}`,
     });
 }
 
@@ -96,19 +127,33 @@ export async function storedBlocksDesc(db: Db, chainId: number, limit = 1024) {
     .limit(limit);
 }
 
-/** Deletes everything after `ancestor`. FK cascades remove dependent events, fills, attempts and snapshots. */
+/** Deletes everything after `ancestor`. FK cascades remove dependent events, fills, attempts, snapshots and policies/strategies created after it. */
 export async function rollbackTo(db: Db, chainId: number, ancestor: { number: bigint; hash: Hash }): Promise<number> {
   return db.transaction(async (tx) => {
     const removed = await tx
       .delete(blocks)
       .where(and(eq(blocks.chainId, chainId), gt(blocks.number, ancestor.number)))
       .returning({ number: blocks.number });
+    // Rows created before the ancestor survive but may carry terms read after it; lowering their version lets the
+    // re-index overwrite them with the canonical chain's state.
+    await tx
+      .update(policies)
+      .set({ updatedBlock: ancestor.number })
+      .where(and(eq(policies.chainId, chainId), gt(policies.updatedBlock, ancestor.number)));
+    await tx
+      .update(strategies)
+      .set({ updatedBlock: ancestor.number })
+      .where(and(eq(strategies.chainId, chainId), gt(strategies.updatedBlock, ancestor.number)));
     await setCursor(tx, chainId, ancestor);
     return removed.length;
   });
 }
 
-export async function knownMandateIds(db: Db, chainId: number): Promise<Hash[]> {
-  const rows = await db.select({ id: mandates.mandateId }).from(mandates).where(eq(mandates.chainId, chainId));
-  return rows.map((row) => row.id as Hash);
+/** Every indexed policy and strategy of a chain; each is re-read at the end of every range. */
+export async function knownIds(db: Db, chainId: number): Promise<{ policies: Hash[]; strategies: Hash[] }> {
+  const [p, st] = await Promise.all([
+    db.select({ id: policies.policyId }).from(policies).where(eq(policies.chainId, chainId)),
+    db.select({ id: strategies.strategyId }).from(strategies).where(eq(strategies.chainId, chainId)),
+  ]);
+  return { policies: p.map((row) => row.id as Hash), strategies: st.map((row) => row.id as Hash) };
 }

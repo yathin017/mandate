@@ -21,14 +21,18 @@ const ctx = await createChainContext(config);
 
 /**
  * Runs only after Postgres has committed. Moving the head changes every response-cache key, so readers can
- * never see a cached response from an older head; subscribers are then told which mandates changed.
+ * never see a cached response from an older head; subscribers are then told which policies and strategies changed.
  */
 async function announce(batch: BatchCommitted): Promise<void> {
   await cache.setHead(batch.chainId, { number: batch.toBlock.toString(), hash: batch.toHash });
-  for (const mandateId of batch.mandateIds) {
+  const subjects = [
+    ...batch.policyIds.map((id) => ({ kind: "policy" as const, id })),
+    ...batch.strategyIds.map((id) => ({ kind: "strategy" as const, id })),
+  ];
+  for (const subject of subjects) {
     await cache.publish({
       chainId: batch.chainId,
-      mandateId,
+      subject,
       blockNumber: batch.toBlock.toString(),
       blockHash: batch.toHash,
       reorg: batch.reorg,

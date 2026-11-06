@@ -1,16 +1,18 @@
 import { Redis } from "ioredis";
 
-import { keys, TTL } from "./keys.ts";
+import { keys, TTL, type Subject } from "./keys.ts";
+
+export type { Subject } from "./keys.ts";
 
 export interface Head {
   readonly number: string;
   readonly hash: string;
 }
 
-/** Change notification published after a committed batch. */
-export interface MandateChange {
+/** Change notification published after a committed batch or a simulated attempt. */
+export interface SubjectChange {
   readonly chainId: number;
-  readonly mandateId: string;
+  readonly subject: Subject;
   readonly blockNumber: string;
   readonly blockHash: string;
   readonly reorg: boolean;
@@ -25,7 +27,7 @@ export class Cache {
   private readonly redis: Redis;
   private readonly subscriberUrl: string;
   private subscriber: Redis | undefined;
-  private readonly listeners = new Map<string, Set<(change: MandateChange) => void>>();
+  private readonly listeners = new Map<string, Set<(change: SubjectChange) => void>>();
 
   private constructor(redis: Redis, subscriberUrl: string) {
     this.redis = redis;
@@ -110,27 +112,27 @@ export class Cache {
     await this.attempt(() => this.redis.del(key));
   }
 
-  async getMandateVersion(chainId: number, mandateId: string): Promise<string> {
-    return (await this.attempt(() => this.redis.get(keys.mandateVersion(chainId, mandateId)))) ?? "0";
+  async getVersion(chainId: number, subject: Subject): Promise<string> {
+    return (await this.attempt(() => this.redis.get(keys.subjectVersion(chainId, subject)))) ?? "0";
   }
 
-  async bumpMandateVersion(chainId: number, mandateId: string): Promise<void> {
-    await this.attempt(() => this.redis.incr(keys.mandateVersion(chainId, mandateId)));
+  async bumpVersion(chainId: number, subject: Subject): Promise<void> {
+    await this.attempt(() => this.redis.incr(keys.subjectVersion(chainId, subject)));
   }
 
-  async publish(change: MandateChange): Promise<void> {
+  async publish(change: SubjectChange): Promise<void> {
     await this.attempt(() =>
-      this.redis.publish(keys.mandateChannel(change.chainId, change.mandateId), JSON.stringify(change)),
+      this.redis.publish(keys.subjectChannel(change.chainId, change.subject), JSON.stringify(change)),
     );
   }
 
   /**
-   * Subscribes to one mandate's changes and returns an unsubscribe function. All subscriptions share one
+   * Subscribes to one policy's or strategy's changes and returns an unsubscribe function. All subscriptions share one
    * dedicated Redis connection; a channel is subscribed on its first listener and released after its last.
    * Throws if Redis cannot be reached within 2s, so callers can refuse the stream.
    */
-  async subscribe(chainId: number, mandateId: string, onChange: (change: MandateChange) => void): Promise<() => void> {
-    const channel = keys.mandateChannel(chainId, mandateId);
+  async subscribe(chainId: number, subject: Subject, onChange: (change: SubjectChange) => void): Promise<() => void> {
+    const channel = keys.subjectChannel(chainId, subject);
     const subscriber = this.ensureSubscriber();
     let listeners = this.listeners.get(channel);
     if (!listeners) {
@@ -166,9 +168,9 @@ export class Cache {
     subscriber.on("message", (channel: string, message: string) => {
       const listeners = this.listeners.get(channel);
       if (!listeners) return;
-      let change: MandateChange;
+      let change: SubjectChange;
       try {
-        change = JSON.parse(message) as MandateChange;
+        change = JSON.parse(message) as SubjectChange;
       } catch {
         return; // ignore malformed messages
       }

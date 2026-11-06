@@ -1,14 +1,14 @@
-import { explainError, type MandateSnapshot } from "@mandate/sdk";
-import { encodePacked, keccak256, type Hash, type Hex } from "viem";
+import { explainError, uniswapV4MarketOracleAbi, type PolicySnapshot, type StrategySnapshot } from "@mandate/sdk";
+import { encodePacked, keccak256, type Address, type Hash, type Hex } from "viem";
 
 import type { ChainContext } from "../chain.ts";
 import type { Config } from "../config.ts";
 import type { Db } from "../db/client.ts";
 import { lower, toJsonSafe } from "../json.ts";
-import { decodeLogs, mandateIdOf, type DecodedEvent } from "./events.ts";
+import { decodeLogs, policyIdOf, strategyIdOf, type DecodedEvent } from "./events.ts";
 import {
   ensureChain,
-  knownMandateIds,
+  knownIds,
   rollbackTo,
   storedBlocksDesc,
   writeBatch,
@@ -16,9 +16,11 @@ import {
   type BlockRow,
   type FillRow,
   type LaunchedTokenRow,
-  type MandateRow,
+  type PolicyRow,
+  type PolicySnapshotRow,
   type RawEventRow,
-  type SnapshotRow,
+  type StrategyRow,
+  type StrategySnapshotRow,
   type TokenRow,
 } from "./store.ts";
 
@@ -28,16 +30,23 @@ export interface BatchCommitted {
   readonly fromBlock: bigint;
   readonly toBlock: bigint;
   readonly toHash: Hash;
-  readonly mandateIds: readonly Hash[];
+  readonly policyIds: readonly Hash[];
+  readonly strategyIds: readonly Hash[];
   readonly reorg: boolean;
 }
 
 export class ReorgDuringRead extends Error {}
 
+const BPS = 10_000n;
+const INT32_MAX = 2_147_483_647n;
+
 /**
  * Pulls Mandate logs in block ranges, derives fills/attempts/snapshots and commits each range atomically.
  * Reorgs are detected by comparing the stored cursor hash with the canonical chain; the worker then rolls back
  * to the newest stored block that is still canonical (FK cascades drop everything after it) and re-indexes.
+ *
+ * Every policy and strategy is snapshotted at each block that touched it and at the end of every range, so
+ * dashboards always have a reading at the indexed head.
  */
 export class Indexer {
   private cursor: { number: bigint; hash: Hash } | undefined;
@@ -120,14 +129,13 @@ export class Indexer {
     await writeBatch(this.db, this.ctx.chainId, batch);
     this.cursor = batch.cursor;
 
-    const touched = new Set<Hash>();
-    for (const row of batch.snapshots) touched.add(row.mandateId as Hash);
     await this.onCommitted({
       chainId: this.ctx.chainId,
       fromBlock: from,
       toBlock: to,
       toHash: batch.cursor.hash,
-      mandateIds: [...touched],
+      policyIds: [...new Set(batch.policySnapshots.map((row) => row.policyId as Hash))],
+      strategyIds: [...new Set(batch.strategySnapshots.map((row) => row.strategyId as Hash))],
       reorg: false,
     });
     if (batch.events.length) this.log(`indexed ${from}..${to}: ${batch.events.length} events`);
@@ -144,12 +152,14 @@ export class Indexer {
         const removed = await rollbackTo(this.db, this.ctx.chainId, { number: block.number, hash: block.hash as Hash });
         this.cursor = { number: block.number, hash: block.hash as Hash };
         this.log(`reorg: rolled back ${removed} blocks to ${block.number}`);
+        const known = await knownIds(this.db, this.ctx.chainId);
         await this.onCommitted({
           chainId: this.ctx.chainId,
           fromBlock: block.number,
           toBlock: block.number,
           toHash: block.hash as Hash,
-          mandateIds: await knownMandateIds(this.db, this.ctx.chainId),
+          policyIds: known.policies,
+          strategyIds: known.strategies,
           reorg: true,
         });
         return;
@@ -181,19 +191,36 @@ export class Indexer {
       }
     }
 
-    // Which mandates to snapshot at which blocks: every block that touched them, plus all known mandates at `to`.
-    const reads = new Map<string, { id: Hash; block: bigint }>();
-    const want = (id: Hash, block: bigint) => reads.set(`${id}:${block}`, { id, block });
+    // Strategies to read at which blocks: every block that touched them, plus every known strategy at `to`.
+    const known = await knownIds(this.db, chainId);
+    const strategyReads = new Map<string, { id: Hash; block: bigint }>();
+    const wantStrategy = (id: Hash, block: bigint) => strategyReads.set(`${id}:${block}`, { id, block });
     for (const event of events) {
-      const id = mandateIdOf(event) ?? this.attemptMandate(event);
-      if (id) want(id as Hash, event.blockNumber);
+      const id = strategyIdOf(event) ?? this.attemptStrategy(event);
+      if (id) wantStrategy(id, event.blockNumber);
     }
-    for (const id of await knownMandateIds(this.db, chainId)) want(id, to);
-    for (const read of [...reads.values()]) if (read.block !== to) want(read.id, to);
+    for (const id of known.strategies) wantStrategy(id, to);
+    for (const read of [...strategyReads.values()]) if (read.block !== to) wantStrategy(read.id, to);
 
-    const snapshotsByKey = new Map<string, MandateSnapshot>();
-    await forEachLimited([...reads.values()], this.config.INDEXER_SNAPSHOT_CONCURRENCY, async ({ id, block }) => {
-      snapshotsByKey.set(`${id}:${block}`, await this.ctx.sdk.readSnapshot(id, block));
+    const strategySnaps = new Map<string, StrategySnapshot>();
+    await forEachLimited([...strategyReads.values()], this.config.INDEXER_SNAPSHOT_CONCURRENCY, async ({ id, block }) => {
+      strategySnaps.set(`${id}:${block}`, await this.ctx.sdk.readStrategy(id, block));
+    });
+
+    // Policies: those named by events, those of every strategy read (same block), and every known policy at `to`.
+    const policyReads = new Map<string, { id: Hash; block: bigint }>();
+    const wantPolicy = (id: Hash, block: bigint) => policyReads.set(`${id}:${block}`, { id, block });
+    for (const event of events) {
+      const id = policyIdOf(event);
+      if (id) wantPolicy(id, event.blockNumber);
+    }
+    for (const [key, snap] of strategySnaps) wantPolicy(lower(snap.strategy.policyId) as Hash, BigInt(key.split(":")[1]!));
+    for (const id of known.policies) wantPolicy(id, to);
+    for (const read of [...policyReads.values()]) if (read.block !== to) wantPolicy(read.id, to);
+
+    const policySnaps = new Map<string, PolicySnapshot>();
+    await forEachLimited([...policyReads.values()], this.config.INDEXER_SNAPSHOT_CONCURRENCY, async ({ id, block }) => {
+      policySnaps.set(`${id}:${block}`, await this.ctx.sdk.readPolicy(id, block));
     });
 
     const launchedRows: LaunchedTokenRow[] = [];
@@ -203,12 +230,13 @@ export class Indexer {
     for (const event of events) {
       const ts = headers.get(event.blockNumber)!.timestamp;
       if (event.eventName === "FeeAccrued") {
-        pendingFees.set(`${event.txHash}:${mandateIdOf(event)}`, {
+        pendingFees.set(`${event.txHash}:${strategyIdOf(event)}`, {
           token: lower(String(event.args.token)),
           amount: event.args.amount as bigint,
         });
       } else if (event.eventName === "Filled") {
-        fillRows.push(this.fillRow(event, ts, pendingFees));
+        const policy = policySnaps.get(`${policyIdOf(event)}:${event.blockNumber}`);
+        fillRows.push(await this.fillRow(event, ts, pendingFees, policy));
       } else if (event.eventName === "TokenLaunched") {
         const a = event.args;
         launchedRows.push({
@@ -225,23 +253,34 @@ export class Indexer {
           txHash: lower(event.txHash),
         });
       } else if (event.eventName === "Attempted") {
-        const row = await this.attemptRow(event, ts, snapshotsByKey);
+        const row = await this.attemptRow(event, ts, strategySnaps, policySnaps);
         if (row) attemptRows.push(row);
       }
     }
 
-    const snapshotRows: SnapshotRow[] = [];
-    const mandateRows = new Map<string, MandateRow>();
-    for (const { id, block } of reads.values()) {
-      const snapshot = snapshotsByKey.get(`${id}:${block}`)!;
-      snapshotRows.push(snapshotRow(chainId, id, snapshot));
-      const previous = mandateRows.get(id);
-      if (!previous || previous.updatedBlock < block) mandateRows.set(id, this.mandateRow(id, snapshot));
+    const policySnapshotRows: PolicySnapshotRow[] = [];
+    const policyRows = new Map<string, PolicyRow>();
+    for (const { id, block } of policyReads.values()) {
+      const snap = policySnaps.get(`${id}:${block}`)!;
+      policySnapshotRows.push(policySnapshotRow(chainId, id, snap));
+      const previous = policyRows.get(id);
+      if (!previous || previous.updatedBlock < block) policyRows.set(id, this.policyRow(id, snap));
+    }
+    const strategySnapshotRows: StrategySnapshotRow[] = [];
+    const strategyRows = new Map<string, StrategyRow>();
+    for (const { id, block } of strategyReads.values()) {
+      const snap = strategySnaps.get(`${id}:${block}`)!;
+      strategySnapshotRows.push(strategySnapshotRow(chainId, id, snap));
+      const previous = strategyRows.get(id);
+      if (!previous || previous.updatedBlock < block) {
+        const policy = policySnaps.get(`${lower(snap.strategy.policyId)}:${block}`)!;
+        strategyRows.set(id, this.strategyRow(id, snap, policy));
+      }
     }
 
-    // Display metadata for every token a mandate uses or the factory launched.
+    // Display metadata for every token a policy uses or the factory launched.
     const tokenRows = new Map<string, TokenRow>();
-    const tokenAddresses = [...[...mandateRows.values()].flatMap((row) => [row.base, row.quote]), ...launchedRows.map((r) => r.token)];
+    const tokenAddresses = [...[...policyRows.values()].flatMap((row) => [row.base, row.quote]), ...launchedRows.map((r) => r.token)];
     for (const address of tokenAddresses) {
       if (tokenRows.has(address)) continue;
       const display = await this.ctx.tokenDisplay(address as Hex);
@@ -257,78 +296,112 @@ export class Indexer {
       events: events.map((event) => rawEventRow(chainId, event)),
       fills: fillRows,
       attempts: attemptRows,
-      snapshots: snapshotRows,
-      mandates: [...mandateRows.values()],
+      policySnapshots: policySnapshotRows,
+      strategySnapshots: strategySnapshotRows,
+      policies: [...policyRows.values()],
+      strategies: [...strategyRows.values()],
       tokens: [...tokenRows.values()],
       launchedTokens: launchedRows,
       cursor: { number: to, hash: lower(toHeader.hash!) as Hash },
     };
   }
 
-  /** Demo actor attempts map to a mandate through their act number; non-mandate targets are skipped. */
-  private attemptMandate(event: DecodedEvent): Hash | null {
+  /** Demo actor attempts map to a strategy through their act number; non-strategy targets are skipped. */
+  private attemptStrategy(event: DecodedEvent): Hash | null {
     if (event.eventName !== "Attempted") return null;
-    if (this.ctx.nonMandateTargets.has(lower(String(event.args.target)))) return null;
-    const id = this.ctx.actMandates.get(event.args.act as bigint);
+    if (this.ctx.nonStrategyTargets.has(lower(String(event.args.target)))) return null;
+    const id = this.ctx.actStrategies.get(event.args.act as bigint);
     return id ? (lower(id) as Hash) : null;
   }
 
-  private fillRow(event: DecodedEvent, timestamp: bigint, fees: Map<string, { token: string; amount: bigint }>): FillRow {
+  private async fillRow(
+    event: DecodedEvent,
+    timestamp: bigint,
+    fees: Map<string, { token: string; amount: bigint }>,
+    policy: PolicySnapshot | undefined,
+  ): Promise<FillRow> {
     const a = event.args;
-    const mandateId = mandateIdOf(event)!;
-    const fee = fees.get(`${event.txHash}:${mandateId}`);
-    fees.delete(`${event.txHash}:${mandateId}`);
+    const strategyId = strategyIdOf(event)!;
+    const fee = fees.get(`${event.txHash}:${strategyId}`);
+    fees.delete(`${event.txHash}:${strategyId}`);
+    const priceX36 = a.priceX36 as bigint;
+    const isSell = Boolean(a.isSell);
+    const reference = policy ? await this.referenceSpot(policy, event.blockNumber - 1n) : null;
     return {
       chainId: this.ctx.chainId,
       txHash: lower(event.txHash),
       logIndex: event.logIndex,
       blockNumber: event.blockNumber,
       timestamp,
-      mandateId,
+      policyId: policyIdOf(event)!,
+      strategyId,
       strategyHash: lower(String(a.strategyHash)),
       taker: lower(String(a.taker)),
-      isSell: Boolean(a.isSell),
+      isSell,
       amountIn: String(a.amountIn),
       amountOut: String(a.amountOut),
-      priceX36: String(a.priceX36),
-      netSoldThisEpoch: String(a.netSoldThisEpoch),
-      totalNetSold: String(a.totalNetSold),
+      priceX36: priceX36.toString(),
+      riskMode: Number(a.mode),
       feeToken: fee?.token ?? null,
       feeAmount: (fee?.amount ?? 0n).toString(),
+      referenceSpotX36: reference?.toString() ?? null,
+      qualityBps: reference ? qualityBps(priceX36, reference, isSell) : null,
     };
+  }
+
+  /**
+   * The market a taker saw before the fill: the policy's oracle spot at the end of the previous block. Null when the
+   * oracle had no price (no history yet) or could not be read.
+   */
+  private async referenceSpot(policy: PolicySnapshot, block: bigint): Promise<bigint | null> {
+    const { oracle } = policy.policy.config;
+    try {
+      const health = await this.ctx.client.readContract({
+        address: oracle.oracle as Address,
+        abi: uniswapV4MarketOracleAbi,
+        functionName: "health",
+        args: [policy.policy.base, policy.policy.quote, oracle.twapWindow, oracle.shortWindow, oracle.depthBandBps],
+        blockNumber: block,
+      });
+      return health.priced && health.spotX36 > 0n ? health.spotX36 : null;
+    } catch {
+      return null;
+    }
   }
 
   private async attemptRow(
     event: DecodedEvent,
     timestamp: bigint,
-    snapshots: Map<string, MandateSnapshot>,
+    strategies: Map<string, StrategySnapshot>,
+    policies: Map<string, PolicySnapshot>,
   ): Promise<AttemptRow | null> {
-    const mandateId = this.attemptMandate(event);
-    if (!mandateId) return null;
+    const strategyId = this.attemptStrategy(event);
+    if (!strategyId) return null;
     const a = event.args;
     const target = lower(String(a.target));
     const success = Boolean(a.success);
-    const snapshot = snapshots.get(`${mandateId}:${event.blockNumber}`);
+    const strategy = strategies.get(`${strategyId}:${event.blockNumber}`);
+    const policy = strategy ? policies.get(`${lower(strategy.strategy.policyId)}:${event.blockNumber}`) : undefined;
     let explained = null;
-    if (!success && snapshot) {
+    if (!success && policy) {
       const [base, quote] = await Promise.all([
-        this.ctx.tokenDisplay(snapshot.mandate.base),
-        this.ctx.tokenDisplay(snapshot.mandate.quote),
+        this.ctx.tokenDisplay(policy.policy.base),
+        this.ctx.tokenDisplay(policy.policy.quote),
       ]);
-      explained = explainError(a.result as Hex, { base, quote, now: timestamp, epochResetsAt: snapshot.epochResetsAt });
+      explained = explainError(a.result as Hex, { base, quote, now: timestamp, periodEndsAt: policy.counters.periodEndsAt });
     } else if (!success) {
       explained = explainError(a.result as Hex);
     }
     return {
       chainId: this.ctx.chainId,
-      mandateId,
+      strategyId,
       source: "onchain_actor",
       outcome: success ? "allowed" : "blocked",
       errorName: explained?.errorName ?? null,
       errorArgs: explained ? toJsonSafe(explained.args) : null,
       revertData: success ? null : lower(String(a.result)),
       explanation: explained?.message ?? null,
-      request: { target, act: String(a.act), step: String(a.step), targetKind: this.targetKind(target, snapshot) },
+      request: { target, act: String(a.act), step: String(a.step), targetKind: this.targetKind(target, policy) },
       requestHash: keccak256(encodePacked(["bytes32", "uint256"], [event.txHash, BigInt(event.logIndex)])),
       blockNumber: event.blockNumber,
       blockHash: lower(event.blockHash),
@@ -338,31 +411,57 @@ export class Indexer {
     };
   }
 
-  private targetKind(target: string, snapshot: MandateSnapshot | undefined): string {
+  private targetKind(target: string, policy: PolicySnapshot | undefined): string {
     const { deployment } = this.ctx;
     if (deployment.environment === "local-mainnet-fork" && target === lower(deployment.taker)) return "trade";
     if (target === lower(deployment.module)) return "module";
-    if (snapshot && target === lower(snapshot.mandate.safe)) return "safe";
+    if (policy && target === lower(policy.policy.safe)) return "safe";
     return "other";
   }
 
-  private mandateRow(id: Hash, s: MandateSnapshot): MandateRow {
+  private policyRow(id: Hash, s: PolicySnapshot): PolicyRow {
     return {
       chainId: this.ctx.chainId,
-      mandateId: lower(id),
+      policyId: lower(id),
       module: lower(this.ctx.deployment.module),
-      safe: lower(s.mandate.safe),
-      mm: lower(s.mandate.mm),
-      base: lower(s.mandate.base),
-      quote: lower(s.mandate.quote),
-      status: Number(s.mandate.status),
-      activeStrategyHash: lower(s.mandate.activeStrategyHash),
-      bounds: toJsonSafe(s.mandate.bounds),
-      params: toJsonSafe(s.mandate.params),
+      safe: lower(s.policy.safe),
+      base: lower(s.policy.base),
+      quote: lower(s.policy.quote),
+      status: Number(s.policy.status),
+      config: toJsonSafe(s.policy.config),
       createdBlock: s.source.blockNumber,
       updatedBlock: s.source.blockNumber,
     };
   }
+
+  private strategyRow(id: Hash, s: StrategySnapshot, policy: PolicySnapshot): StrategyRow {
+    return {
+      chainId: this.ctx.chainId,
+      strategyId: lower(id),
+      policyId: lower(s.strategy.policyId),
+      safe: lower(policy.policy.safe),
+      mm: lower(s.strategy.mm),
+      base: lower(policy.policy.base),
+      quote: lower(policy.policy.quote),
+      kind: Number(s.strategy.kind),
+      status: Number(s.strategy.status),
+      activeStrategyHash: lower(s.strategy.activeStrategyHash),
+      bounds: toJsonSafe(s.strategy.bounds),
+      params: toJsonSafe(s.strategy.params),
+      createdBlock: s.source.blockNumber,
+      updatedBlock: s.source.blockNumber,
+    };
+  }
+}
+
+/**
+ * Signed distance of a fill price from the reference market, in bps, positive when it favoured the treasury
+ * (a sell above the market, a buy below it). Truncated toward zero and clamped to the column's range.
+ */
+export function qualityBps(priceX36: bigint, referenceX36: bigint, isSell: boolean): number {
+  const favour = isSell ? priceX36 - referenceX36 : referenceX36 - priceX36;
+  const bps = (favour * BPS) / referenceX36;
+  return Number(bps > INT32_MAX ? INT32_MAX : bps < -INT32_MAX ? -INT32_MAX : bps);
 }
 
 function blockRow(chainId: number, header: { number: bigint | null; hash: Hash | null; parentHash: Hash; timestamp: bigint }): BlockRow {
@@ -385,39 +484,55 @@ function rawEventRow(chainId: number, event: DecodedEvent): RawEventRow {
     logIndex: event.logIndex,
     address: lower(event.address),
     eventName: event.eventName,
-    mandateId: mandateIdOf(event),
+    policyId: policyIdOf(event),
+    strategyId: strategyIdOf(event),
     args: toJsonSafe(event.args),
   };
 }
 
-function snapshotRow(chainId: number, mandateId: Hash, s: MandateSnapshot): SnapshotRow {
-  const anchor = s.anchor;
-  const priced = anchor.status !== "unavailable";
+function policySnapshotRow(chainId: number, policyId: Hash, s: PolicySnapshot): PolicySnapshotRow {
+  const { counters: c, risk } = s;
   return {
     chainId,
-    mandateId: lower(mandateId),
+    policyId: lower(policyId),
     blockNumber: s.source.blockNumber,
     blockHash: lower(s.source.blockHash),
     timestamp: s.source.timestamp,
-    status: Number(s.mandate.status),
-    spreadBps: Number(s.mandate.params.spreadBps),
-    epochCap: s.mandate.params.epochCap.toString(),
-    epochIndex: s.epoch.index.toString(),
-    netSoldThisEpoch: s.epoch.netSold.toString(),
-    totalNetSold: s.epoch.totalNetSold.toString(),
-    released: s.released.toString(),
-    remainingThisEpoch: s.remainingThisEpoch.toString(),
-    sellableNow: s.sellableNow.toString(),
-    epochResetsAt: s.epochResetsAt.toString(),
+    status: Number(s.policy.status),
+    periodIndex: c.periodIndex.toString(),
+    grossSold: c.grossSold.toString(),
+    netSold: c.netSold.toString(),
+    quoteSpent: c.quoteSpent.toString(),
+    totalNetSold: c.totalNetSold.toString(),
+    released: c.released.toString(),
+    periodEndsAt: c.periodEndsAt.toString(),
+    riskMode: Number(risk.mode),
+    riskReason: Number(risk.reasonIndex),
+    priced: risk.health.priced,
+    spotX36: risk.health.spotX36.toString(),
+    twapX36: risk.health.twapX36.toString(),
+    shortTwapX36: risk.health.shortTwapX36.toString(),
+    trustedDepthBase: risk.health.trustedDepthBase.toString(),
+    poolAge: BigInt(risk.health.poolAge),
+  };
+}
+
+function strategySnapshotRow(chainId: number, strategyId: Hash, s: StrategySnapshot): StrategySnapshotRow {
+  return {
+    chainId,
+    strategyId: lower(strategyId),
+    blockNumber: s.source.blockNumber,
+    blockHash: lower(s.source.blockHash),
+    timestamp: s.source.timestamp,
+    status: Number(s.strategy.status),
+    spreadBps: Number(s.strategy.params.spreadBps),
+    shippedBase: s.strategy.params.shippedBase.toString(),
+    shippedQuote: s.strategy.params.shippedQuote.toString(),
+    nonce: s.nonce.toString(),
     feesBase: s.feesAccrued[0].toString(),
     feesQuote: s.feesAccrued[1].toString(),
     claimedBase: s.claimed[0].toString(),
     claimedQuote: s.claimed[1].toString(),
-    anchorStatus: anchor.status,
-    anchorSpotX36: priced ? anchor.spotPriceX36.toString() : null,
-    anchorTwapX36: priced ? anchor.twapPriceX36.toString() : null,
-    anchorDeviationBps: priced ? anchor.deviationBps.toString() : null,
-    anchorMaxDeviationBps: priced ? Number(anchor.maxDeviationBps) : null,
   };
 }
 

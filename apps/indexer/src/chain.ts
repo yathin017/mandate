@@ -21,15 +21,15 @@ export interface ChainContext {
    */
   readonly startBlock: { readonly number: bigint; readonly hash?: Hash };
   /**
-   * Local-fork demo evidence only: the ScenarioActor acting as the mandates' MM and its act -> mandate map.
+   * Local-fork demo evidence only: the ScenarioActor acting as the strategies' MM and its act -> strategy map.
    * Live deployments have wallet MMs, so blocked attempts come only from server simulations.
    */
   readonly actor?: Address;
   /** TokenFactory whose launches are indexed, if any. */
   readonly tokenFactory?: Address;
-  readonly actMandates: ReadonlyMap<bigint, Hash>;
-  /** Actor targets that are not mandate actions (v4 market moves, token approvals). */
-  readonly nonMandateTargets: ReadonlySet<string>;
+  readonly actStrategies: ReadonlyMap<bigint, Hash>;
+  /** Actor targets that are not strategy actions (v4 market moves, token approvals). */
+  readonly nonStrategyTargets: ReadonlySet<string>;
   tokenDisplay(token: Address): Promise<TokenDisplay>;
 }
 
@@ -69,8 +69,8 @@ export async function createChainContext(config: Config): Promise<ChainContext> 
       sdk,
       startBlock: { number: BigInt(deployment.deployBlock) },
       ...(deployment.tokenFactory ? { tokenFactory: deployment.tokenFactory } : {}),
-      actMandates: new Map(),
-      nonMandateTargets: new Set(),
+      actStrategies: new Map(),
+      nonStrategyTargets: new Set(),
       tokenDisplay,
     };
   }
@@ -82,12 +82,12 @@ export async function createChainContext(config: Config): Promise<ChainContext> 
     startBlock: { number: BigInt(deployment.forkBlock), hash: deployment.forkBlockHash },
     actor: getAddress(deployment.mm),
     ...(config.INDEXER_TOKEN_FACTORY ? { tokenFactory: getAddress(config.INDEXER_TOKEN_FACTORY) } : {}),
-    actMandates: new Map([
-      [1n, deployment.mandates.act1],
-      [2n, deployment.mandates.act2],
-      [3n, deployment.mandates.act3],
+    actStrategies: new Map([
+      [1n, deployment.strategies.act1],
+      [2n, deployment.strategies.act2],
+      [3n, deployment.strategies.act3],
     ]),
-    nonMandateTargets: new Set([deployment.swapRouter, deployment.base, deployment.quote].map((a) => a.toLowerCase())),
+    nonStrategyTargets: new Set([deployment.swapRouter, deployment.base, deployment.quote].map((a) => a.toLowerCase())),
     tokenDisplay,
   };
 }
