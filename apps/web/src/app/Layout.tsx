@@ -14,6 +14,7 @@ import { applyTheme, readTheme, type Theme } from "./theme";
 const NAV = [
   { to: "/replay", label: "Replay" },
   { to: "/mandates", label: "Mandates" },
+  { to: "/onboard", label: "Onboard" },
   { to: "/issuer", label: "Issuer" },
   { to: "/desk", label: "MM Desk" },
 ];

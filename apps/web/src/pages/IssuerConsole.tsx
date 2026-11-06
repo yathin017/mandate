@@ -54,6 +54,7 @@ export function IssuerConsole() {
         <h1 className="font-serif text-3xl font-semibold tracking-tight">Issuer console</h1>
         <p className="text-muted-foreground">
           Create and manage mandates for your treasury Safe. Every action is approved onchain by the Safe's owners.
+          New project? <Link to="/onboard" className="underline underline-offset-4">Onboard it step by step</Link>.
         </p>
       </div>
 
