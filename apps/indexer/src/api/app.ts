@@ -4,6 +4,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
+import { streamSSE } from "hono/streaming";
 
 import type { Cache } from "../cache/cache.ts";
 import type { ChainContext } from "../chain.ts";
@@ -32,6 +33,10 @@ export interface AppDeps {
   readonly chain?: () => Promise<ChainContext>;
   /** Client identity for rate limiting. Defaults to the socket address; proxy headers are never trusted. */
   readonly clientIp?: (c: Context) => string;
+  /** Max concurrent SSE streams per process (default 500). */
+  readonly maxStreams?: number;
+  /** SSE heartbeat interval (default 15s). */
+  readonly heartbeatMs?: number;
 }
 
 /** Public, read-mostly API. Every response carries the block it reflects (`head`) for provenance. */
@@ -166,6 +171,61 @@ export function createApp(deps: AppDeps) {
       );
     },
   );
+
+  let openStreams = 0;
+  const maxStreams = deps.maxStreams ?? 500;
+  const heartbeatMs = deps.heartbeatMs ?? 15_000;
+
+  /**
+   * Server-sent events for one mandate: `ready` with the current head, then `change` after every committed
+   * batch or simulated attempt that touches it. Clients refetch the REST resources on `change`.
+   */
+  app.get("/v1/chains/:chainId/mandates/:mandateId/stream", zValidator("param", mandateParam, invalid), async (c) => {
+    const { chainId, mandateId } = c.req.valid("param");
+    const at = await head(chainId);
+    if (!at) return c.json({ error: "chain not indexed" }, 404);
+    if (!(await q.getMandate(db, chainId, mandateId))) return c.json({ error: "not found" }, 404);
+    if (openStreams >= maxStreams) return c.json({ error: "too many streams" }, 503);
+
+    const queue: string[] = [];
+    let wake: (() => void) | undefined;
+    let unsubscribe: () => void;
+    try {
+      unsubscribe = await cache.subscribe(chainId, mandateId, (change) => {
+        queue.push(JSON.stringify(change));
+        wake?.();
+      });
+    } catch {
+      return c.json({ error: "live updates unavailable" }, 503);
+    }
+
+    openStreams++;
+    return streamSSE(c, async (stream) => {
+      let closed = false;
+      const stop = () => {
+        closed = true;
+        wake?.();
+      };
+      // Either signal may fire first depending on the adapter; both end the loop and free the slot.
+      stream.onAbort(stop);
+      c.req.raw.signal.addEventListener("abort", stop, { once: true });
+      try {
+        await stream.writeSSE({ event: "ready", data: JSON.stringify({ head: at }) });
+        while (!closed) {
+          while (queue.length) await stream.writeSSE({ event: "change", data: queue.shift()! });
+          await new Promise<void>((resolve) => {
+            wake = resolve;
+            setTimeout(resolve, heartbeatMs).unref();
+          });
+          wake = undefined;
+          if (!closed && !queue.length) await stream.writeSSE({ event: "heartbeat", data: "{}" });
+        }
+      } finally {
+        openStreams--;
+        unsubscribe();
+      }
+    });
+  });
 
   app.post(
     "/v1/chains/:chainId/mandates/:mandateId/attempts",

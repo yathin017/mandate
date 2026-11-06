@@ -24,6 +24,8 @@ export class Cache {
   private failures = 0;
   private readonly redis: Redis;
   private readonly subscriberUrl: string;
+  private subscriber: Redis | undefined;
+  private readonly listeners = new Map<string, Set<(change: MandateChange) => void>>();
 
   private constructor(redis: Redis, subscriberUrl: string) {
     this.redis = redis;
@@ -107,31 +109,62 @@ export class Cache {
     );
   }
 
-  /** Subscribes to one mandate's changes. Returns an unsubscribe function. Uses a dedicated connection. */
+  /**
+   * Subscribes to one mandate's changes and returns an unsubscribe function. All subscriptions share one
+   * dedicated Redis connection; a channel is subscribed on its first listener and released after its last.
+   * Throws if Redis cannot be reached within 2s, so callers can refuse the stream.
+   */
   async subscribe(chainId: number, mandateId: string, onChange: (change: MandateChange) => void): Promise<() => void> {
-    const subscriber = new Redis(this.subscriberUrl, { maxRetriesPerRequest: 1, connectTimeout: 2000 });
-    subscriber.on("error", () => {});
     const channel = keys.mandateChannel(chainId, mandateId);
-    subscriber.on("message", (received: string, message: string) => {
-      if (received !== channel) return;
-      try {
-        onChange(JSON.parse(message) as MandateChange);
-      } catch {
-        /* ignore malformed messages */
+    const subscriber = this.ensureSubscriber();
+    let listeners = this.listeners.get(channel);
+    if (!listeners) {
+      listeners = new Set();
+      this.listeners.set(channel, listeners);
+      const subscribed = subscriber.subscribe(channel).then(
+        () => true,
+        () => false,
+      );
+      const timeout = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000).unref());
+      if (!(await Promise.race([subscribed, timeout]))) {
+        this.listeners.delete(channel);
+        this.failures++;
+        throw new Error("Redis subscription unavailable");
       }
-    });
-    const subscribed = subscriber.subscribe(channel).then(
-      () => true,
-      () => false,
-    );
-    const timeout = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000).unref());
-    if (!(await Promise.race([subscribed, timeout]))) this.failures++;
+    }
+    listeners.add(onChange);
     return () => {
-      subscriber.disconnect();
+      const current = this.listeners.get(channel);
+      if (!current) return;
+      current.delete(onChange);
+      if (current.size === 0) {
+        this.listeners.delete(channel);
+        void subscriber.unsubscribe(channel).catch(() => {});
+      }
     };
   }
 
+  private ensureSubscriber(): Redis {
+    if (this.subscriber) return this.subscriber;
+    const subscriber = new Redis(this.subscriberUrl, { maxRetriesPerRequest: 1, connectTimeout: 2000 });
+    subscriber.on("error", () => {});
+    subscriber.on("message", (channel: string, message: string) => {
+      const listeners = this.listeners.get(channel);
+      if (!listeners) return;
+      let change: MandateChange;
+      try {
+        change = JSON.parse(message) as MandateChange;
+      } catch {
+        return; // ignore malformed messages
+      }
+      for (const listener of listeners) listener(change);
+    });
+    this.subscriber = subscriber;
+    return subscriber;
+  }
+
   async close(): Promise<void> {
+    this.subscriber?.disconnect();
     this.redis.disconnect();
   }
 
