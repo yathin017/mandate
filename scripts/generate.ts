@@ -45,6 +45,9 @@ const contracts = {
   oracle: "Oracle.sol/Oracle",
   demoState: "DemoState.sol/DemoState",
   scenarioActor: "ScenarioActor.sol/ScenarioActor",
+  anchorLauncher: "AnchorLauncher.sol/AnchorLauncher",
+  stateView: "IStateView.sol/IStateView",
+  mockErc20: "MockERC20.sol/MockERC20",
 };
 let abis = header + 'import type { Abi } from "viem";\n\n';
 for (const [name, path] of Object.entries(contracts)) {
@@ -54,5 +57,10 @@ for (const [name, path] of Object.entries(contracts)) {
   abis += `// Source artifact: contracts/out/${path}.json\n`;
   abis += `export const ${name}Abi = ${JSON.stringify(artifact.abi, null, 2)} as const satisfies Abi;\n\n`;
 }
+// Creation bytecode of the demo-only mock token, for the web app's "mint a mock token" helper.
+const mockToken = await json("contracts/out/MockERC20.sol/MockERC20.json");
+assert.match(mockToken.bytecode?.object ?? "", /^0x[0-9a-f]+$/, "Missing MockERC20 bytecode");
+abis += `// Source artifact: contracts/out/MockERC20.sol/MockERC20.json (creation code; demo tokens only)\n`;
+abis += `export const mockErc20Bytecode = "${mockToken.bytecode.object}" as const;\n`;
 await output("packages/sdk/src/abis.ts", abis.trimEnd() + "\n");
 console.log(check ? "Generated registry and ABIs are current." : "Generated registry and contract ABIs.");
