@@ -1,12 +1,11 @@
 import { safeAbi, type PreparedCall } from "@mandate/sdk";
 import { useQueryClient } from "@tanstack/react-query";
-import { concat, encodeFunctionData, pad, toHex, zeroAddress, type Address, type Hash, type Hex } from "viem";
+import { encodeFunctionData, type Address, type Hash } from "viem";
 import { useConnection, useReadContract, useReadContracts } from "wagmi";
 
 import { demoChain } from "./config";
+import { approvalSignatures, execTxArgs, safeTxArgs } from "./safeTx";
 import { useTx, type TxRequest } from "./useTx";
-
-const CALL = 0;
 
 /** Owners, threshold and nonce of a Safe, read from the Safe itself. */
 export function useSafeInfo(safe: Address | undefined) {
@@ -41,9 +40,7 @@ export function useSafeAction(safe: Address | undefined, call: PreparedCall | un
     address: safe,
     abi: safeAbi,
     functionName: "getTransactionHash",
-    args: call && info.nonce !== undefined
-      ? [call.to, 0n, call.data, CALL, 0n, 0n, 0n, zeroAddress, zeroAddress, info.nonce]
-      : undefined,
+    args: call && info.nonce !== undefined ? safeTxArgs(call.to, call.data, info.nonce) : undefined,
     chainId: demoChain.id,
     query: { enabled: Boolean(safe && call && info.nonce !== undefined) },
   });
@@ -94,11 +91,7 @@ export function useSafeAction(safe: Address | undefined, call: PreparedCall | un
 
   async function execute() {
     if (!safe || !call || !info.owners || !me) return;
-    // Safe requires signatures sorted by owner address; v = 1 means "approved onchain or sent by this owner".
-    const signers = [...info.owners]
-      .filter((owner) => approvals.get(owner.toLowerCase()) || owner.toLowerCase() === me)
-      .sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : 1));
-    const signatures: Hex = concat(signers.map((owner) => concat([pad(owner, { size: 32 }), pad("0x0", { size: 32 }), toHex(1, { size: 1 })])));
+    const signers = info.owners.filter((owner) => approvals.get(owner.toLowerCase()) || owner.toLowerCase() === me);
     await tx.run({
       checks: moduleCheck,
       send: {
@@ -106,7 +99,7 @@ export function useSafeAction(safe: Address | undefined, call: PreparedCall | un
         data: encodeFunctionData({
           abi: safeAbi,
           functionName: "execTransaction",
-          args: [call.to, 0n, call.data, CALL, 0n, 0n, 0n, zeroAddress, zeroAddress, signatures],
+          args: execTxArgs(call.to, call.data, approvalSignatures(signers)),
         }),
       },
       ...(context ? { context } : {}),

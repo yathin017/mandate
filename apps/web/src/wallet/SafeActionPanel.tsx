@@ -1,0 +1,71 @@
+import type { ErrorContext, PreparedCall } from "@mandate/sdk";
+import { Check, Circle } from "lucide-react";
+import type { Address } from "viem";
+
+import { Button } from "@/components/ui/button";
+import { Hex } from "@/components/status";
+
+import { useSafeAction } from "./useSafe";
+import { TxStatus } from "./TxStatus";
+
+/**
+ * Collects onchain approvals from the Safe's owners for one module call, then executes it.
+ * The approval is bound to this exact call and the Safe's current nonce.
+ */
+export function SafeActionPanel({
+  safe,
+  call,
+  label,
+  context,
+  onDone,
+}: {
+  safe: Address;
+  call: PreparedCall;
+  label: string;
+  context?: ErrorContext;
+  onDone?: () => void;
+}) {
+  const action = useSafeAction(safe, call, context);
+  const { info, approvals, threshold, approvedCount, isOwner, hasApproved, canExecute, tx } = action;
+  const confirmed = tx.state.status === "confirmed";
+
+  return (
+    <div className="space-y-3 rounded-lg border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-medium">{label}</p>
+        <span className="text-xs text-muted-foreground">
+          {approvedCount} of {threshold || "?"} approvals · Safe nonce {info.nonce?.toString() ?? "…"}
+        </span>
+      </div>
+      {action.safeTxHash && (
+        <p className="text-xs text-muted-foreground">
+          Safe transaction <Hex value={action.safeTxHash} chars={6} />
+        </p>
+      )}
+      <ul className="space-y-1 text-sm">
+        {info.owners?.map((owner) => (
+          <li key={owner} className="flex items-center gap-2">
+            {approvals.get(owner.toLowerCase()) ? <Check className="size-4 text-filled" /> : <Circle className="size-4 text-muted-foreground" />}
+            <Hex value={owner} />
+          </li>
+        ))}
+      </ul>
+      {!isOwner && <p className="text-xs text-muted-foreground">Connect one of the Safe's owners to approve or execute.</p>}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" disabled={!isOwner || hasApproved || tx.busy || confirmed} onClick={() => void action.approve()}>
+          {hasApproved ? "Approved" : "Approve as owner"}
+        </Button>
+        <Button
+          disabled={!canExecute || tx.busy || confirmed}
+          onClick={async () => {
+            await action.execute();
+            onDone?.();
+          }}
+        >
+          Execute
+        </Button>
+      </div>
+      <TxStatus state={tx.state} />
+    </div>
+  );
+}

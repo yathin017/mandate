@@ -29,7 +29,8 @@
     "indexer:server": "pnpm --filter @mandate/indexer run server",
     "web:dev": "pnpm --filter @mandate/web run dev",
     "web:build": "pnpm --filter @mandate/web run build",
-    "web:typecheck": "pnpm --filter @mandate/web run typecheck"
+    "web:typecheck": "pnpm --filter @mandate/web run typecheck",
+    "web:test": "pnpm --filter @mandate/web run test"
   },
   "type": "module",
   "devDependencies": {
