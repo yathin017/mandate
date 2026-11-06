@@ -446,7 +446,32 @@ quote list (Base USDC/WETH) + custom with impersonation warnings; demo-only mock
   2. A wallet flow that reads a stale nonce shows the wrong approvals until it refreshes. Open item: point wallet
   reads at a consistent RPC and say why **Execute** is disabled.
 
-## 17. Infra
+## 17. Platform: issuers and market makers (Segment 12, in progress)
+
+Goal (user): one place on Base where anyone launches a token, onboards it, picks a market maker from a marketplace
+with scores, creates and manages mandates; market makers get their own flows and analytics. Replay page goes.
+
+Decisions (user, 2026-11-06):
+- **MM profiles:** off-chain (Postgres) behind wallet sign-in; performance is never self-reported.
+- **Deal flow:** issuer proposes terms, MM accepts by signing the exact terms (EIP-712, stored off-chain), then the
+  Safe owners approve `createMandate`. No contract change.
+- **Token launch:** our own minimal ERC-20 factory (fixed supply into the issuer Safe). Base's B20 standard is a
+  Rust precompile (`0xB20f…0000`): an `eth_call` probe reverted (`0x62975e6a`), Anvil forks cannot execute it, and it
+  targets shares/stablecoins. Third-party launchers (Zora, Clanker, Flaunch) put supply on their own curves, which
+  does not fit a Safe-held treasury.
+- **MM score:** onchain metrics only, each component shown with its source.
+
+Planned segments: auth → MM profiles + proposals → MM score → token factory → UI shell (role-based nav, remove
+Replay) → issuer flow → MM flow → E2E + docs.
+
+- **Auth (done):** SIWE in the API process (`apps/indexer/src/auth/`). Nonces in Redis (one use, 10 min); sessions
+  in Postgres (`accounts`, `auth_sessions`, draft) with only the token's SHA-256 stored; HttpOnly SameSite=Strict
+  cookie, `__Host-` prefixed when Secure; Origin allow-list (`API_AUTH_ORIGINS`) checked against the message's
+  domain/URI and on every state-changing auth request; signatures verified through the chain RPC (EOA, ERC-1271,
+  ERC-6492). Rate limited per client on nonce/verify only. Safari drops Secure cookies on `http://localhost`, so
+  local `.env` sets `API_SESSION_COOKIE_SECURE=false`. 7 tests in `apps/indexer/test/auth.test.ts`.
+
+## 18. Infra
 
 - RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
   (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.

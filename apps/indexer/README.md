@@ -65,6 +65,10 @@ includes `head: { number, hash }`, the block it reflects.
 | GET | `/v1/chains/:chainId/mandates/:id/series?fromBlock=&toBlock=&limit=` | Snapshots for charts, block order |
 | GET | `/v1/chains/:chainId/mandates/:id/stream` | SSE: `ready`, `change`, `heartbeat`; refetch on `change` |
 | POST | `/v1/chains/:chainId/mandates/:id/attempts` | `{ taker, tokenIn, tokenOut, amount, isExactIn }` → server-simulated outcome |
+| GET | `/v1/auth/nonce` | One-time sign-in nonce, plus the chain id and statement the message must use |
+| POST | `/v1/auth/verify` | `{ message, signature }` (EIP-4361) → session cookie |
+| GET | `/v1/auth/session` | The caller's session (`address`, `chainId`, `expiresAt`) or 401 |
+| POST | `/v1/auth/logout` | Revokes the session, clears the cookie |
 
 `POST …/attempts` never accepts an outcome. The server re-runs the router quote via `eth_call` at the indexed
 head and stores the decoded result labeled `simulated`. Repeats in the same block are deduped by the table's
@@ -80,8 +84,29 @@ down. Proxy headers are not trusted; put the API behind a proxy only after addin
 | `mandate:v1:ver:{chain}:{id}` | write counter | bumped by simulations; part of feed keys |
 | `mandate:v1:rl:attempts:{ip}:{minute}` | request count | 60s TTL |
 | `mandate:v1:events:{chain}:{id}` | pub/sub channel | — |
+| `mandate:v1:auth:nonce:{nonce}` | unused sign-in nonce | consumed by `GETDEL`; 10 min TTL |
+| `mandate:v1:auth:session:{tokenHash}` | session lookup | deleted on sign-out; TTL ≤ 60s and ≤ session expiry |
+| `mandate:v1:rl:auth:{ip}:{minute}` | sign-in request count | 60s TTL |
 
 Redis calls fail fast. When Redis is down, reads come from Postgres, streams return 503 and simulations return 503.
+Sign-in returns 503 (nonces live only in Redis); existing sessions keep working from Postgres.
+
+## Sign-in (EIP-4361)
+
+Wallet sign-in for the platform's off-chain features (market-maker profiles, proposals). The client fetches a
+nonce, has the wallet sign a SIWE message and posts it to `/v1/auth/verify`. The server accepts it only if:
+
+- its domain and URI are an `API_AUTH_ORIGINS` web origin, and that origin sent the request (`Origin` header);
+- it names the indexed chain, the fixed statement, and was issued within the last 10 minutes;
+- its nonce was issued here and is unused (consumed before the signature check, so a message works once);
+- the signature verifies through the chain RPC (EOAs, ERC-1271 smart wallets and ERC-6492 counterfactual ones).
+
+The session is a random 256-bit token in an HttpOnly, SameSite=Strict cookie (Secure with the `__Host-` prefix
+unless `API_SESSION_COOKIE_SECURE=false`). Postgres stores only its SHA-256, in `auth_sessions`, next to the
+`accounts` row for the wallet. Sessions last `API_SESSION_TTL_HOURS` (default 7 days) and are not extended by use.
+`requireSession` (in `src/auth/routes.ts`) guards future routes that act for a wallet; `requireAllowedOrigin` is
+the CSRF check for their state-changing requests. The web app must reach the API on the same site (in development
+the Vite proxy does this) for the SameSite cookie to be sent.
 
 ## Schema
 
