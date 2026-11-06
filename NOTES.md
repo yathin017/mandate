@@ -476,6 +476,12 @@ Replay) → issuer flow → MM flow → E2E + docs.
   `executed` only if the module's mandate matches the accepted bounds/pair/MM. Sending simulates `createMandate`
   from the Safe. Added beyond the reviewed list: a `note` (issuer → MM, ≤1000 chars). `getMandate` of an unknown id
   returns an empty record (status None) instead of reverting. 7 tests in `apps/indexer/test/marketplace.test.ts`.
+- **MM score (done):** weights availability 35 / price quality 20 / volume 20 / reliability 15 / responsiveness 10
+  (user). Probes (`mm_probes`, draft) every 10 min per live mandate and side; scores computed on read from indexed
+  rows (`src/score/`), cached per head. On the demo fork the scenario MM scores 71: availability 1.0, price quality
+  0.28 (demo fills sit near the band edge), reliability 0.003 (0.1 days of tenure). Volume is in quote-token units, so
+  it only compares like-quoted mandates. Found while testing: a suite that sets the Redis head and then reverts the
+  fork must delete the head key, or later suites read a head that no longer exists.
 
 ## 18. Infra
 

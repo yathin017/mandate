@@ -69,6 +69,8 @@ includes `head: { number, hash }`, the block it reflects.
 | POST | `/v1/auth/verify` | `{ message, signature }` (EIP-4361) → session cookie |
 | GET | `/v1/auth/session` | The caller's session (`address`, `chainId`, `expiresAt`) or 401 |
 | POST | `/v1/auth/logout` | Revokes the session, clears the cookie |
+| GET | `/v1/chains/:chainId/mms/scores` | Score and evidence for every market maker with a mandate on the chain |
+| GET | `/v1/chains/:chainId/mms/:address/score` | One market maker's score (404 without mandates) |
 | GET | `/v1/mms` | Listed market-maker profiles (public) |
 | GET | `/v1/mms/:address` | One profile, listed or not |
 | PUT | `/v1/mms/me` | Create/replace the signed-in wallet's profile |
@@ -142,6 +144,30 @@ draft ──send──▶ sent ──accept──▶ accepted ──executed─�
   params may already differ (the market maker can reship). A mandate links to at most one proposal.
 - Each transition is one conditional `UPDATE … WHERE status IN (…) AND expires_at > now()`, so concurrent
   requests cannot skip states. Expiry is 1 hour to 30 days after creation.
+
+## Market-maker score
+
+0-100 from onchain evidence only, over the trailing 30 days of chain time, computed at the indexed head and served
+from the head-scoped response cache. Each component is returned with the evidence behind it.
+
+| Component | Weight | Measure |
+|---|---|---|
+| Availability | 35% | Probe rounds that would fill ÷ rounds that would fill or failed for the market maker's reason |
+| Price quality | 20% | 1 − volume-weighted (\|fill price − TWAP\| ÷ the mandate's anchor tolerance), TWAP from the snapshot at the fill's block |
+| Volume | 20% | Quote volume (whole tokens), log-scaled against the busiest market maker on the chain |
+| Reliability | 15% | Share of mandates not revoked × min(1, days under management ÷ 30) |
+| Responsiveness | 10% | 1 − min(1, median minutes ÷ 120) to recover from a fault, or to reship after an issuer bounds change |
+
+**Probes.** The worker runs `Prober` beside the indexer: every `INDEXER_PROBE_INTERVAL_S` (default 600, 0 = off) it
+quotes each live mandate at the indexed head, one small buy and one small sell (0.1% of the shipped inventory),
+through the SwapVM router with `eth_call`. Nothing is sent. `AnchorDeviation`, `InsufficientLiquidity` and
+`ZeroBalance`, and a pause by the market maker itself, count against it; issuer rails (floor, daily cap, release),
+the anchor's breakers and RPC errors are neutral. Probes reference `blocks`, so reorgs remove them; rows older than
+35 days are deleted.
+
+A component without evidence is shown as such and the other weights are rescaled. A market maker with fewer than
+six probe rounds and no fills is **new** (no score, never 0). Volume is in quote-token units: comparable across
+stablecoin-quoted mandates only (USD conversion is future work).
 
 ## Schema
 
