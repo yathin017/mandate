@@ -118,8 +118,8 @@ describe("read API over the indexed demo chain", { skip }, () => {
     assert.deepEqual(body.data.tokens, { base: { symbol: "LAUNCH", decimals: 18 }, quote: { symbol: "sUSDC", decimals: 6 } });
   });
 
-  test("a Safe's summary matches its fills, refusals and latest snapshot", async () => {
-    const all = (await (await get(`${base}/mandates`)).json()).data as { mandateId: string; safe: string }[];
+  test("Safe and market-maker summaries match fills, refusals and the latest snapshot", async () => {
+    const all = (await (await get(`${base}/mandates`)).json()).data as { mandateId: string; safe: string; mm: string }[];
     for (const m of all) {
       const summary = (await (await get(`${base}/safes/${m.safe}/summary`)).json()).data as any[];
       const row = summary.find((r) => r.mandateId === m.mandateId);
@@ -142,6 +142,9 @@ describe("read API over the indexed demo chain", { skip }, () => {
       assert.equal(row.tokens.base.symbol, "LAUNCH");
     }
     assert.deepEqual((await (await get(`${base}/safes/0x000000000000000000000000000000000000beef/summary`)).json()).data, []);
+    // The market maker's view lists the same mandates, keyed by their market maker.
+    const byMm = (await (await get(`${base}/mms/${all[0]!.mm}/summary`)).json()).data as any[];
+    assert.deepEqual(byMm.map((r) => r.mandateId).sort(), all.filter((m) => m.mm === all[0]!.mm).map((m) => m.mandateId).sort());
   });
 
   test("series returns snapshots in block order", async () => {

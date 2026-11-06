@@ -142,10 +142,12 @@ export async function activity(
 }
 
 /**
- * Per-mandate figures for an issuer Safe's overview, from indexed rows only: the latest snapshot (sold, released,
- * today's sales, fees), fill count and quote volume, and refused attempts. Amounts are raw token units.
+ * Per-mandate figures for an issuer Safe's overview or a market maker's desk, from indexed rows only: the latest
+ * snapshot (sold, released, today's sales, fees), fill count and quote volume, and refused attempts. Amounts are raw
+ * token units.
  */
-export async function safeSummary(db: Db, chainId: number, safe: string) {
+export async function mandateSummary(db: Db, chainId: number, filter: { safe: string } | { mm: string }) {
+  const party = "safe" in filter ? sql`m.safe = ${filter.safe}` : sql`m.mm = ${filter.mm}`;
   const rows = await db.execute<{
     mandate_id: string; status: number; mm: string; base: string; quote: string;
     allotment: string; total_net_sold: string | null; released: string | null; net_sold_this_epoch: string | null;
@@ -169,7 +171,7 @@ export async function safeSummary(db: Db, chainId: number, safe: string) {
       SELECT count(*) AS refused FROM attempts a
       WHERE a.chain_id = m.chain_id AND a.mandate_id = m.mandate_id AND a.outcome = 'blocked'
     ) a ON true
-    WHERE m.chain_id = ${chainId} AND m.safe = ${safe}
+    WHERE m.chain_id = ${chainId} AND ${party}
     ORDER BY m.created_block DESC`);
   return rows.map((r) => ({
     mandateId: r.mandate_id,

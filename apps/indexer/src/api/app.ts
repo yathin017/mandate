@@ -179,13 +179,21 @@ export function createApp(deps: AppDeps) {
     return score ? c.json({ head: result.body.head, data: { weights: WEIGHTS, ...score } }) : c.json({ error: "no mandates for this market maker" }, 404);
   });
 
+  /** Mandate summary rows with token display metadata. */
+  async function summaryWithTokens(chainId: number, filter: { safe: string } | { mm: string }) {
+    const rows = await q.mandateSummary(db, chainId, filter);
+    const tokens = await q.tokenMap(db, chainId, rows.flatMap((row) => [row.base, row.quote]));
+    return rows.map((row) => ({ ...row, tokens: { base: tokens[row.base] ?? null, quote: tokens[row.quote] ?? null } }));
+  }
+
   app.get("/v1/chains/:chainId/safes/:safe/summary", zValidator("param", safeParam, invalid), async (c) => {
     const { chainId, safe } = c.req.valid("param");
-    return cached(c, chainId, `safe-summary:${safe}`, async () => {
-      const rows = await q.safeSummary(db, chainId, safe);
-      const tokens = await q.tokenMap(db, chainId, rows.flatMap((row) => [row.base, row.quote]));
-      return rows.map((row) => ({ ...row, tokens: { base: tokens[row.base] ?? null, quote: tokens[row.quote] ?? null } }));
-    });
+    return cached(c, chainId, `safe-summary:${safe}`, () => summaryWithTokens(chainId, { safe }));
+  });
+
+  app.get("/v1/chains/:chainId/mms/:address/summary", zValidator("param", mmParam, invalid), async (c) => {
+    const { chainId, address } = c.req.valid("param");
+    return cached(c, chainId, `mm-summary:${address}`, () => summaryWithTokens(chainId, { mm: address }));
   });
 
   app.get("/v1/chains/:chainId/tokens/launched", zValidator("param", chainParam, invalid), zValidator("query", launchedQuery, invalid), async (c) => {
