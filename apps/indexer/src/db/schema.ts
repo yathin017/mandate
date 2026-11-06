@@ -437,3 +437,36 @@ export const mmProbes = pgTable(
     check("mm_probes_fmt", sql`${t.side} IN ('sell', 'buy') AND ${t.mm} ~ ${sql.raw(`'${ADDRESS}'`)}`),
   ],
 );
+
+// ---------------------------------------------------------------- token launches (DRAFT)
+
+/** Tokens deployed by the chain's TokenFactory (`TokenLaunched`), so the app can list them and spot look-alikes. */
+export const launchedTokens = pgTable(
+  "launched_tokens",
+  {
+    chainId: integer("chain_id").notNull(),
+    token: text("token").notNull(),
+    factory: text("factory").notNull(),
+    creator: text("creator").notNull(),
+    recipient: text("recipient").notNull(),
+    name: text("name").notNull(),
+    symbol: text("symbol").notNull(),
+    /** Base units (18 decimals). */
+    supply: uint256("supply").notNull(),
+    blockNumber: blockNumber("block_number").notNull(),
+    timestamp: bigint("timestamp", { mode: "bigint" }).notNull(),
+    txHash: text("tx_hash").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.chainId, t.token] }),
+    foreignKey({ columns: [t.chainId, t.blockNumber], foreignColumns: [blocks.chainId, blocks.number] }).onDelete(
+      "cascade",
+    ),
+    index("launched_tokens_creator_idx").on(t.chainId, t.creator),
+    index("launched_tokens_recipient_idx").on(t.chainId, t.recipient),
+    check(
+      "launched_tokens_fmt",
+      sql`${t.token} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.creator} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.recipient} ~ ${sql.raw(`'${ADDRESS}'`)}`,
+    ),
+  ],
+);
