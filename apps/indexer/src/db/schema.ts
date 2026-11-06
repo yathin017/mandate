@@ -261,3 +261,45 @@ export const snapshots = pgTable(
     ),
   ],
 );
+
+// ---------------------------------------------------------------- accounts and sessions (DRAFT)
+// Platform identity, not chain evidence: these rows are not block-scoped and survive reorgs.
+
+/** A wallet that has signed in at least once (EIP-4361). Profiles (market makers, issuers) will reference it. */
+export const accounts = pgTable(
+  "accounts",
+  {
+    address: text("address").primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check("accounts_fmt", sql`${t.address} ~ ${sql.raw(`'${ADDRESS}'`)}`)],
+);
+
+/**
+ * Sign-in sessions. Only the SHA-256 of the cookie token is stored, so a database leak cannot be replayed as a
+ * session. A session ends at `expires_at` or when `revoked_at` is set (sign-out); rows are never reused.
+ */
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tokenHash: text("token_hash").notNull(),
+    address: text("address")
+      .notNull()
+      .references(() => accounts.address),
+    /** Chain the sign-in message was verified on (smart-wallet signatures are chain-specific). */
+    chainId: integer("chain_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("auth_sessions_token_uq").on(t.tokenHash),
+    index("auth_sessions_address_idx").on(t.address),
+    check(
+      "auth_sessions_fmt",
+      sql`${t.tokenHash} ~ ${sql.raw(`'${HASH}'`)} AND ${t.address} ~ ${sql.raw(`'${ADDRESS}'`)} AND ${t.expiresAt} > ${t.createdAt}`,
+    ),
+  ],
+);
