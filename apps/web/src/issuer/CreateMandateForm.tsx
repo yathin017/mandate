@@ -55,6 +55,8 @@ export function CreateMandateForm({
   startInReview = false,
   onReview,
   onDone,
+  marketMaker,
+  renderReviewAction,
 }: {
   safe: Address;
   base: TokenRef;
@@ -72,12 +74,20 @@ export function CreateMandateForm({
   /** Called with the terms when they move to review, and with null when the owner goes back to edit. */
   onReview?: (terms: Terms | null) => void;
   onDone?: () => void;
+  /** Fixes the market maker (chosen elsewhere, e.g. from the marketplace); its field is then hidden. */
+  marketMaker?: string;
+  /** Replaces the default "owners approve and execute" panel on the review screen (e.g. send as a proposal). */
+  renderReviewAction?: (built: BuiltTerms) => React.ReactNode;
 }) {
   const [terms, setTerms] = useState<Terms>({ ...EMPTY, ...initial });
   const [step, setStep] = useState<"terms" | "review">(startInReview ? "review" : "terms");
   const block = useBlock({ chainId: demoChain.id, query: { refetchInterval: false } });
   const now = block.data?.timestamp;
   const { owners } = useSafeInfo(safe);
+
+  useEffect(() => {
+    if (marketMaker !== undefined) setTerms((t) => (t.mm === marketMaker ? t : { ...t, mm: marketMaker }));
+  }, [marketMaker]);
 
   // Fill the default release date from chain time once, so a forked chain's clock is respected.
   useEffect(() => {
@@ -112,7 +122,11 @@ export function CreateMandateForm({
         {built.warnings.map((w) => (
           <p key={w} className="text-sm text-amber-600 dark:text-amber-400">{w}</p>
         ))}
-        <SafeActionPanel safe={safe} call={call} label="Create mandate" context={{ base, quote }} onDone={onDone} />
+        {renderReviewAction ? (
+          renderReviewAction(built)
+        ) : (
+          <SafeActionPanel safe={safe} call={call} label="Create mandate" context={{ base, quote }} onDone={onDone} />
+        )}
         <Button
           variant="ghost"
           onClick={() => {
@@ -140,7 +154,8 @@ export function CreateMandateForm({
         <p className="text-sm text-blocked">The shared terms are not valid here; correct them below.</p>
       )}
       <div className="grid gap-4 sm:grid-cols-2">
-        {FIELDS.map((f) => (
+        {/* A market maker chosen elsewhere (marketplace picker) is not shown twice. */}
+        {FIELDS.filter((f) => !(f.key === "mm" && marketMaker !== undefined)).map((f) => (
           <div key={f.key} className={f.key === "mm" ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}>
             <Label htmlFor={f.key}>
               {f.label} {f.unit && <span className="text-muted-foreground">({unit(f.unit)})</span>}

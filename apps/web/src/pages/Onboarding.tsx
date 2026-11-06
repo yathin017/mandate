@@ -18,9 +18,9 @@ import { demoChain, isLive } from "@/wallet/config";
 type StepState = "done" | "current" | "upcoming";
 
 /**
- * Self-serve onboarding: Safe → tokens → module → anchor → mandate. Choices live in the URL (?safe=…, and the
- * reviewed mandate terms), so every owner can open the same link and continue; each step's completion is read
- * from the chain, not stored locally.
+ * Self-serve launch: Safe → tokens → module → anchor → mandate (proposed to a market maker, or created directly).
+ * Choices live in the URL (?safe=…, ?mm=…, and the reviewed direct terms), so every owner can open the same link and
+ * continue; each step's completion is read from the chain, not stored locally.
  */
 export function Onboarding() {
   const [params, setParams] = useSearchParams();
@@ -101,6 +101,10 @@ export function Onboarding() {
               select("terms", null);
               void safeMandates.refetch();
             }}
+            mode={params.get("mode") === "direct" ? "direct" : "propose"}
+            onMode={(m) => select("mode", m === "direct" ? "direct" : null)}
+            mm={params.get("mm")}
+            onMm={(m) => select("mm", m)}
           />
         ) : undefined,
     },
