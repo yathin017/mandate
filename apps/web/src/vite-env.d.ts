@@ -5,4 +5,6 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   /** Chain RPC used only inside wallet flows (default http://127.0.0.1:8547). */
   readonly VITE_RPC_URL?: string;
+  /** Deployment to show: 31337 (local fork, default) or 8453 (Base). Must be registered in @mandate/chains. */
+  readonly VITE_CHAIN_ID?: string;
 }

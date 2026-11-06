@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SyntheticTag } from "@/components/status";
 import { useHealth } from "@/lib/hooks";
 import { ConnectButton } from "@/wallet/ConnectButton";
+import { ENVIRONMENT_LABEL } from "@/wallet/config";
 import { cn } from "@/lib/utils";
 
 import { applyTheme, readTheme, type Theme } from "./theme";
@@ -77,7 +78,7 @@ function ChainStatus({ health, error }: { health: ReturnType<typeof useHealth>["
   if (!health?.head) return null;
   return (
     <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
-      <SyntheticTag label="LOCAL FORK" />
+      <SyntheticTag label={ENVIRONMENT_LABEL} />
       <span className="tabular font-mono">block {health.head.number}</span>
     </div>
   );

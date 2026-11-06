@@ -20,7 +20,7 @@ import { api } from "@/lib/api";
 import { formatBps, formatPrice, formatUnits, parseUnits } from "@/lib/format";
 import { useMandate } from "@/lib/hooks";
 import type { MandateListItem, Snapshot, TokenDisplay } from "@/lib/types";
-import { DEMO_ACCOUNTS, demoChain, deployment } from "@/wallet/config";
+import { DEMO_ACCOUNTS, demoChain, deployment, isLive } from "@/wallet/config";
 import { TxStatus } from "@/wallet/TxStatus";
 import { useTx } from "@/wallet/useTx";
 
@@ -52,7 +52,8 @@ export function MMDesk() {
         <Alert>
           <AlertTitle>Connect the market maker's wallet</AlertTitle>
           <AlertDescription>
-            For the demo, create a mandate in the Issuer console whose market maker is Anvil account #2 (<Hex value={DEMO_ACCOUNTS.marketMaker} />), then connect that account here.
+            The demo market maker is <Hex value={DEMO_ACCOUNTS.marketMaker} />
+            {isLive ? " (the live mandate's MM)." : " (Anvil account #2): create a mandate for it in the Issuer console, then connect it here."}
           </AlertDescription>
         </Alert>
       )}

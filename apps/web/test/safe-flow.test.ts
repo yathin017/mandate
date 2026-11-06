@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 
-import { getDeployment } from "@mandate/chains";
+import { getLocalForkDeployment } from "@mandate/chains";
 import { buildCreateMandateCall, buildReshipCall, explainError, mandateModuleAbi, safeAbi } from "@mandate/sdk";
 import { createPublicClient, createWalletClient, encodeFunctionData, http, type Address, type Hash, type Hex } from "viem";
 
@@ -12,7 +12,7 @@ import { approvalSignatures, execTxArgs, safeTxArgs } from "../src/wallet/safeTx
  * Uses Anvil's unlocked public dev accounts. The fork is snapshotted and restored, so the demo is unchanged.
  */
 const RPC = process.env.VITE_RPC_URL ?? "http://127.0.0.1:8547";
-const deployment = getDeployment(31337);
+const deployment = getLocalForkDeployment();
 const OWNER_1 = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as Address;
 const OWNER_2 = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Address;
 const MM = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" as Address;

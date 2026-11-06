@@ -10,7 +10,7 @@ import { api } from "@/lib/api";
 import { formatUnits, parseUnits } from "@/lib/format";
 import type { Mandate, TokenDisplay } from "@/lib/types";
 
-/** Anvil's public development account 0: the demo's taker. Only used as the quote's `from`; nothing is signed. */
+/** Any address works as the quote's `from` (nothing is signed); Anvil's account 0 is used on every chain. */
 const DEMO_TAKER = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 
 type Side = "buy" | "sell";

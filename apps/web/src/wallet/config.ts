@@ -1,5 +1,6 @@
-import { getDeployment } from "@mandate/chains";
-import { defineChain } from "viem";
+import { getDeployment, getTransactionUrl, isLiveDeployment } from "@mandate/chains";
+import { defineChain, type Address, type Hash } from "viem";
+import { base } from "viem/chains";
 import { createConfig, http, injected } from "wagmi";
 
 import { CHAIN_ID } from "@/lib/api";
@@ -13,15 +14,25 @@ import { CHAIN_ID } from "@/lib/api";
  */
 export const deployment = getDeployment(CHAIN_ID);
 
-export const RPC_URL = import.meta.env.VITE_RPC_URL ?? "http://127.0.0.1:8547";
+export const isLive = isLiveDeployment(deployment);
 
-export const demoChain = defineChain({
-  id: CHAIN_ID,
-  name: "Mandate local fork",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: [RPC_URL] } },
-  testnet: true,
-});
+export const RPC_URL = import.meta.env.VITE_RPC_URL ?? (isLive ? "https://mainnet.base.org" : "http://127.0.0.1:8547");
+
+export const demoChain = isLive
+  ? { ...base, rpcUrls: { default: { http: [RPC_URL] } } }
+  : defineChain({
+      id: CHAIN_ID,
+      name: "Mandate local fork",
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: { default: { http: [RPC_URL] } },
+      testnet: true,
+    });
+
+/** Short disclosure shown in the header: what chain this is and that its tokens are mocks. */
+export const ENVIRONMENT_LABEL = isLive ? `${demoChain.name.toUpperCase()} · MOCK TOKENS` : "LOCAL FORK";
+
+/** Explorer link for live chains; undefined on the local fork. */
+export const txUrl = (hash: string): string | undefined => getTransactionUrl(CHAIN_ID, hash as Hash);
 
 export const wagmiConfig = createConfig({
   chains: [demoChain],
@@ -35,9 +46,28 @@ declare module "wagmi" {
   }
 }
 
-/** Public Anvil development accounts used by the demo (never real keys). */
-export const DEMO_ACCOUNTS = {
-  safeOwner1: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-  safeOwner2: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-  marketMaker: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-} as const;
+/**
+ * Demo roles. Local fork: Anvil's public development accounts. Live: the throwaway keys created for the
+ * deployment (addresses only; keys never reach the app).
+ */
+export const DEMO_ACCOUNTS: { safeOwner1: Address; safeOwner2: Address; marketMaker: Address } = isLiveDeployment(deployment)
+  ? { safeOwner1: deployment.deployer, safeOwner2: deployment.owner2, marketMaker: deployment.mm }
+  : {
+      safeOwner1: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      safeOwner2: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      marketMaker: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    };
+
+/** Issuer Safes offered in the console. */
+export const DEMO_SAFES: readonly { address: Address; label: string }[] = isLiveDeployment(deployment)
+  ? [{ address: deployment.safe, label: `Live demo Safe (${demoChain.name})` }]
+  : [
+      { address: deployment.safe1, label: "Demo Safe 1 (Act 1)" },
+      { address: deployment.safe2, label: "Demo Safe 2 (Act 2)" },
+      { address: deployment.safe3, label: "Demo Safe 3 (Act 3)" },
+    ];
+
+/** How to get the right wallet accounts for this deployment. */
+export const ACCOUNT_HELP = isLive
+  ? `Connect one of the Safe's owners (${DEMO_ACCOUNTS.safeOwner1.slice(0, 6)}… or ${DEMO_ACCOUNTS.safeOwner2.slice(0, 6)}…) on ${demoChain.name}. One owner approves; the other executes.`
+  : `Import Anvil accounts #0 and #1 into your wallet (public development keys only), add network ${RPC_URL} (chain ${CHAIN_ID}), then connect. One owner approves; the other executes.`;

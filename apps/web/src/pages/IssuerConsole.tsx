@@ -12,18 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Hex, StatusPill } from "@/components/status";
-import { api, CHAIN_ID } from "@/lib/api";
+import { api } from "@/lib/api";
 import type { MandateListItem, TokenDisplay } from "@/lib/types";
 import { CreateMandateForm } from "@/issuer/CreateMandateForm";
-import { demoChain, deployment } from "@/wallet/config";
+import { ACCOUNT_HELP, DEMO_SAFES, demoChain, deployment, isLive } from "@/wallet/config";
 import { SafeActionPanel } from "@/wallet/SafeActionPanel";
 import { useSafeInfo } from "@/wallet/useSafe";
 
-const DEMO_SAFES = [
-  { address: deployment.safe1, label: "Demo Safe 1 (Act 1)" },
-  { address: deployment.safe2, label: "Demo Safe 2 (Act 2)" },
-  { address: deployment.safe3, label: "Demo Safe 3 (Act 3)" },
-] as const;
 
 const FALLBACK: TokenDisplay = { symbol: "TOKEN", decimals: 18 };
 
@@ -32,7 +27,7 @@ const FALLBACK: TokenDisplay = { symbol: "TOKEN", decimals: 18 };
  * Mandate lists come from the indexer; Safe owners, nonce and approvals are read from the Safe.
  */
 export function IssuerConsole() {
-  const [selected, setSelected] = useState<string>(deployment.safe1);
+  const [selected, setSelected] = useState<string>(DEMO_SAFES[0]!.address);
   const [custom, setCustom] = useState("");
   const safe = (isAddress(custom) ? custom : selected) as Address;
   const { address } = useConnection();
@@ -65,7 +60,9 @@ export function IssuerConsole() {
       <Card>
         <CardHeader>
           <CardTitle>Treasury Safe</CardTitle>
-          <CardDescription>Demo Safes are 2-of-2, owned by Anvil dev accounts #0 and #1.</CardDescription>
+          <CardDescription>
+            {isLive ? "The live demo Safe is 2-of-2, owned by the deployment's two throwaway keys." : "Demo Safes are 2-of-2, owned by Anvil dev accounts #0 and #1."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-3">
@@ -106,7 +103,7 @@ export function IssuerConsole() {
         <Alert>
           <AlertTitle>Connect a Safe owner</AlertTitle>
           <AlertDescription>
-            Import Anvil accounts #0 and #1 into your wallet (public development keys only), add network {demoChain.rpcUrls.default.http[0]} (chain {CHAIN_ID}), then connect. One owner approves; the other executes.
+            {ACCOUNT_HELP}
           </AlertDescription>
         </Alert>
       )}

@@ -40,7 +40,7 @@ export function MandatePage() {
 function MandateView({ data, base, quote, stream }: { data: MandateDetail; base: TokenDisplay; quote: TokenDisplay; stream: StreamState }) {
   const { mandate, snapshot } = data;
   const series = useSeries(mandate.mandateId);
-  const fork = data.chain?.environment === "local-mainnet-fork";
+  const environment = data.chain?.environment;
 
   return (
     <div className="space-y-8">
@@ -51,7 +51,8 @@ function MandateView({ data, base, quote, stream }: { data: MandateDetail; base:
           </h1>
           <StatusPill status={mandate.status} />
           <LiveBadge state={stream} />
-          {fork && <SyntheticTag label="LOCAL FORK · SYNTHETIC TOKENS" />}
+          {environment === "local-mainnet-fork" && <SyntheticTag label="LOCAL FORK · SYNTHETIC TOKENS" />}
+          {environment === "live" && <SyntheticTag label="LIVE · MOCK TOKENS" />}
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
           <span>Issuer Safe <Hex value={mandate.safe} /></span>

@@ -12,8 +12,8 @@ import type { Replay } from "./replay";
 /** The indexer API is the app's only data source. Dev: /api proxy (vite.config.ts). Prod: VITE_API_URL. */
 export const API_BASE = (import.meta.env.VITE_API_URL ?? "/api").replace(/\/$/, "");
 
-/** Runtime chain the app shows (31337 = local fork of Ethereum mainnet). */
-export const CHAIN_ID = 31337;
+/** Runtime chain the app shows: 31337 = local fork of Ethereum mainnet (default), 8453 = live Base deployment. */
+export const CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID ?? 31337);
 
 export class ApiError extends Error {
   readonly status: number;
