@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {IAqua} from "@1inch/aqua/src/interfaces/IAqua.sol";
-import {SwapQuery, SwapRegisters} from "@1inch/swap-vm/src/libs/VM.sol";
+import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
+import { SwapQuery, SwapRegisters } from "@1inch/swap-vm/src/libs/VM.sol";
 
-import {IMandateQuoter} from "../../src/interfaces/IMandateQuoter.sol";
-import {IMandateRegistry} from "../../src/interfaces/IMandateRegistry.sol";
-import {Mandate, MandateStatus} from "../../src/libraries/MandateTypes.sol";
-import {MandateMath} from "../../src/libraries/MandateMath.sol";
-import {MandateQuoter} from "../../src/quoter/MandateQuoter.sol";
+import { IMandateQuoter } from "../../src/interfaces/IMandateQuoter.sol";
+import { IMandateRegistry } from "../../src/interfaces/IMandateRegistry.sol";
+import { Mandate, MandateStatus } from "../../src/libraries/MandateTypes.sol";
+import { MandateMath } from "../../src/libraries/MandateMath.sol";
+import { MandateQuoter } from "../../src/quoter/MandateQuoter.sol";
 
-import {MandateFixture} from "../utils/MandateFixture.sol";
-import {MockMandateRegistry} from "../utils/MockMandateRegistry.sol";
-import {MockPriceAnchor} from "../utils/MockPriceAnchor.sol";
+import { MandateFixture } from "../utils/MandateFixture.sol";
+import { MockMandateRegistry } from "../utils/MockMandateRegistry.sol";
+import { MockPriceAnchor } from "../utils/MockPriceAnchor.sol";
 
 /// @notice Rule-by-rule tests calling the quoter directly as the router would. Balances are fixed in the
 ///         registers, so price impact never interferes with the rule under test.

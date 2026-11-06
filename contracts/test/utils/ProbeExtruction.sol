@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {IExtruction} from "@1inch/swap-vm/src/instructions/Extruction.sol";
-import {SwapQuery, SwapRegisters} from "@1inch/swap-vm/src/libs/VM.sol";
+import { IExtruction } from "@1inch/swap-vm/src/instructions/Extruction.sol";
+import { SwapQuery, SwapRegisters } from "@1inch/swap-vm/src/libs/VM.sol";
 
 /// @title ProbeExtruction
 /// @notice Pass-through Extruction target used to prove the live router calls our contract on both

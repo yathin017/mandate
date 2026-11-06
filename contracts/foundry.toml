@@ -32,3 +32,4 @@ mainnet = "${MAINNET_RPC_URL}"
 line_length = 120
 multiline_func_header = "all"
 number_underscore = "thousands"
+bracket_spacing = true

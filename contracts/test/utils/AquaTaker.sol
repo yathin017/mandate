@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {IAqua} from "@1inch/aqua/src/interfaces/IAqua.sol";
-import {ISwapVM} from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
-import {ITakerCallbacks} from "@1inch/swap-vm/src/interfaces/ITakerCallbacks.sol";
-import {TakerTraitsLib} from "@1inch/swap-vm/src/libs/TakerTraits.sol";
+import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
+import { ISwapVM } from "@1inch/swap-vm/src/interfaces/ISwapVM.sol";
+import { ITakerCallbacks } from "@1inch/swap-vm/src/interfaces/ITakerCallbacks.sol";
+import { TakerTraitsLib } from "@1inch/swap-vm/src/libs/TakerTraits.sol";
 
 /// @title AquaTaker
 /// @notice Test taker for Aqua strategies. Pays `tokenIn` by pushing it into the maker's Aqua

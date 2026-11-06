@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {Mandate, MandateBounds, MandateParams, MandateStatus} from "../../src/libraries/MandateTypes.sol";
+import { Mandate, MandateBounds, MandateParams, MandateStatus } from "../../src/libraries/MandateTypes.sol";
 
 /// @notice Default demo terms (spec §6.1): 10M LAUNCH over 180 days, 200k/day cap, $0.30 floor, 3% anchor band.
 /// @dev Prices assume an 18-decimal base and a 6-decimal quote.
@@ -47,7 +47,7 @@ library MandateFixture {
                 anchor: anchor,
                 quoter: quoter
             }),
-            params: MandateParams({spreadBps: SPREAD_BPS, epochCap: MAX_EPOCH_CAP, shippedBase: 0, shippedQuote: 0})
+            params: MandateParams({ spreadBps: SPREAD_BPS, epochCap: MAX_EPOCH_CAP, shippedBase: 0, shippedQuote: 0 })
         });
     }
 }

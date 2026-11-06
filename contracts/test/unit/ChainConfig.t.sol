@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {ChainConfig, ChainConfigLib} from "../../script/lib/ChainConfig.sol";
+import { ChainConfig, ChainConfigLib } from "../../script/lib/ChainConfig.sol";
 
 /// @notice Every chain config file must parse and contain no zero addresses.
 contract ChainConfigTest is Test {

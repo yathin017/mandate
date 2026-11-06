@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {IAqua} from "@1inch/aqua/src/interfaces/IAqua.sol";
-import {IExtruction} from "@1inch/swap-vm/src/instructions/Extruction.sol";
-import {SwapQuery, SwapRegisters} from "@1inch/swap-vm/src/libs/VM.sol";
+import { IAqua } from "@1inch/aqua/src/interfaces/IAqua.sol";
+import { IExtruction } from "@1inch/swap-vm/src/instructions/Extruction.sol";
+import { SwapQuery, SwapRegisters } from "@1inch/swap-vm/src/libs/VM.sol";
 
-import {IMandateQuoter} from "../interfaces/IMandateQuoter.sol";
-import {IMandateRegistry} from "../interfaces/IMandateRegistry.sol";
-import {IPriceAnchor} from "../interfaces/IPriceAnchor.sol";
-import {Mandate, MandateStatus} from "../libraries/MandateTypes.sol";
-import {MandateMath} from "../libraries/MandateMath.sol";
+import { IMandateQuoter } from "../interfaces/IMandateQuoter.sol";
+import { IMandateRegistry } from "../interfaces/IMandateRegistry.sol";
+import { IPriceAnchor } from "../interfaces/IPriceAnchor.sol";
+import { Mandate, MandateStatus } from "../libraries/MandateTypes.sol";
+import { MandateMath } from "../libraries/MandateMath.sol";
 
 /// @title MandateQuoter
 /// @notice SwapVM Extruction target that prices every fill of a mandate's Aqua strategy and reverts any fill

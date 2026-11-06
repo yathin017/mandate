@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {IPriceAnchor} from "../../src/interfaces/IPriceAnchor.sol";
+import { IPriceAnchor } from "../../src/interfaces/IPriceAnchor.sol";
 
 /// @notice Fixed-price anchor for tests until the Uniswap v4 TWAP adapter (Segment 3).
 contract MockPriceAnchor is IPriceAnchor {

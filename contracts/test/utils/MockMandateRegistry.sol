@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {IMandateRegistry} from "../../src/interfaces/IMandateRegistry.sol";
-import {Mandate, MandateStatus} from "../../src/libraries/MandateTypes.sol";
+import { IMandateRegistry } from "../../src/interfaces/IMandateRegistry.sol";
+import { Mandate, MandateStatus } from "../../src/libraries/MandateTypes.sol";
 
 /// @notice Settable stand-in for MandateModule until Segment 4. No access control: tests only.
 contract MockMandateRegistry is IMandateRegistry {
