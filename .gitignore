@@ -1,0 +1,22 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/31337/
+
+# Local fork deployments are regenerated on every run
+deployments/31337.json
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

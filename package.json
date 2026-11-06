@@ -1,0 +1,13 @@
+{
+  "name": "mandate",
+  "private": true,
+  "description": "The market-maker deal as an onchain program (1inch Aqua + SwapVM + Uniswap v4).",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "contracts:build": "cd contracts && forge build",
+    "contracts:test": "cd contracts && forge test"
+  }
+}
