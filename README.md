@@ -13,7 +13,7 @@ Built for ETHGlobal Mumbai 2026.
 |---|---|
 | Launch a fixed-supply token straight into a Safe (TokenFactory) | Publish a profile in the marketplace |
 | Open a Uniswap v4 pool and its market oracle (AnchorLauncher), seed liquidity | Are ranked by an onchain-only score (availability, execution vs the market, volume, reliability, responsiveness) |
-| Set the treasury policy: every value is the issuer's, nothing is pre-filled | See the policy they would trade under before accepting |
+| Set the treasury policy from suggested values; every field explains, live, what it will do | See the policy they would trade under before accepting |
 | Pick a market maker by score and propose a strategy | Accept a strategy by signing its exact terms (EIP-712, no gas) |
 | Owners add it through the Safe; pause, edit the policy or revoke any time | Operate inside the bounds and what the Safe can back; claim their fee share directly |
 | Track shared limits, release, risk mode, fills, execution quality, MM pay, refusals | Track volume, execution quality, earned and claimable fees, refusals |
@@ -252,8 +252,8 @@ market maker side, propose a strategy to the Market Maker account above.
    policy, revoke.
 3. **Launch** (`/launch`): the full self-serve path for a new token, step by step. Create a Safe, launch or mint
    a token, enable the module, launch the price anchor and add liquidity. Then set the treasury policy (every
-   value is yours; nothing is pre-filled) and propose a strategy to the Market Maker. Steps 3 onward need
-   `pnpm fork:platform`.
+   value starts from a suggestion sized to your pool and Safe, and says what it will do) and propose a strategy
+   to the Market Maker. Steps 3 onward need `pnpm fork:platform`.
 4. **Desk** (`/desk`, as the Market Maker, signed in): accept the proposal by signing it. The owners then add it
    in `/launch` or `/issuer`, and the market maker tunes and claims fees under **My strategies**.
 
