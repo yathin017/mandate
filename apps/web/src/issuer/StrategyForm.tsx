@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatBps, formatPrice, formatUnits, parseUnits } from "@/lib/format";
-import { deployment } from "@/wallet/config";
+import { DEMO_MARKET_MAKER, deployment } from "@/wallet/config";
 import { SafeActionPanel } from "@/wallet/SafeActionPanel";
 import { useSafeInfo } from "@/wallet/useSafe";
 
@@ -74,7 +74,9 @@ export function StrategyForm({
 }) {
   const suggest = (mm: string) =>
     suggestTerms({ base, quote, mm, ...(anchorPriceX36 !== undefined ? { anchorPriceX36 } : {}), ...(holdings ? { holdings } : {}) });
-  const [terms, setTerms] = useState<Terms>(() => (initial ? { ...EMPTY_TERMS, ...initial } : suggest(marketMaker ?? "")));
+  // Adding directly, the demo market maker is suggested (VITE_DEMO_MARKET_MAKER, else the deployment's); a picker
+  // elsewhere (`marketMaker`) always wins.
+  const [terms, setTerms] = useState<Terms>(() => (initial ? { ...EMPTY_TERMS, ...initial } : suggest(marketMaker ?? DEMO_MARKET_MAKER)));
   // Suggestions follow the pool price and the Safe's backing as they load, until the issuer types anything.
   const [touched, setTouched] = useState(Boolean(initial));
   const edit = (next: Terms) => {
@@ -84,7 +86,7 @@ export function StrategyForm({
   const [step, setStep] = useState<"terms" | "review">(startInReview ? "review" : "terms");
   const { owners } = useSafeInfo(safe);
   useEffect(() => {
-    if (!touched) setTerms((t) => suggest(marketMaker ?? t.mm));
+    if (!touched) setTerms((t) => suggest(marketMaker ?? (t.mm || DEMO_MARKET_MAKER)));
   }, [touched, anchorPriceX36, holdings?.base, holdings?.quote]);
   const explained = useMemo(
     () => explainTerms(terms, { base, quote, ...(anchorPriceX36 !== undefined ? { anchorPriceX36 } : {}), ...(holdings ? { holdings } : {}), ...(limits ? { limits } : {}) }),
