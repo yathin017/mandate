@@ -400,6 +400,24 @@ propose a strategy to the Market Maker with their own values.
 | Safe Owner 2 | `0x6a4fb4561051dD5B25619ab997152892008C7bF6` |
 | Market Maker | `0xbDafcA30260a4a5550cAD1F11928b26f1B063126` |
 
+**Demo treasury.** A second, complete treasury runs on the same v2 contracts with its own three wallets, built by
+`apps/web/scripts/base-demo.ts` through the same SDK builders, two-owner Safe flow and API the app uses (it leaves
+the pinned roles above untouched):
+
+| | Address |
+|---|---|
+| Issuer Safe (2-of-2: Demo Owner 1 + Demo Owner 2) | [`0x807CBEd6139886044E6F30c1105389855B097904`](https://basescan.org/address/0x807CBEd6139886044E6F30c1105389855B097904) |
+| Demo Orbit (dORBIT, launched by TokenFactory) / Demo Dollar (dUSD, mock) | [`0xC593D152c38446EB88Bb2FF3D05b6464De32C914`](https://basescan.org/token/0xC593D152c38446EB88Bb2FF3D05b6464De32C914) / [`0x2D718b826aB88023b693D1bd8531D83054d7e877`](https://basescan.org/token/0x2D718b826aB88023b693D1bd8531D83054d7e877) |
+| Pair market oracle (anchor at 0.40 dUSD) | [`0x2376eD3BDC8eA7faC0EBeFb978855878aC6A692D`](https://basescan.org/address/0x2376eD3BDC8eA7faC0EBeFb978855878aC6A692D) |
+| Policy | `0x4450aef3628ebf5a11a3f0d28718e785904bddff9636774659280a954934a50f` ([created](https://basescan.org/tx/0xf04e571209a8ab21e0b1f119eb122eb371870bb2e44b72778b287dd43274f01b)) |
+| Strategy (market making, accepted by the MM's signature) | `0x9437324f15c945ba1524b1fee126c1087516dc6187f1d223daebff10214d3e7e` ([added](https://basescan.org/tx/0xafc69ebfa18d9d278eeb3e139368ae2f2e51d0e5ead71678de0b0fc85a54e501)) |
+| Demo Owner 1 / Demo Owner 2 / Demo Market Maker | `0x174F75176b73124627116653085Ce9585E261388` / `0x9A6D76cB905Df126832AEB1802A27a1b37a6e872` / `0x5F8b93e830a42200CB85420e89BE5FC9154F9192` |
+
+Run it with the demo keys in `.env` (`DEMO_OWNER1_PRIVATE_KEY`, `DEMO_OWNER2_PRIVATE_KEY`, `DEMO_MM_PRIVATE_KEY`) and the
+Base API running: `node --env-file=../../.env scripts/base-demo.ts setup|strategy|trade|status` from `apps/web`. Each
+phase saves progress in `.local/base-demo.json`, so a re-run continues where it stopped. The policy pauses trading
+until the pool is an hour old.
+
 **v1 (single mandates)** ran on Base from block 53927227 with mock tokens against the canonical Aqua, SwapVM router,
 Uniswap v4 PoolManager and Safe 1.4.1; its manifest is archived in
 [`deployments/archive/8453-v1.json`](deployments/archive/8453-v1.json). It took real fills through the canonical
