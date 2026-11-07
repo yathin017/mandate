@@ -5,7 +5,8 @@
 thresholds read from a Uniswap v4 oracle), and market makers run **strategies** under it on 1inch Aqua, inside
 bounds the issuer sets. Every fill is checked by code; every refusal is public.
 
-Built for ETHGlobal Mumbai 2026.
+Built for ETHGlobal Mumbai 2026. **Judges:** [Partner integrations](#partner-integrations-for-judges) links every
+Uniswap v4 and 1inch Aqua/SwapVM integration to its contract lines; Uniswap feedback is in [`FEEDBACK.md`](FEEDBACK.md).
 
 **One place for new token issuers and market makers on Base:**
 
@@ -372,6 +373,51 @@ liquidity, the treasury policy, and a listed market maker. Then a strategy propo
 acceptance, execution through the Safe and a taker trade. It ends with both sides' analytics, including execution
 quality, and a scored market maker. Chain-backed suites snapshot and restore the fork, so the demo stays intact.
 Scenario inputs, evidence format and synthetic-data disclosures are in [`replay/README.md`](replay/README.md).
+
+## Partner integrations (for judges)
+
+Line links point at the contracts on this branch. Deployed addresses are in [`deployments/8453.json`](deployments/8453.json)
+and the canonical protocol addresses in [`config/chains/8453.json`](config/chains/8453.json).
+
+### Uniswap v4: the price and risk oracle every fill is checked against
+
+| What | Where |
+|---|---|
+| Hook on OpenZeppelin `BaseOracleHook`: TWAP observations, plus `beforeAddLiquidity` | [`MandateOracleHook.sol` L54-L57](contracts/src/hook/MandateOracleHook.sol#L54-L57) (permissions) |
+| Pool initialisation time (pool age) | [`MandateOracleHook.sol` L59-L66](contracts/src/hook/MandateOracleHook.sol#L59-L66) (`_afterInitialize`) |
+| Trusted liquidity: adds only count after a settle window (no just-in-time depth) | [`MandateOracleHook.sol` L68-L90](contracts/src/hook/MandateOracleHook.sol#L68-L90) (`_beforeAddLiquidity`, `trustedLiquidity`) |
+| Pair oracle: spot (`StateLibrary.getSlot0`), long and short TWAP (`observe`), trusted depth, pool age | [`UniswapV4MarketOracle.sol` L64-L84](contracts/src/anchor/UniswapV4MarketOracle.sol#L64-L84) (`health`), [L87-L99](contracts/src/anchor/UniswapV4MarketOracle.sol#L87-L99) (TWAP) |
+| Depth within ±band with `SqrtPriceMath` | [`UniswapV4MarketOracle.sol` L102-L119](contracts/src/anchor/UniswapV4MarketOracle.sol#L102-L119) (`_depth`) |
+| Launching a pool on the canonical PoolManager with the hook, growing the observation buffer to 300 | [`AnchorLauncher.sol` L66-L96](contracts/src/anchor/AnchorLauncher.sol#L66-L96) (`launch`) |
+| The quoter reads the oracle on every fill and derives Normal / Defensive / Paused | [`MandateQuoter.sol` L322-L325](contracts/src/quoter/MandateQuoter.sol#L322-L325), [`RiskModes.sol`](contracts/src/libraries/RiskModes.sol) |
+| Full-range liquidity from the Safe via the canonical PositionManager (web) | [`packages/sdk/src/liquidity.ts`](packages/sdk/src/liquidity.ts), [`LiquidityPanel.tsx`](apps/web/src/onboarding/LiquidityPanel.tsx) |
+| Fork tests against the canonical PoolManager: pump, crash, JIT liquidity, young pool | [`MarketOracle.fork.t.sol`](contracts/test/fork/MarketOracle.fork.t.sol), [`MarketRisk.fork.t.sol`](contracts/test/fork/MarketRisk.fork.t.sol), [`AnchorLauncher.fork.t.sol`](contracts/test/fork/AnchorLauncher.fork.t.sol) |
+
+On Base: PoolManager `0x498581fF718922c3f8e6A244956aF099B2652b2b` (canonical), our hook
+[`0xE3498691dD0cB1e3870C5da43579d51e0B961880`](https://basescan.org/address/0xE3498691dD0cB1e3870C5da43579d51e0B961880).
+Developer feedback: [`FEEDBACK.md`](FEEDBACK.md).
+
+### 1inch Aqua + SwapVM: the strategies themselves
+
+Mandate uses the **official, unmodified** Aqua and AquaSwapVMRouter (swap-vm v1.0.2) at their canonical addresses:
+Aqua `0x1111113CCf1426A8E30e2bfF5E005d929bF6a90a`, router `0x111111338c5091e8440b67B168Bae16a668ac0dE`. Tokens stay
+in the Safe as Aqua virtual balances and only move when a taker fills.
+
+| What | Where |
+|---|---|
+| A strategy is a SwapVM order whose program is `[salt, Extruction(MandateQuoter)]` | [`MandateStrategy.sol` L14-L48](contracts/src/libraries/MandateStrategy.sol#L14-L48) (`order`), [`AquaProgram.sol` L41-L43](contracts/src/libraries/AquaProgram.sol#L41-L43) |
+| `MandateQuoter` is the Extruction target: prices every fill and refuses any that breaks the policy | [`MandateQuoter.sol` L99-L130](contracts/src/quoter/MandateQuoter.sol#L99-L130) (`extruction`), [L170-L210](contracts/src/quoter/MandateQuoter.sol#L170-L210) (`_evaluate`) |
+| The Safe ships inventory to Aqua (`IAqua.ship`) through the Safe module | [`MandateModule.sol` L399-L410](contracts/src/module/MandateModule.sol#L399-L410) (`_ship`) |
+| Backing check against Aqua's `rawBalances` across every live strategy | [`MandateModule.sol` L429-L438](contracts/src/module/MandateModule.sol#L429-L438) (`_requireBacking`) |
+| Docking on revoke (`IAqua.dock`) | [`MandateModule.sol` L451-L454](contracts/src/module/MandateModule.sol#L451-L454) |
+| Fork tests: real fills through the canonical router against a 2-of-2 Safe | [`AquaFill.fork.t.sol`](contracts/test/fork/AquaFill.fork.t.sol), [`MandateModule.fork.t.sol`](contracts/test/fork/MandateModule.fork.t.sol) |
+
+**Onchain token transfers on Base mainnet** through the canonical router (demo treasury, see below): a
+[buy](https://basescan.org/tx/0xc63828661076fc057f8c6deacbb170d219d76658cfa3ee2882f478dd32ee3ec2), a
+[buy](https://basescan.org/tx/0x876ef7b5184ff0f2a4d346cf7ced060b327737dac14d1bb6721b220921f2fd40) and a
+[buyback](https://basescan.org/tx/0xc98df9e262b641b7a77cf2771f345fef34802ad3e8ab19eec4f483039ffcdc15), plus the
+[ship](https://basescan.org/tx/0xafc69ebfa18d9d278eeb3e139368ae2f2e51d0e5ead71678de0b0fc85a54e501) that funded the order
+from the Safe. Locally, `pnpm fork` runs the same contracts on a mainnet fork.
 
 ## Live on Base mainnet
 
