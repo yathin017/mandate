@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { IssuerDirectory } from "@/issuer/Directory";
 import { PolicyForm } from "@/issuer/PolicyForm";
 import { policyToTerms } from "@/issuer/policy";
 import { ProposalList } from "@/issuer/ProposalList";
@@ -39,7 +40,8 @@ import { useSafeInfo } from "@/wallet/useSafe";
 const FALLBACK: TokenDisplay = { symbol: "TOKEN", decimals: 18 };
 
 /**
- * Issuer console: one treasury Safe at a glance. Per token, its policy (shared limits used this period, release, the
+ * Issuer console: first the connected wallet's directory (every Safe it owns, each token, pool and policy), then one
+ * treasury Safe at a glance. Per token, its policy (shared limits used this period, release, the
  * market risk mode) and the strategies running under it, proposals waiting on market makers or ready to execute,
  * and the owner actions (edit the policy, pause, unpause, revoke), each a Safe transaction approved onchain. New
  * policies and strategies start in the launch wizard.
@@ -50,7 +52,12 @@ export function IssuerConsole() {
   const fromUrl = params.get("safe");
   const [typed, setTyped] = useState(fromUrl ?? "");
   const safe = (fromUrl && isAddress(fromUrl) ? fromUrl : DEMO_SAFES[0]!.address) as Address;
-  const choose = (value: string) => setParams(isAddress(value) ? { safe: value } : {}, { replace: true });
+  const choose = (value: string) => {
+    const next = new URLSearchParams(params);
+    if (isAddress(value)) next.set("safe", value);
+    else next.delete("safe");
+    setParams(next, { replace: true });
+  };
 
   const { address } = useConnection();
   const info = useSafeInfo(safe);
@@ -79,6 +86,16 @@ export function IssuerConsole() {
         </Button>
       </div>
 
+      <IssuerDirectory
+        owner={params.get("owner") && isAddress(params.get("owner")!) ? (params.get("owner") as Address) : undefined}
+        onManage={(selected) => {
+          setTyped(selected);
+          choose(selected);
+          document.getElementById("manage-safe")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+      />
+
+      <h2 id="manage-safe" className="scroll-mt-20 text-xl font-semibold">Manage a Safe</h2>
       <Card>
         <CardContent className="grid gap-6 pt-6 md:grid-cols-[1fr_1fr]">
           <div className="space-y-3">
