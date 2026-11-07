@@ -109,6 +109,7 @@ function CreateSafe({ onCreated }: { onCreated: (safe: Address) => void }) {
   // The factory's CREATE2 address depends only on (singleton, setup, salt): simulate to show it before signing.
   useEffect(() => {
     setPredicted(null);
+    setError(null);
     if (!call || !publicClient || !address) return;
     let cancelled = false;
     publicClient
@@ -129,7 +130,13 @@ function CreateSafe({ onCreated }: { onCreated: (safe: Address) => void }) {
     setError(null);
     const outcome = await tx.run({ send: { to: call.to, data: call.data }, skipIndexerWait: true });
     if (!outcome.ok) return;
-    const code = await publicClient.getCode({ address: predicted });
+    // A load-balanced public RPC can answer from a node that has not seen the receipt's block yet: retry briefly
+    // before concluding the Safe is missing.
+    let code: string | undefined;
+    for (let attempt = 0; attempt < 10 && (!code || code === "0x"); attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 1500));
+      code = await publicClient.getCode({ address: predicted }).catch(() => undefined);
+    }
     if (!code || code === "0x") {
       setError("The transaction confirmed but no Safe exists at the predicted address. Do not use it; contact support.");
       return;
