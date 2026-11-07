@@ -44,7 +44,8 @@ contract OnboardPair is Script {
         PoolModifyLiquidityTest liquidityRouter = PoolModifyLiquidityTest(json.readAddress(".liquidityRouter"));
         address module = json.readAddress(".module");
         address owner1 = vm.addr(LiveConfig.deployerKey());
-        address owner2 = json.readAddress(".owner2");
+        address owner2 = LiveConfig.OWNER2;
+        require(json.readAddress(".owner2") == owner2, "Onboard: manifest Owner 2 differs from LiveConfig.OWNER2");
 
         vm.startBroadcast(LiveConfig.deployerKey());
         MockERC20 base = new MockERC20("Demo Nova", "dNOVA", 18);

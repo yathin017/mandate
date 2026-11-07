@@ -398,6 +398,9 @@ for Safe owner 2 and the MM (gitignored .env only); contracts first, then app wi
   (it is part of the deal), hence revoke + create. `swapOwner` was verified in the Base Safe singleton first.
 - The generated owner-2 and MM keys are retired (kept in .env only because the old MM still holds its earned fees).
   Future Safe actions need Safe Owner 2's wallet, i.e. go through the Issuer console's approveHash flow.
+- These two roles are now fixed (2026-11-07, at the user's request): Safe Owner 2 `0x6a4fb4561051dD5B25619ab997152892008C7bF6`
+  and Market Maker `0xbDafcA30260a4a5550cAD1F11928b26f1B063126` are constants in `LiveConfig.sol`, used by
+  `DeployBase` and checked by `OnboardPair`. `RotateRoles` was removed so no script can replace them.
 - **TWAP pool:** PoolId `0x5c3b2465…eea83c` on PoolManager `0x4985…2b2b` (fee 3000, spacing 60, hook `0x30Ff…1080`,
   liquidity 6e17 full range, cardinality 300). Matches `UniswapV4TwapAnchor.POOL_ID()`.
 - **Indexer RPC:** `mainnet.base.org` refuses every `eth_getLogs` (-32011); the Tenderly public gateway serves logs up

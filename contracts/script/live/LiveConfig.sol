@@ -13,6 +13,10 @@ library LiveConfig {
     Vm private constant VM = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     uint256 internal constant CHAIN_ID = 8453;
+    /// @notice Safe Owner 2 of the Base demo Safe. Fixed by the project owner; scripts never replace it.
+    address internal constant OWNER2 = 0x6a4fb4561051dD5B25619ab997152892008C7bF6;
+    /// @notice The Base demo market maker. Fixed by the project owner; scripts never replace it.
+    address internal constant MARKET_MAKER = 0xbDafcA30260a4a5550cAD1F11928b26f1B063126;
     /// @dev Starting pool price of the demo pair: 0.40 mUSD per mLAUNCH in `quoteRaw * 1e36 / baseRaw` units.
     uint256 internal constant PRICE = 4e23;
     /// @dev Demo inventory minted into the issuer Safe (mock tokens, no value).
@@ -31,31 +35,9 @@ library LiveConfig {
         return VM.envUint("BASE_DEPLOYER_PRIVATE_KEY");
     }
 
-    /// @dev Optional: only RotateRoles signs as Owner 2, and only when this key is in .env.
-    function owner2Key() internal view returns (uint256) {
-        return VM.envUint("BASE_OWNER2_PRIVATE_KEY");
-    }
-
     /// @dev Optional: only LiveFills acts as the market maker, and only when this key is in .env.
     function mmKey() internal view returns (uint256) {
         return VM.envUint("BASE_MM_PRIVATE_KEY");
-    }
-
-    /// @notice Safe Owner 2: BASE_OWNER2_ADDRESS, else the archived v1 manifest's (the current testing wallet).
-    function owner2() internal view returns (address) {
-        return _role("BASE_OWNER2_ADDRESS", ".owner2");
-    }
-
-    /// @notice The demo market maker: BASE_MM_ADDRESS, else the archived v1 manifest's.
-    function marketMaker() internal view returns (address) {
-        return _role("BASE_MM_ADDRESS", ".mm");
-    }
-
-    /// @dev Both Safe owner keys, sorted by owner address as Safe signature checks require.
-    function sortedOwnerKeys() internal view returns (uint256[] memory keys) {
-        keys = new uint256[](2);
-        (uint256 a, uint256 b) = (deployerKey(), owner2Key());
-        (keys[0], keys[1]) = VM.addr(a) < VM.addr(b) ? (a, b) : (b, a);
     }
 
     function path() internal view returns (string memory) {
@@ -65,12 +47,5 @@ library LiveConfig {
     function manifest() internal view returns (string memory json) {
         json = VM.readFile(path());
         require(json.readUint(".chainId") == CHAIN_ID, "Live: manifest chain mismatch");
-    }
-
-    function _role(string memory env, string memory key) private view returns (address) {
-        address fromEnv = VM.envOr(env, address(0));
-        if (fromEnv != address(0)) return fromEnv;
-        string memory archived = VM.readFile(string.concat(VM.projectRoot(), "/../deployments/archive/8453-v1.json"));
-        return archived.readAddress(key);
     }
 }

@@ -60,8 +60,8 @@ contract DeployBase is Script {
         );
 
         address deployer = vm.addr(LiveConfig.deployerKey());
-        address owner2 = LiveConfig.owner2();
-        address mm = LiveConfig.marketMaker();
+        address owner2 = LiveConfig.OWNER2;
+        address mm = LiveConfig.MARKET_MAKER;
         require(owner2 != deployer && mm != deployer && mm != owner2, "Live: roles must be three different wallets");
         uint256 startBlock = block.number;
 

@@ -416,5 +416,7 @@ sign: treasury Safe, token pair, enable the module, launch the anchor and add li
 propose a strategy to a market maker (or add one directly). Co-owners approve from a shared link, in the browser or with
 `apps/web/scripts/approve-terms.ts`.
 
-Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`, `RotateRoles`, `OnboardPair`, `DeployTokenFactory`).
+Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`, `OnboardPair`, `DeployTokenFactory`). The demo roles
+(Safe Owner 2 `0x6a4fb4561051dD5B25619ab997152892008C7bF6`, Market Maker `0xbDafcA30260a4a5550cAD1F11928b26f1B063126`)
+are constants in `LiveConfig.sol`; no script replaces them.
 Run the Base stack with `pnpm base:worker`, `pnpm base:server` and `pnpm base:web`.
