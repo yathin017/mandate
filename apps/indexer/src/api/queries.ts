@@ -315,3 +315,85 @@ async function strategySummary(db: Db, chainId: number, filter: { safe: string }
     riskReason: r.risk_reason,
   }));
 }
+
+/**
+ * Liquidity report for one strategy or every strategy of a policy: what the market maker's order did for traders and
+ * for the treasury. Totals are from the taker's side ("buys" = the treasury sold base), fees are split by each
+ * strategy's fixed MM share, execution quality is weighted by quote volume, and refusals are grouped by rule and by
+ * whether they were onchain or simulated. Amounts are raw token units (numeric strings). The trade list is the newest
+ * `limit` fills, with the taker.
+ */
+export async function insights(db: Db, chainId: number, subject: Subject, limit = 500) {
+  const fillScope = subject.kind === "policy" ? sql`f.policy_id = ${subject.id}` : sql`f.strategy_id = ${subject.id}`;
+  const attemptScope =
+    subject.kind === "policy"
+      ? sql`strategy_id IN (SELECT strategy_id FROM strategies WHERE chain_id = ${chainId} AND policy_id = ${subject.id})`
+      : sql`strategy_id = ${subject.id}`;
+  const [totals] = await db.execute<InsightTotalsRow>(sql`
+    WITH f AS (
+      SELECT f.*, st.base, st.quote, COALESCE((st.bounds->>'mmFeeShareBps')::numeric, 0) AS share,
+             CASE WHEN f.is_sell THEN f.amount_in ELSE f.amount_out END AS quote_volume
+        FROM fills f JOIN strategies st ON st.chain_id = f.chain_id AND st.strategy_id = f.strategy_id
+       WHERE f.chain_id = ${chainId} AND ${fillScope}
+    )
+    SELECT count(*)::int AS trades,
+           count(*) FILTER (WHERE is_sell)::int AS buys,
+           count(*) FILTER (WHERE NOT is_sell)::int AS sells,
+           count(DISTINCT taker)::int AS unique_takers,
+           count(*) FILTER (WHERE risk_mode = 1)::int AS defensive_fills,
+           COALESCE(sum(amount_out) FILTER (WHERE is_sell), 0)::text AS base_sold,
+           COALESCE(sum(amount_in) FILTER (WHERE is_sell), 0)::text AS quote_received,
+           COALESCE(sum(amount_in) FILTER (WHERE NOT is_sell), 0)::text AS base_bought_back,
+           COALESCE(sum(amount_out) FILTER (WHERE NOT is_sell), 0)::text AS quote_paid,
+           COALESCE(sum(fee_amount) FILTER (WHERE fee_token = base), 0)::text AS fees_base,
+           COALESCE(sum(fee_amount) FILTER (WHERE fee_token = quote), 0)::text AS fees_quote,
+           -- As MandateModule._claimable: each strategy's share of its own total fees, rounded down once.
+           (SELECT COALESCE(sum(floor(fees * share / 10000)), 0) FROM (
+              SELECT strategy_id, share, sum(fee_amount) AS fees FROM f WHERE fee_token = base GROUP BY strategy_id, share) s
+           )::text AS mm_fees_base,
+           (SELECT COALESCE(sum(floor(fees * share / 10000)), 0) FROM (
+              SELECT strategy_id, share, sum(fee_amount) AS fees FROM f WHERE fee_token = quote GROUP BY strategy_id, share) s
+           )::text AS mm_fees_quote,
+           (sum(abs(quality_bps) * quote_volume) FILTER (WHERE quality_bps IS NOT NULL)
+              / NULLIF(sum(quote_volume) FILTER (WHERE quality_bps IS NOT NULL), 0))::float8 AS avg_abs_quality_bps,
+           (sum(quality_bps * quote_volume) FILTER (WHERE quality_bps IS NOT NULL)
+              / NULLIF(sum(quote_volume) FILTER (WHERE quality_bps IS NOT NULL), 0))::float8 AS avg_quality_bps,
+           min(timestamp)::text AS first_at,
+           max(timestamp)::text AS last_at
+      FROM f
+  `);
+  const refusals = await db.execute<{ error_name: string | null; source: string; count: number }>(sql`
+    SELECT error_name, source::text, count(*)::int AS count
+      FROM attempts
+     WHERE chain_id = ${chainId} AND ${attemptScope} AND outcome = 'blocked'
+     GROUP BY error_name, source
+     ORDER BY count DESC
+  `);
+  const trades = await db.execute<InsightTradeRow>(sql`
+    SELECT f.tx_hash, f.log_index, f.block_number::text, f.timestamp::text, f.strategy_id, f.taker, f.is_sell,
+           f.amount_in::text, f.amount_out::text, f.price_x36::text, f.risk_mode::int, f.quality_bps,
+           f.fee_token, f.fee_amount::text
+      FROM fills f
+     WHERE f.chain_id = ${chainId} AND ${fillScope}
+     ORDER BY f.block_number DESC, f.log_index DESC
+     LIMIT ${limit}
+  `);
+  return {
+    totals: totals!,
+    refusals: [...refusals].map((r) => ({ errorName: r.error_name, source: r.source, count: r.count })),
+    trades: [...trades],
+  };
+}
+
+type InsightTotalsRow = {
+  trades: number; buys: number; sells: number; unique_takers: number; defensive_fills: number;
+  base_sold: string; quote_received: string; base_bought_back: string; quote_paid: string;
+  fees_base: string; fees_quote: string; mm_fees_base: string; mm_fees_quote: string;
+  avg_abs_quality_bps: number | null; avg_quality_bps: number | null; first_at: string | null; last_at: string | null;
+};
+
+type InsightTradeRow = {
+  tx_hash: string; log_index: number; block_number: string; timestamp: string; strategy_id: string; taker: string;
+  is_sell: boolean; amount_in: string; amount_out: string; price_x36: string; risk_mode: number; quality_bps: number | null;
+  fee_token: string | null; fee_amount: string;
+};
