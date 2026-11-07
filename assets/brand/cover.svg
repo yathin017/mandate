@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <title>Mandate</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#121a2b"/>
+      <stop offset="1" stop-color="#1c2c4a"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b9be0"/>
+      <stop offset="1" stop-color="#2d4f8f"/>
+    </linearGradient>
+    <linearGradient id="band" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5b9be0" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#5b9be0" stop-opacity="0.04"/>
+    </linearGradient>
+    <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M64 0H0V64" fill="none" stroke="#ffffff" stroke-opacity="0.04" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect width="1920" height="1080" fill="url(#grid)"/>
+
+  <!-- Logo mark -->
+  <g transform="translate(140 236) scale(0.34)">
+    <rect width="512" height="512" rx="112" fill="url(#mark)"/>
+    <g stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.55">
+      <line x1="104" y1="140" x2="408" y2="140"/><line x1="104" y1="372" x2="408" y2="372"/>
+    </g>
+    <g fill="#ffffff" opacity="0.55">
+      <circle cx="104" cy="140" r="14"/><circle cx="408" cy="140" r="14"/>
+      <circle cx="104" cy="372" r="14"/><circle cx="408" cy="372" r="14"/>
+    </g>
+    <path d="M136 372 L196 140 L256 290 L316 140 L376 372" fill="none" stroke="#ffffff" stroke-width="34"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Wordmark and pitch -->
+  <text x="350" y="370" font-family="Georgia, 'Times New Roman', serif" font-size="132" font-weight="700" fill="#ffffff">Mandate</text>
+  <text x="140" y="520" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="48" fill="#dbe5f5">Market makers get a mandate,</text>
+  <text x="140" y="582" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="48" fill="#dbe5f5">not your tokens.</text>
+  <text x="140" y="676" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="30" fill="#8fa8f0">Treasury policies · Market-aware risk modes</text>
+  <text x="140" y="720" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="30" fill="#8fa8f0">Onchain-scored market makers</text>
+
+  <!-- Chart: the price stays inside the issuer's band; the one spike outside it is refused. -->
+  <g transform="translate(1060 240)">
+    <rect x="0" y="0" width="720" height="560" rx="28" fill="#ffffff" fill-opacity="0.04" stroke="#ffffff" stroke-opacity="0.10" stroke-width="2"/>
+    <text x="40" y="64" font-family="Inter, Arial, sans-serif" font-size="24" fill="#9fb0c8">LAUNCH / USDC · treasury policy</text>
+    <rect x="40" y="170" width="640" height="250" fill="url(#band)"/>
+    <g stroke="#5b9be0" stroke-width="4" stroke-dasharray="14 10" opacity="0.9">
+      <line x1="40" y1="170" x2="680" y2="170"/><line x1="40" y1="420" x2="680" y2="420"/>
+    </g>
+    <text x="40" y="158" font-family="Inter, Arial, sans-serif" font-size="20" fill="#8fa8f0">pause threshold</text>
+    <text x="40" y="452" font-family="Inter, Arial, sans-serif" font-size="20" fill="#8fa8f0">price floor</text>
+    <polyline points="40,330 100,300 150,320 210,270 260,290 310,250 340,262 370,110 400,262 450,240 500,270 560,230 620,255 680,220"
+              fill="none" stroke="#ffffff" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+    <g fill="#3fb37a">
+      <circle cx="210" cy="270" r="9"/><circle cx="310" cy="250" r="9"/><circle cx="500" cy="270" r="9"/><circle cx="620" cy="255" r="9"/>
+    </g>
+    <circle cx="370" cy="110" r="11" fill="#ef6a45"/>
+    <!-- The app's refusal stamp -->
+    <g transform="translate(418 92) rotate(-4)">
+      <rect x="0" y="0" width="262" height="66" rx="6" fill="#121a2b" fill-opacity="0.9" stroke="#ef6a45" stroke-width="4"/>
+      <text x="131" y="30" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="2" fill="#ef6a45">BLOCKED BY MANDATE</text>
+      <text x="131" y="53" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="16" fill="#ef6a45">market risk pause</text>
+    </g>
+    <g font-family="Inter, Arial, sans-serif" font-size="22">
+      <circle cx="52" cy="512" r="8" fill="#3fb37a"/><text x="70" y="519" fill="#c9d4e6">fills inside the rails</text>
+      <circle cx="330" cy="512" r="8" fill="#ef6a45"/><text x="348" y="519" fill="#c9d4e6">refused, with the reason, publicly</text>
+    </g>
+  </g>
+
+  <!-- Stack -->
+  <text x="140" y="960" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="28" fill="#7f8ea6">Built on 1inch Aqua + SwapVM · Uniswap v4 hooks · Safe · Base</text>
+  <text x="1780" y="960" text-anchor="end" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="28" fill="#7f8ea6">ETHGlobal Mumbai 2026</text>
+</svg>
