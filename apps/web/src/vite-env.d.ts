@@ -11,4 +11,8 @@ interface ImportMetaEnv {
   readonly VITE_ANCHOR_LAUNCHER?: string;
   /** Local fork only: TokenFactory address deployed for development. Ignored on live chains. */
   readonly VITE_TOKEN_FACTORY?: string;
+  /** Presenter's demo Safe owners, comma-separated (addresses only); prefill the Safe form for those wallets. */
+  readonly VITE_DEMO_SAFE_OWNERS?: string;
+  /** Presenter's demo market maker (address only); preselected when proposing. */
+  readonly VITE_DEMO_MARKET_MAKER?: string;
 }

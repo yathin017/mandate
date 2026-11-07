@@ -1,6 +1,6 @@
 import { termsToJson } from "@mandate/sdk";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { isAddress, type Address } from "viem";
 
 import { ScoreBadge } from "@/components/score";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { useMmProfiles, useMmScores } from "@/lib/hooks";
+import { DEMO_MARKET_MAKER } from "@/wallet/config";
 import { SignInButton } from "@/wallet/ConnectButton";
 import { useSession } from "@/wallet/session";
 
@@ -20,7 +21,8 @@ const OTHER = "other";
 
 /**
  * Market-maker picker: listed profiles ranked by onchain score, or any address (a market maker the issuer found
- * elsewhere). Calls `onChange` with a valid address or null.
+ * elsewhere). Calls `onChange` with a valid address or null. With nothing chosen yet it preselects the demo market
+ * maker when it is listed, else the top-ranked one.
  */
 export function MarketMakerPicker({ value, onChange }: { value: string | null; onChange: (mm: string | null) => void }) {
   const profiles = useMmProfiles();
@@ -30,6 +32,12 @@ export function MarketMakerPicker({ value, onChange }: { value: string | null; o
   const isListed = value !== null && listed.some((p) => p.address === value.toLowerCase());
   const [mode, setMode] = useState<string>(value && !isListed ? OTHER : (value?.toLowerCase() ?? ""));
   const [typed, setTyped] = useState(value && !isListed ? value : "");
+  useEffect(() => {
+    if (value !== null || mode !== "" || listed.length === 0) return;
+    const pick = listed.find((p) => p.address === DEMO_MARKET_MAKER.toLowerCase()) ?? listed[0]!;
+    setMode(pick.address);
+    onChange(pick.address);
+  }, [value, mode, listed.length]);
 
   return (
     <div className="space-y-2">
@@ -83,7 +91,7 @@ const EXPIRY_DAYS = [3, 7, 14, 30];
 export function SendProposal({ safe, base, quote, built, onSent }: { safe: Address; base: TokenRef; quote: TokenRef; built: BuiltTerms; onSent: () => void }) {
   const { signedIn } = useSession();
   const client = useQueryClient();
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState(`Market making for ${base.symbol}/${quote.symbol} under our treasury policy.`);
   const [days, setDays] = useState("7");
   const send = useMutation({
     mutationFn: () =>
