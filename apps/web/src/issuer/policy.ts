@@ -9,7 +9,7 @@ import { parseUtcDate, priceToX36, utcDate, type TokenRef } from "./terms.ts";
  * and token holds the treasury-wide budget every strategy shares: release schedule, per-period sell and buyback
  * limits, price rules, the market-risk thresholds read from the Uniswap oracle, and what each risk mode allows.
  *
- * Every value is the issuer's decision: the form starts empty and nothing here supplies a default. Pure (no React,
+ * Every value is the issuer's decision: this conversion never supplies a default (suggestions live in explain.ts). Pure (no React,
  * no chain reads) so the conversion is unit-tested and every owner builds identical calldata. Imports are relative
  * so `node --test` can load this file directly.
  */
@@ -57,24 +57,6 @@ export const POLICY_KEYS = [
 ] as const satisfies readonly (keyof PolicyTerms)[];
 
 export const EMPTY_POLICY: PolicyTerms = Object.fromEntries(POLICY_KEYS.map((k) => [k, ""])) as unknown as PolicyTerms;
-
-/**
- * Example values for a live demo, applied only when an owner presses "Fill demo values"; the form itself still starts
- * empty. Sized for a pool seeded with about 400,000 base tokens at full range (≈ 9,800 tokens of depth in a 5% band).
- * The release started 30 days ago so demo buys are not refused by the release schedule, there is no minimum pool age,
- * and the 1-minute TWAP windows let a new pool price trades as soon as its liquidity has settled.
- */
-export function demoPolicy(now = new Date()): PolicyTerms {
-  return {
-    allotment: "1000000", releaseStart: utcDate(BigInt(Math.floor(now.getTime() / 1000) - 30 * 86_400)), releaseDays: "180",
-    periodHours: "24", grossCap: "100000", netCap: "50000", quoteSpendCap: "20000",
-    floor: "0.30", quoteDeviationPct: "3", impactPct: "3",
-    twapMinutes: "1", shortTwapMinutes: "1", depthBandPct: "5", minPoolAgeHours: "0", minDepth: "5000", defensiveDepth: "8000",
-    defensiveMovePct: "2", pauseMovePct: "10", defensiveVolatilityPct: "3", pauseVolatilityPct: "15",
-    normalMaxFill: "1000", normalDepthSharePct: "20", normalMinSpreadPct: "0", normalBuybacks: "yes",
-    defensiveMaxFill: "500", defensiveDepthSharePct: "10", defensiveMinSpreadPct: "1.5", defensiveBuybacks: "no",
-  };
-}
 
 export interface BuiltPolicy {
   config: PolicyConfig;

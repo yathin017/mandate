@@ -3,7 +3,8 @@ import { describe, test } from "node:test";
 
 import type { Address } from "viem";
 
-import { buildPolicy, demoPolicy, decodePolicy, EMPTY_POLICY, encodePolicy, policyToTerms, type PolicyTerms } from "../src/issuer/policy.ts";
+import { buildPolicy, decodePolicy, EMPTY_POLICY, encodePolicy, policyToTerms, type PolicyTerms } from "../src/issuer/policy.ts";
+import { suggestPolicy } from "../src/issuer/explain.ts";
 import type { TokenRef } from "../src/issuer/terms.ts";
 
 /** Pure conversion of a typed treasury policy into createPolicy's PolicyConfig. Values are test inputs. */
@@ -68,9 +69,9 @@ describe("policy terms", () => {
     assert.equal(built.warnings.length, 3);
   });
 
-  test("the demo values build a valid policy whose release has already started", () => {
+  test("the suggested values build a valid policy whose release has already started", () => {
     const now = new Date("2026-11-07T08:00:00Z");
-    const terms = demoPolicy(now);
+    const terms = suggestPolicy({ base: BASE, quote: QUOTE, now });
     assert.equal(terms.releaseStart, "2026-10-08");
     const built = buildPolicy(terms, ctx);
     assert.ok(!("error" in built), "error" in built ? built.error : "");

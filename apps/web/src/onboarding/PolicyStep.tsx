@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import type { Address } from "viem";
 
 import { Button } from "@/components/ui/button";
+import type { MarketSnapshot } from "@/issuer/explain";
 import { PolicyForm } from "@/issuer/PolicyForm";
 import { decodePolicy, encodePolicy } from "@/issuer/policy";
 import type { TokenRef } from "@/issuer/terms";
@@ -11,7 +12,7 @@ import type { SafePolicy } from "./useSafePolicy";
 
 /**
  * Step 5: the owners set the treasury policy for the token: its release, per-period limits, price rules and market
- * risk thresholds. Every value is the issuer's; the form starts empty. Reviewed values are kept in the URL so
+ * risk thresholds. The form starts from suggested values the owner edits. Reviewed values are kept in the URL so
  * co-owners open the same link and approve the same Safe transaction.
  */
 export function PolicyStep({
@@ -21,6 +22,7 @@ export function PolicyStep({
   quote,
   oracle,
   holdings,
+  market,
   policy,
   policyParam,
   onPolicy,
@@ -31,7 +33,9 @@ export function PolicyStep({
   base: TokenRef;
   quote: TokenRef;
   oracle: Address;
-  holdings: { base?: bigint };
+  holdings: { base?: bigint; quote?: bigint };
+  /** The pair's pool as last read: the form sizes its suggestions and explanations from it. */
+  market?: MarketSnapshot;
   /** The Safe's live policy for the token, if any. */
   policy: SafePolicy | null;
   policyParam: string | null;
@@ -80,6 +84,7 @@ export function PolicyStep({
         quote={quote}
         oracle={oracle}
         holdings={holdings}
+        {...(market ? { market } : {})}
         {...(shared ? { initial: shared, startInReview: true } : {})}
         onReview={(terms) => {
           setCopied(false);

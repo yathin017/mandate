@@ -15,7 +15,7 @@ import type { SafePolicy } from "./useSafePolicy";
 
 /**
  * Step 6: a strategy under the policy, run by a market maker: proposed (the market maker signs the exact terms, then
- * the owners add it) or added directly. Every term is the issuer's; nothing is pre-filled. Reviewed direct terms are
+ * the owners add it) or added directly. Terms start from suggestions the issuer edits; nothing is signed before review. Reviewed direct terms are
  * kept in the URL so co-owners approve the same Safe transaction.
  */
 export function StrategyStep({
@@ -81,7 +81,12 @@ export function StrategyStep({
     );
   }
 
-  const common = { safe, base, quote, policyId: policy.id, policy: rules, ...(holdings ? { holdings } : {}), ...(anchorPriceX36 !== undefined ? { anchorPriceX36 } : {}) };
+  const limits = {
+    normalMinSpreadBps: Number(policy.config.normal.minSpreadBps),
+    grossSellCapBase: BigInt(policy.config.period.grossSellCap),
+    periodSeconds: Number(policy.config.period.periodLength),
+  };
+  const common = { safe, base, quote, policyId: policy.id, policy: rules, limits, ...(holdings ? { holdings } : {}), ...(anchorPriceX36 !== undefined ? { anchorPriceX36 } : {}) };
   const direct = (
     <div className="space-y-4">
       {termsParam && threshold > 1 && (

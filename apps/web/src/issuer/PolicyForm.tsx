@@ -10,13 +10,15 @@ import { PolicySheet } from "@/components/TermSheet";
 import { deployment } from "@/wallet/config";
 import { SafeActionPanel } from "@/wallet/SafeActionPanel";
 
-import { buildPolicy, demoPolicy, EMPTY_POLICY, type BuiltPolicy, type PolicyTerms } from "./policy";
+import { explainPolicy, suggestPolicy, type MarketSnapshot } from "./explain";
+import { buildPolicy, EMPTY_POLICY, type BuiltPolicy, type PolicyTerms } from "./policy";
+import { Explained, Summary } from "./Explained";
 import type { TokenRef } from "./terms";
 
 type Unit = "base" | "quote" | "price" | "%" | "days" | "hours" | "minutes" | "date" | "yesno";
 type Field = { key: keyof PolicyTerms; label: string; hint: string; unit: Unit };
 
-/** The policy form, grouped as the issuer reasons about it. Every field starts empty. */
+/** The policy form, grouped as the issuer reasons about it. */
 const SECTIONS: { title: string; description: string; fields: Field[] }[] = [
   {
     title: "Release",
@@ -92,8 +94,10 @@ const SECTIONS: { title: string; description: string; fields: Field[] }[] = [
 
 /**
  * Treasury policy (create, or update an existing one): terms → review → owners approve and execute through the Safe.
- * The fields start empty; on update they start from the policy's current values. Every owner must build identical
- * calldata, so terms are absolute and `onReview` lets the page put them in a shareable link.
+ * A new policy starts from suggested values sized to the pool and the Safe (`suggestPolicy`), until the owner edits
+ * a field; on update, or from a shared link, it starts from those values instead. Under every field and in a summary
+ * the form says, in plain words and against the live pool, what the value will do (`explainPolicy`). Every owner
+ * must build identical calldata, so terms are absolute and `onReview` lets the page put them in a shareable link.
  */
 export function PolicyForm({
   safe,
@@ -101,6 +105,7 @@ export function PolicyForm({
   quote,
   oracle,
   holdings,
+  market,
   policyId,
   initial,
   startInReview = false,
@@ -112,7 +117,9 @@ export function PolicyForm({
   quote: TokenRef;
   /** The pair's market oracle (from the anchor launcher). */
   oracle: Address;
-  holdings?: { base?: bigint };
+  holdings?: { base?: bigint; quote?: bigint };
+  /** The pair's pool as last read, for the suggestions and the live explanations. */
+  market?: MarketSnapshot;
   /** Set to update this policy instead of creating one. */
   policyId?: Hash;
   initial?: Partial<PolicyTerms>;
@@ -120,12 +127,26 @@ export function PolicyForm({
   onReview?: (terms: PolicyTerms | null) => void;
   onDone?: () => void;
 }) {
-  const [terms, setTerms] = useState<PolicyTerms>({ ...EMPTY_POLICY, ...initial });
+  const suggest = () => suggestPolicy({ base, quote, ...(market ? { market } : {}), ...(holdings ? { holdings } : {}) });
+  const [terms, setTerms] = useState<PolicyTerms>(() => (initial ? { ...EMPTY_POLICY, ...initial } : suggest()));
+  // Suggestions follow the pool and the Safe as they load, until the owner types anything.
+  const [touched, setTouched] = useState(Boolean(initial));
+  const edit = (next: PolicyTerms) => {
+    setTouched(true);
+    setTerms(next);
+  };
   const [step, setStep] = useState<"terms" | "review">(startInReview ? "review" : "terms");
   useEffect(() => {
     if (initial) setTerms((t) => ({ ...t, ...initial }));
     // Only a new source of values (another policy) resets the form; edits in progress are kept otherwise.
   }, [policyId]);
+  useEffect(() => {
+    if (!touched) setTerms(suggest());
+  }, [touched, market?.liquidity, market?.priceX36, holdings?.base, holdings?.quote]);
+  const explained = useMemo(
+    () => explainPolicy(terms, { base, quote, ...(market ? { market } : {}), ...(holdings ? { holdings } : {}) }),
+    [terms, base, quote, market, holdings],
+  );
 
   const built = useMemo(() => buildPolicy(terms, { base, quote, oracle, ...(holdings ? { holdings } : {}) }), [terms, base, quote, oracle, holdings]);
   const call = useMemo(() => {
@@ -169,6 +190,10 @@ export function PolicyForm({
       }}
     >
       {startInReview && "error" in built && <p className="text-sm text-blocked">The shared policy is not valid here; correct it below.</p>}
+      {!policyId && !touched && (
+        <p className="text-sm text-muted-foreground">Suggested values, sized to this pool and Safe. Change anything: every field says what it will do.</p>
+      )}
+      <Summary title="What this policy does" lines={explained.summary} />
       {SECTIONS.map((section) => (
         <fieldset key={section.title} className="space-y-3 rounded-lg border p-4">
           <legend className="px-1 font-medium">{section.title}</legend>
@@ -180,7 +205,7 @@ export function PolicyForm({
                   {f.label} {unit(f.unit) && <span className="text-muted-foreground">({unit(f.unit)})</span>}
                 </Label>
                 {f.unit === "yesno" ? (
-                  <Select value={terms[f.key]} onValueChange={(v) => setTerms({ ...terms, [f.key]: v })}>
+                  <Select value={terms[f.key]} onValueChange={(v) => edit({ ...terms, [f.key]: v })}>
                     <SelectTrigger id={`policy-${f.key}`} className="w-full">
                       <SelectValue placeholder="Choose…" />
                     </SelectTrigger>
@@ -190,9 +215,10 @@ export function PolicyForm({
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input id={`policy-${f.key}`} className="tabular font-mono" value={terms[f.key]} onChange={(e) => setTerms({ ...terms, [f.key]: e.target.value })} />
+                  <Input id={`policy-${f.key}`} className="tabular font-mono" value={terms[f.key]} onChange={(e) => edit({ ...terms, [f.key]: e.target.value })} />
                 )}
                 <p className="text-[11px] text-muted-foreground">{f.hint}</p>
+                <Explained text={explained.fields[f.key]} />
               </div>
             ))}
           </div>
@@ -204,8 +230,13 @@ export function PolicyForm({
           Review policy
         </Button>
         {!policyId && (
-          <Button type="button" variant="outline" onClick={() => setTerms(demoPolicy())}>
-            Fill demo values
+          <Button type="button" variant="outline" onClick={() => setTouched(false)}>
+            Reset to suggested values
+          </Button>
+        )}
+        {!policyId && (
+          <Button type="button" variant="ghost" onClick={() => edit(EMPTY_POLICY)}>
+            Clear all
           </Button>
         )}
       </div>
