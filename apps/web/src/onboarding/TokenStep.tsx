@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Hex } from "@/components/status";
 import { formatUnits, parseUnits } from "@/lib/format";
 import { demoChain, deployment, TOKEN_FACTORY } from "@/wallet/config";
+import { hasCode } from "@/wallet/hasCode";
 import { TxStatus } from "@/wallet/TxStatus";
 import { useTx } from "@/wallet/useTx";
 
@@ -187,6 +188,7 @@ function LaunchTokenForm({ recipient, onCreated }: { recipient: Address; onCreat
   const { address: creator } = useConnection();
   const client = usePublicClient({ chainId: demoChain.id }) as PublicClient | undefined;
   const tx = useTx();
+  const [missing, setMissing] = useState<Address | null>(null);
   const supply = parseUnits(form.supply, LAUNCH_DECIMALS);
   const input = supply === null ? null : { name: form.name, symbol: form.symbol, supply, recipient, salt };
   const problem = !input ? "Supply: enter an amount of tokens" : launchProblem(input);
@@ -198,7 +200,8 @@ function LaunchTokenForm({ recipient, onCreated }: { recipient: Address; onCreat
     const outcome = await tx.run({ send: { to: call.to, data: call.data }, skipIndexerWait: true });
     if (!outcome.ok) return;
     // The factory deploys exactly where predicted for this sender; confirm before using it.
-    if (await client.getCode({ address: predicted })) onCreated(predicted);
+    if (await hasCode(client, predicted)) onCreated(predicted);
+    else setMissing(predicted);
   }
 
   return (
@@ -218,6 +221,7 @@ function LaunchTokenForm({ recipient, onCreated }: { recipient: Address; onCreat
         Launch token
       </Button>
       <TxStatus state={tx.state} />
+      {missing && <p className="text-sm text-blocked">The launch confirmed but the RPC does not show the token at {missing} yet. Paste that address above and press Use.</p>}
     </div>
   );
 }

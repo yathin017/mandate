@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Hex } from "@/components/status";
 import { demoChain, deployment, roleOf } from "@/wallet/config";
+import { hasCode } from "@/wallet/hasCode";
 import { TxStatus } from "@/wallet/TxStatus";
 import { useTx } from "@/wallet/useTx";
 
@@ -130,14 +131,7 @@ function CreateSafe({ onCreated }: { onCreated: (safe: Address) => void }) {
     setError(null);
     const outcome = await tx.run({ send: { to: call.to, data: call.data }, skipIndexerWait: true });
     if (!outcome.ok) return;
-    // A load-balanced public RPC can answer from a node that has not seen the receipt's block yet: retry briefly
-    // before concluding the Safe is missing.
-    let code: string | undefined;
-    for (let attempt = 0; attempt < 10 && (!code || code === "0x"); attempt++) {
-      if (attempt) await new Promise((r) => setTimeout(r, 1500));
-      code = await publicClient.getCode({ address: predicted }).catch(() => undefined);
-    }
-    if (!code || code === "0x") {
+    if (!(await hasCode(publicClient, predicted))) {
       setError("The transaction confirmed but no Safe exists at the predicted address. Do not use it; contact support.");
       return;
     }
