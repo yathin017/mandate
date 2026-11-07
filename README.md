@@ -40,65 +40,258 @@ must sit near the TWAP (no stale quotes), separately from per-fill price impact.
 | `apps/web` | Dashboard, wallet flows and the self-serve onboarding wizard (Vite + React + shadcn). Dashboards read the indexer API; wallet flows read the chain. |
 | `replay/` | Scenario export behind the demo fork (`pnpm replay:serve`) and the indexer tests. |
 
-## Requirements
+## Run it locally
 
-Foundry ≥ 1.7, Node ≥ 24, pnpm 10.
+Everything runs on your machine against a **local fork of Ethereum mainnet**: a private Anvil chain that copies
+mainnet at a pinned block, so the real Aqua, SwapVM router, Uniswap v4 PoolManager and Safe contracts are there,
+and our contracts are deployed next to them. Tokens and price history on it are synthetic. Nothing costs real gas.
 
-Install the pinned JavaScript dependencies with `pnpm install --frozen-lockfile`.
-
-## Contract verification
-
-```sh
-# Offline unit and integration suites; fork suites skip without MAINNET_RPC_URL.
-pnpm contracts:test
-
-# Include canonical Safe, Aqua, SwapVM and v4 contracts at the pinned mainnet block.
-# Alternatively, copy .env.example to .env; the pnpm script loads it.
-MAINNET_RPC_URL=https://eth.drpc.org pnpm contracts:test
+```
+ Anvil fork (8547) ──▶ indexer worker ──▶ Postgres ◀── indexer API (8787) ◀── web app (5173) ◀── your browser
+   real Aqua/v4/Safe        reads logs         + Redis        REST + live SSE        proxies /api     + wallet (reads
+   + our contracts          every block                                                                and signs on 8547)
 ```
 
-The module fork suite creates a 2-of-2 Safe through the canonical factory and signs issuer transactions with
-generated test keys. It verifies token transfers, direct MM fee claims, reshipping, pause/revoke, cross-Safe
-isolation and the market-risk pause on a live v4 pool. The market-risk suite drives a real hooked pool through a
-flash pump, a sustained crash, just-in-time liquidity and a too-young pool. Token supply and oracle history in these
-tests are synthetic.
+### 1. Install the tools (once)
 
-## Platform lifecycle test
+| Tool | Version | Why |
+|---|---|---|
+| [Foundry](https://book.getfoundry.sh/getting-started/installation) (`forge`, `anvil`, `cast`) | ≥ 1.7 | Builds and tests the contracts, runs the local chain |
+| Node.js | ≥ 24 | Runs the indexer, the web app and the scripts (TypeScript runs directly, no build step) |
+| pnpm | 10 | Installs the workspace |
+| Docker | any recent | Runs Postgres and Redis for the indexer |
+| `jq` | any | Used by `pnpm fork` to read the pinned fork block |
 
-`apps/indexer/test/lifecycle.test.ts` runs the whole platform on the local fork with the real contracts, API, indexer
-and prober: a TokenFactory launch funding a new 2-of-2 Safe, the module, an anchor with seeded and settled liquidity,
-the treasury policy, a listed market maker, a strategy proposal, the market maker's signed acceptance, execution
-through the Safe, a taker trade, then both sides' analytics (including execution quality) and a scored market maker. Run it with the indexer suite (`pnpm indexer:test`, see `apps/indexer/README.md`).
-
-## Scenario replay
+### 2. Set up the repo (once)
 
 ```sh
-pnpm replay:run
-pnpm replay:test
-pnpm replay:verify
+pnpm install --frozen-lockfile   # exact dependency versions from the lockfile
+cp .env.example .env             # local settings; the defaults work as they are
+pnpm infra:up                    # starts Postgres 16 and Redis 7 in Docker, on 127.0.0.1 only
 ```
 
-This starts a fresh local Anvil fork, deploys the demo, broadcasts Acts 1–3 and exports
-[`replay/data/acts.json`](replay/data/acts.json) plus actual transaction receipts. The generated
-[`deployments/1.json`](deployments/1.json) describes a **local fork of mainnet**, with runtime chain id 31337.
-See [`replay/README.md`](replay/README.md) for the scenario inputs, evidence format and synthetic-data disclosures.
+`.env` is gitignored. The defaults point everything at the local machine. The only remote service is
+`MAINNET_RPC_URL`, the public archive RPC the fork copies mainnet state from.
 
-## Shared packages
+### 3. Start the stack (four terminals)
+
+Run each command from the repo root, in this order, and leave them running.
+
+**Terminal 1: the chain.**
 
 ```sh
-pnpm packages:build
-pnpm packages:typecheck
-pnpm packages:test
-pnpm generate:check
-pnpm sdk:test:fork
+pnpm replay:serve
 ```
 
-- [`@mandate/chains`](packages/chains/README.md): validated source-chain configuration and runtime deployment registry.
-- [`@mandate/sdk`](packages/sdk/README.md): generated ABIs, reads with block provenance, quotes, prepared calls,
-  exact price units and shared plain-language error mapping.
+Builds the contracts and the shared packages. Starts Anvil on `127.0.0.1:8547` as chain id 31337, forked from
+mainnet block `26355000`. Then it deploys the demo: the Safe module and its quoter, the oracle hook, two demo
+tokens (`LAUNCH`, `sUSDC`), seeded Uniswap v4 pools, and four 2-of-2 demo Safes. Last, it plays three scenarios
+(each Safe gets a treasury policy and a strategy, then real fills, refusals, a price pump and crash, a pause and a
+revoke) and checks every result.
 
-The replay exporter uses the SDK error mapper. `sdk:test:fork` runs the complete replay plus live SDK tests
-against a fresh local fork; all temporary nodes are stopped afterward.
+It writes `deployments/1.json` (the addresses) and `replay/data/` (the evidence). The first run takes a few
+minutes, because Foundry fetches mainnet state; later runs reuse the cache. When it prints *Keeping the fork alive*,
+the chain is ready. Ctrl+C stops it and the chain is gone: the next run starts fresh.
+
+**Terminal 2 (one-off, while terminal 1 runs): the self-serve contracts.**
+
+```sh
+pnpm fork:platform
+```
+
+The demo deploy does not include the AnchorLauncher (creates pools for any pair) or the TokenFactory (launches
+tokens). This command deploys both onto the running fork and prints three lines. Put the first two in
+`apps/web/.env.local` and the third in `.env`:
+
+```sh
+VITE_ANCHOR_LAUNCHER=0x…   # apps/web/.env.local
+VITE_TOKEN_FACTORY=0x…     # apps/web/.env.local
+INDEXER_TOKEN_FACTORY=0x…  # .env
+```
+
+On a fresh fork the addresses are the same every time, so this is a one-time edit. Skip this step to only browse
+the demo; you need it to launch tokens or pools in the wizard.
+
+**Terminal 2: the indexer worker.**
+
+```sh
+pnpm indexer:worker
+```
+
+Checks that Postgres, Redis and the chain are reachable, then applies the database migrations. After that it
+follows the chain from the fork block. For every block range it reads our contracts' logs, reads each touched
+policy and strategy at that block, and writes fills, refusals and readings to Postgres in one transaction. It also
+records how far it has got in Redis.
+
+It handles reorgs by rolling back to the last block it still agrees on. Every 10 minutes it runs small read-only
+probe quotes for the market-maker score. Leave it running.
+
+**Terminal 3: the API.**
+
+```sh
+pnpm indexer:server
+```
+
+Starts the public JSON API on `127.0.0.1:8787`, reading from Postgres, with responses cached in Redis per block.
+It also serves live change streams, wallet sign-in, market-maker profiles and proposals. Start it after the worker
+has migrated the database. Check it with `curl localhost:8787/health`.
+
+**Terminal 4: the web app.**
+
+```sh
+pnpm web:dev
+```
+
+Starts the Vite dev server on <http://localhost:5173>. Pages read the indexer API through the dev server's `/api`
+proxy; wallet actions read the chain and sign on `127.0.0.1:8547` directly. Contract addresses come from the
+build-time registry, never from the API. Edits to the code reload in the browser.
+
+### 4. Connect a wallet
+
+Pages work without a wallet. To act, add a custom network to your browser wallet (e.g. MetaMask): RPC
+`http://127.0.0.1:8547`, chain id `31337`, currency `ETH`. Then import these **public Anvil development keys**.
+They are known to everyone; never use them anywhere else.
+
+| Role | Address | Private key |
+|---|---|---|
+| Safe Owner 1 | `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` | `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80` |
+| Safe Owner 2 | `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d` |
+| Market Maker | `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC` | `0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a` |
+
+Both owners own the demo Safes. A Safe action needs both: one owner clicks **Approve as owner**, then you switch
+accounts and the other clicks **Execute**. Profiles and proposals also need **Sign in** in the header, an EIP-4361
+message with no gas.
+
+The demo strategies' market maker is a scenario contract, so they cannot be operated from the desk. To try the
+market maker side, propose a strategy to the Market Maker account above.
+
+### 5. Try it
+
+1. **Explore** (`/explore`): the three demo strategies. Open one for its treasury limits, market-risk reading,
+   fills and refusals, and use **Try a trade** to ask the quoter about any trade.
+2. **Issuer** (`/issuer`, pick a demo Safe): its policy and strategies. As both owners: pause, resume, edit the
+   policy, revoke.
+3. **Launch** (`/launch`): the full self-serve path for a new token, step by step. Create a Safe, launch or mint
+   a token, enable the module, launch the price anchor and add liquidity. Then set the treasury policy (every
+   value is yours; nothing is pre-filled) and propose a strategy to the Market Maker. Steps 3 onward need
+   `pnpm fork:platform`.
+4. **Desk** (`/desk`, as the Market Maker, signed in): accept the proposal by signing it. The owners then add it
+   in `/launch` or `/issuer`, and the market maker tunes and claims fees under **My strategies**.
+
+The policy checks a minimum pool age and other market thresholds that you set, using chain time. To let time pass
+on the fork, mine a block with a later timestamp, for example one hour ahead:
+
+```sh
+cast rpc evm_mine $(( $(cast block latest -f timestamp --rpc-url http://127.0.0.1:8547) + 3600 )) --rpc-url http://127.0.0.1:8547
+```
+
+### 6. Stop and reset
+
+- Ctrl+C in each terminal stops it. The fork's state disappears with it.
+- `pnpm infra:down` stops Postgres and Redis. Their data volume is kept.
+- After restarting the fork, keep the database. A fresh demo chain is identical block for block, and anything you
+  did on the old one looks like a reorg to the worker: it rolls back to the last shared block and re-indexes.
+- To start the indexer from scratch, stop the worker and the API, then run
+  `docker compose exec postgres psql -U mandate -c 'DROP DATABASE mandate' -c 'CREATE DATABASE mandate'`.
+  The worker re-applies the migrations on its next start.
+
+### Ports
+
+| Port | What | Change it with |
+|---|---|---|
+| 8547 | Anvil fork (chain 31337) | `LOCAL_RPC_URL`, plus `INDEXER_RPC_URL` and `VITE_RPC_URL` |
+| 8787 | Indexer API | `API_PORT`, plus `MANDATE_API_PROXY` for the web app |
+| 5173 | Web app | `pnpm web:dev --port <n>`, plus `API_CORS_ORIGINS` and `API_AUTH_ORIGINS` |
+| 5432 / 6379 | Postgres / Redis (Docker, loopback only) | `POSTGRES_PORT` / `REDIS_PORT`, plus `DATABASE_URL` / `REDIS_URL` |
+
+### Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `replay:serve` says the port is in use | Another node is on 8547. It never resets a running node; stop the other one or set `LOCAL_RPC_URL=http://127.0.0.1:<port>` (and point `INDEXER_RPC_URL` / `VITE_RPC_URL` at it). |
+| Worker exits with one line about Postgres, the schema or the RPC | Start what it names: `pnpm infra:up`, the fork, or run the worker before the server. |
+| Worker logs `wrong chain or fork` or `Reorg deeper than stored history` | The database was indexed from a different chain (another fork block, or a long-gone fork). Recreate it (see *Stop and reset*). |
+| Wizard says *No AnchorLauncher is registered* | Run `pnpm fork:platform`, put its lines in `apps/web/.env.local`, restart `pnpm web:dev`. |
+| Trades refused with a market-pause reason | Your policy's thresholds apply: a new pool must be older than your minimum age and its added liquidity must settle. Mine time forward (above). |
+| Wallet shows a nonce or "transaction underpriced" error after a fork restart | The wallet cached the old chain. Reset the account's activity in the wallet settings. |
+
+## Command reference
+
+All commands run from the repo root.
+
+**Contracts**
+
+| Command | What it does |
+|---|---|
+| `pnpm contracts:build` | Compiles the Foundry project (`forge build`). |
+| `pnpm contracts:test` | Runs every contract test: unit, integration against the pinned Aqua/SwapVM source, and mainnet-fork suites against the canonical Safe, Aqua, SwapVM and v4 contracts (the fork suites skip without `MAINNET_RPC_URL`). Loads `.env`, which Foundry alone does not. |
+| `pnpm fork` | Starts a bare mainnet fork on 8547 with nothing of ours deployed, for experiments. `replay:serve` is the usual way. |
+| `pnpm fork:platform` | Deploys the AnchorLauncher and TokenFactory onto a running demo fork and prints the env lines for the web app and the worker. |
+
+**Demo chain and scenarios**
+
+| Command | What it does |
+|---|---|
+| `pnpm replay:serve` | Fresh fork, demo deployment, the three scenarios, checks, then keeps the chain running on 8547. |
+| `pnpm replay:run` | Same, but stops the chain when done. Regenerates `deployments/1.json` and `replay/data/`. |
+| `pnpm replay:test` | Checks the exported scenario evidence against its receipts and the compiled ABIs. |
+| `pnpm replay:verify` | Re-runs the invariant checks on `replay/data/acts.json` only. |
+
+**Shared packages** (`packages/chains`, `packages/sdk`)
+
+| Command | What it does |
+|---|---|
+| `pnpm generate` | Builds the contracts, writes SDK test vectors from Solidity, and regenerates the chain registry and contract ABIs from `config/chains/`, `deployments/` and the Foundry artifacts. |
+| `pnpm generate:check` | Fails if any generated file is out of date (for CI). |
+| `pnpm packages:build` | `generate`, then compiles both packages. Other commands run it for you. |
+| `pnpm packages:test` / `packages:typecheck` | Unit tests and type checks of both packages. |
+| `pnpm sdk:test:fork` | Fresh fork plus scenarios, then the SDK's reads, quotes and permission checks against it; stops the chain. |
+| `pnpm sdk:test:base` | Read-only SDK checks against the live Base deployment. |
+
+**Indexer** (`apps/indexer`)
+
+| Command | What it does |
+|---|---|
+| `pnpm infra:up` / `infra:down` | Starts / stops Postgres and Redis (Docker Compose). |
+| `pnpm indexer:migrate` | Applies database migrations only (the worker does this on start too). |
+| `pnpm indexer:worker` | Follows the chain and writes to Postgres (see step 3). |
+| `pnpm indexer:server` | Serves the API on 8787 (see step 3). |
+| `pnpm indexer:test` | The indexer suites. Needs the demo chain running and `INDEXER_TEST_DATABASE_URL` set to a **disposable** database, which is wiped on every run (see `apps/indexer/README.md`). |
+| `pnpm indexer:typecheck` | Type checks. |
+
+**Web app** (`apps/web`)
+
+| Command | What it does |
+|---|---|
+| `pnpm web:dev` | Dev server on 5173 for the local fork (see step 3). |
+| `pnpm web:build` | Type checks and builds the production bundle into `apps/web/dist`. |
+| `pnpm web:test` | Pure tests of the policy and strategy term modules, plus fork flows (Safe, tokens, anchor, liquidity, policy, strategy, a real fill) that run when the demo chain is up; it is snapshotted and restored. |
+| `pnpm web:typecheck` | Type checks. |
+
+**Live Base deployment** (needs Base settings in `.env`; see *Live on Base mainnet*)
+
+| Command | What it does |
+|---|---|
+| `pnpm base:worker` / `base:server` | The indexer worker and the API (port 8788) for Base, with their own database `BASE_DATABASE_URL`. |
+| `pnpm base:web` | The web app for Base on 5173, proxying to the Base API. |
+| `pnpm base:fills` | Dry run of a few real trades against a Base strategy (`STRATEGY=0x…`; add `--broadcast` to send). |
+
+## Tests at a glance
+
+```sh
+pnpm contracts:test                     # contracts (add MAINNET_RPC_URL for the fork suites)
+pnpm packages:test && pnpm replay:test  # SDK, chain registry, scenario evidence
+pnpm replay:serve                       # then, in another terminal, with the chain running:
+INDEXER_TEST_DATABASE_URL=postgres://mandate:mandate@127.0.0.1:5432/mandate_test pnpm indexer:test
+pnpm web:test
+```
+
+`apps/indexer/test/lifecycle.test.ts` runs the whole platform on the fork with the real contracts, API, indexer and
+prober. It covers a TokenFactory launch funding a new 2-of-2 Safe, the module, an anchor with seeded and settled
+liquidity, the treasury policy, and a listed market maker. Then a strategy proposal, the market maker's signed
+acceptance, execution through the Safe and a taker trade. It ends with both sides' analytics, including execution
+quality, and a scored market maker. Chain-backed suites snapshot and restore the fork, so the demo stays intact.
+Scenario inputs, evidence format and synthetic-data disclosures are in [`replay/README.md`](replay/README.md).
 
 ## Live on Base mainnet
 
