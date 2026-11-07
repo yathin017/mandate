@@ -8,6 +8,8 @@
  *             signing the exact terms; the owners add it through the Safe and link the proposal.
  *   trade     Owner 2, as a taker, buys from the strategy through the SwapVM router (once the policy's market checks
  *             pass: the pool must be older than the policy's minimum age).
+ *   relax     Temporarily shortens the oracle checks (TWAP 5 min, short TWAP 2 min, pool age 5 min) for a quick test.
+ *   restore   Puts them back (TWAP 30 min, short TWAP 5 min, pool age 1 h).
  *   status    Prints what exists so far.
  *
  *   node --env-file=../../.env scripts/base-demo.ts <phase>        (from apps/web; the Base API must run on 8788)
@@ -25,7 +27,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { getDeployment, isLiveDeployment } from "@mandate/chains";
 import {
   anchorPoolKey, buildAddStrategyCall, buildApproveRouterCall, buildCreatePolicyCall, buildCreateSafeCall, buildEnableModuleCall,
-  buildLaunchAnchorCall, buildLaunchTokenCall, buildMintCall, buildSwapCall, createMandateClient, erc20Abi, mandateModuleAbi,
+  buildLaunchAnchorCall, buildLaunchTokenCall, buildMintCall, buildSwapCall, buildUpdatePolicyCall, createMandateClient, erc20Abi, mandateModuleAbi,
   mockTokenDeployment, predictLaunchedToken, readAnchorStatus, safeAbi, strategyTermsTypedData, termsFromJson, termsToJson,
   type PreparedCall,
 } from "@mandate/sdk";
@@ -250,8 +252,8 @@ async function trade() {
   const sdk = await createMandateClient(client, deployment);
   const policy = await sdk.readPolicy(state.policyId!);
   if (policy.risk.mode === 2) throw new Error(`The treasury is paused (${policy.risk.reason}); try again once the market checks pass`);
-  // Owner 2 buys 1,000 dORBIT from the treasury, paying dUSD (minted by Owner 1, the demo token's owner).
-  const buy = { taker: owner2.address, tokenIn: quoteRef.address, tokenOut: baseRef.address, amount: 1_000n * 10n ** 18n, isExactIn: false };
+  // Owner 2 buys 500 dORBIT from the treasury (within what the release schedule has unlocked early on day one), paying dUSD (minted by Owner 1, the demo token's owner).
+  const buy = { taker: owner2.address, tokenIn: quoteRef.address, tokenOut: baseRef.address, amount: 500n * 10n ** 18n, isExactIn: false };
   const quoted = await sdk.quote(state.strategyId!, buy);
   if (!quoted.ok) throw new Error(quoted.error.message);
   const mint = buildMintCall(chainId, quoteRef.address, owner2.address, 1_000n * 10n ** 6n);
@@ -265,6 +267,21 @@ async function trade() {
   state.trade = await send("trade", owner2.address, swap.to, swap.data);
 }
 
+/**
+ * Temporarily shortens the policy's oracle checks so a fresh pool can trade minutes after launch, then puts them back.
+ * Only twapWindow, shortWindow and minPoolAge change; every other value is read from the live policy and kept as is.
+ */
+const ORACLE_TIMING = { relax: { twapWindow: 300, shortWindow: 120, minPoolAge: 300 }, restore: { twapWindow: 1800, shortWindow: 300, minPoolAge: 3600 } };
+
+async function retime(mode: keyof typeof ORACLE_TIMING) {
+  if (!state.policyId || !state.safe) throw new Error("Run setup first");
+  const policy = await client.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "getPolicy", args: [state.policyId] });
+  const config = { ...policy.config, oracle: { ...policy.config.oracle, ...ORACLE_TIMING[mode] } };
+  await viaSafe(`${mode}Policy`, state.safe, buildUpdatePolicyCall(deployment, state.policyId, config));
+}
+const relax = () => retime("relax");
+const restore = () => retime("restore");
+
 async function status() {
   console.log(JSON.stringify({ ...state, roles: { owner1: owner1.address, owner2: owner2.address, mm: mm.address } }, null, 2));
   if (state.policyId) {
@@ -276,7 +293,7 @@ async function status() {
 
 state = JSON.parse(await readFile(STATE, "utf8").catch(() => '{"txs":{}}'));
 const phase = process.argv[2];
-const phases: Record<string, () => Promise<void>> = { setup, strategy, trade, status };
+const phases: Record<string, () => Promise<void>> = { setup, strategy, relax, trade, restore, status };
 if (!phase || !phases[phase]) throw new Error(`Usage: base-demo.ts <${Object.keys(phases).join("|")}>`);
 console.log(`${phase} (Owner 1 ${owner1.address}, Owner 2 ${owner2.address}, MM ${mm.address})`);
 await phases[phase]();
