@@ -3,6 +3,7 @@ import { useParams } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ActivityFeed } from "@/components/ActivityFeed";
+import { LiquidityReport } from "@/components/LiquidityReport";
 import { PolicyGauges } from "@/components/PolicyGauges";
 import { Hex, RiskBadge, StatusPill, SyntheticTag } from "@/components/status";
 import { StrategyCards } from "@/components/StrategyCards";
@@ -61,6 +62,16 @@ export function PolicyPage() {
           <p className="text-sm text-muted-foreground">No strategies yet.</p>
         )}
       </section>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Liquidity report</CardTitle>
+          <CardDescription>Every strategy of this treasury together: liquidity given and taken, prices against the market, fees, and the rules that held.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LiquidityReport subject={{ kind: "policy", id: policy.policyId }} base={base} quote={quote} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -3,6 +3,7 @@ import type { StrategyTermsJson } from "@mandate/sdk";
 import type {
   ActivityPage,
   AuthNonce,
+  Insights,
   LaunchedToken,
   MmProfile,
   MmScore,
@@ -75,6 +76,7 @@ export const api = {
     request<Envelope<ActivityPage>>(
       `${chainPath}/${PATH[subject.kind]}/${subject.id}/activity?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
     ),
+  insights: (subject: Subject) => request<Envelope<Insights>>(`${chainPath}/${PATH[subject.kind]}/${subject.id}/insights`),
   policySeries: (id: string) => request<Envelope<PolicySnapshot[]>>(`${chainPath}/policies/${id}/series?limit=2000`),
   strategySeries: (id: string) => request<Envelope<StrategySnapshot[]>>(`${chainPath}/strategies/${id}/series?limit=2000`),
   simulate: (
