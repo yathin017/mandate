@@ -40,7 +40,86 @@ must sit near the TWAP (no stale quotes), separately from per-fill price impact.
 | `apps/web` | Dashboard, wallet flows and the self-serve onboarding wizard (Vite + React + shadcn). Dashboards read the indexer API; wallet flows read the chain. |
 | `replay/` | Scenario export behind the demo fork (`pnpm replay:serve`) and the indexer tests. |
 
-## Run it locally
+## Two ways to run it
+
+| | Against Base mainnet | Against a local fork |
+|---|---|---|
+| Chain | The live Base deployment (contracts already deployed) | A private copy of Ethereum mainnet on your machine, with our contracts deployed on it |
+| You run | Postgres + Redis, the indexer worker, the API, the web app | The same, plus the local chain |
+| Tools | Node, pnpm, Docker | Node, pnpm, Docker, Foundry, `jq` |
+| Wallet | Your own wallet on Base; transactions cost real (small) gas | Public test keys; no real gas |
+| Tokens | Mock tokens, or ones you launch through the platform | Synthetic demo tokens |
+| Best for | Using the product | Development, tests, trying things without gas |
+
+## Run the app against Base mainnet
+
+No local chain and no Foundry: the contracts are already on Base. You run your own copy of the indexer, the API
+and the web app; they read the Base chain, and your browser wallet signs on Base.
+
+```
+ Base mainnet ──▶ indexer worker ──▶ Postgres ◀── API (8788) ◀── web app (5173) ◀── your browser
+ (our contracts)     reads logs        + Redis      REST + SSE      proxies /api       + wallet on Base
+```
+
+### 1. Setup (once)
+
+```sh
+pnpm install --frozen-lockfile   # exact dependency versions
+pnpm packages:compile            # compiles the shared packages (chain registry and SDK)
+cp .env.example .env             # then edit the two Base lines below
+pnpm infra:up                    # Postgres 16 and Redis 7 in Docker, loopback only
+docker compose exec postgres psql -U mandate -c 'CREATE DATABASE mandate_base'   # the Base indexer's database
+```
+
+In `.env`, uncomment and fill:
+
+```sh
+# An RPC that serves eth_getLogs. A keyed one (Alchemy, QuickNode, Infura) is best; public ones rate-limit.
+BASE_INDEXER_RPC_URL=https://base-mainnet.g.alchemy.com/v2/<your key>
+BASE_DATABASE_URL=postgres://mandate:mandate@127.0.0.1:5432/mandate_base
+```
+
+No keys are needed: you only read the chain, and your wallet signs in the browser. With a public RPC (for example
+`https://base.gateway.tenderly.co`; `mainnet.base.org` rate-limits `eth_getLogs` too hard to index with), also uncomment the three
+`BASE_INDEXER_*` lines in `.env.example` that slow the worker down.
+
+### 2. Start (three terminals, in this order)
+
+```sh
+pnpm base:worker   # terminal 1
+pnpm base:server   # terminal 2
+pnpm base:web      # terminal 3, then open http://localhost:5173
+```
+
+- **`base:worker`** first checks Postgres, Redis and the RPC, and applies the database migrations. Then it indexes
+  Base from the block before our deployment (`deployBlock` in `deployments/8453.json`): policies, strategies, fills,
+  refusals, token launches and market readings. It waits 2 confirmations per block. The first start catches up on
+  history, then it follows new blocks every few seconds.
+- **`base:server`** serves the API on `127.0.0.1:8788` from that database. Start it after the worker has
+  migrated. Check it with `curl localhost:8788/health`: `head` is the newest block the worker has indexed.
+- **`base:web`** runs the web app on <http://localhost:5173> for chain 8453. Pages read the API; wallet actions
+  read and sign on Base directly, through `https://mainnet.base.org` (set `VITE_RPC_URL` in `apps/web/.env.local`
+  to use another RPC). Contract addresses come from the build-time registry, never from the API.
+
+The three share one `.env` with the local setup. The `base:*` commands override only the chain, RPC, database and
+port, so both setups can run side by side (API 8787 local, 8788 Base). Only one web app fits on 5173 at a time;
+start the other with `--port`.
+
+### 3. Use it
+
+Connect your wallet on **Base mainnet**. Every transaction is real and costs a little ETH for gas; the demo tokens
+are mocks with no value, but anything you launch is a real token on Base.
+
+1. **Launch** (`/launch`): create your own 2-of-2 Safe, launch a token with the TokenFactory (or mint a demo token),
+   enable the module, launch the price anchor, add liquidity, set your treasury policy (every value is yours) and
+   propose a strategy to a market maker. A two-owner Safe needs two wallets: approve with one, execute with the other.
+2. **Market makers** (`/market-makers`, `/desk`): list a profile (sign in first), accept proposals by signing,
+   operate strategies and claim fees.
+3. **Explore** (`/explore`): every strategy and launch on Base, with live activity.
+
+The deployment's own demo Safe and wallets are listed under *Live on Base mainnet* below.
+
+## Run it locally (fork)
 
 Everything runs on your machine against a **local fork of Ethereum mainnet**: a private Anvil chain that copies
 mainnet at a pinned block, so the real Aqua, SwapVM router, Uniswap v4 PoolManager and Safe contracts are there,
@@ -244,6 +323,7 @@ All commands run from the repo root.
 | `pnpm generate` | Builds the contracts, writes SDK test vectors from Solidity, and regenerates the chain registry and contract ABIs from `config/chains/`, `deployments/` and the Foundry artifacts. |
 | `pnpm generate:check` | Fails if any generated file is out of date (for CI). |
 | `pnpm packages:build` | `generate`, then compiles both packages. Other commands run it for you. |
+| `pnpm packages:compile` | Compiles both packages from the committed generated sources, without Foundry (enough for the Base setup). |
 | `pnpm packages:test` / `packages:typecheck` | Unit tests and type checks of both packages. |
 | `pnpm sdk:test:fork` | Fresh fork plus scenarios, then the SDK's reads, quotes and permission checks against it; stops the chain. |
 | `pnpm sdk:test:base` | Read-only SDK checks against the live Base deployment. |
@@ -268,7 +348,7 @@ All commands run from the repo root.
 | `pnpm web:test` | Pure tests of the policy and strategy term modules, plus fork flows (Safe, tokens, anchor, liquidity, policy, strategy, a real fill) that run when the demo chain is up; it is snapshotted and restored. |
 | `pnpm web:typecheck` | Type checks. |
 
-**Live Base deployment** (needs Base settings in `.env`; see *Live on Base mainnet*)
+**Live Base deployment** (needs the Base lines in `.env`; see *Run the app against Base mainnet*)
 
 | Command | What it does |
 |---|---|

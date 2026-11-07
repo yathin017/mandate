@@ -18,6 +18,7 @@
     "generate": "pnpm contracts:build && cd contracts && RUST_LOG=error forge script script/GenerateSdkFixtures.s.sol:GenerateSdkFixtures --quiet && cd .. && node scripts/generate.ts",
     "generate:check": "pnpm contracts:build && cd contracts && SDK_FIXTURES_CHECK=true RUST_LOG=error forge script script/GenerateSdkFixtures.s.sol:GenerateSdkFixtures --quiet && cd .. && node scripts/generate.ts --check",
     "packages:build": "pnpm generate && tsc -b packages/chains packages/sdk",
+    "packages:compile": "tsc -b packages/chains packages/sdk",
     "packages:test": "node --test packages/chains/test/*.test.ts packages/sdk/test/*.test.ts",
     "sdk:test:fork": "pnpm packages:build && node --env-file-if-exists=.env replay/export.ts --test-sdk",
     "packages:typecheck": "tsc -p packages/chains/tsconfig.test.json && tsc -p packages/sdk/tsconfig.test.json",
