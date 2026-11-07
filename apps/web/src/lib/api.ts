@@ -110,6 +110,9 @@ export const api = {
     request<{ data: Proposal }>(`/v1/proposals/${id}/accept`, { method: "POST", body: JSON.stringify({ signature }) }),
   markExecuted: (id: string, strategyId: string) =>
     request<{ data: Proposal }>(`/v1/proposals/${id}/executed`, { method: "POST", body: JSON.stringify({ strategyId }) }),
-  launchedTokens: () => request<Envelope<LaunchedToken[]>>(`${chainPath}/tokens/launched`),
+  launchedTokens: (filter: { creator?: string; recipient?: string } = {}) => {
+    const query = new URLSearchParams(Object.entries(filter).filter(([, v]) => v) as [string, string][]).toString();
+    return request<Envelope<LaunchedToken[]>>(`${chainPath}/tokens/launched${query ? `?${query}` : ""}`);
+  },
   streamUrl: (subject: Subject) => `${API_BASE}${chainPath}/${PATH[subject.kind]}/${subject.id}/stream`,
 };

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddressLink } from "@/components/AddressLink";
+import { saveSafe } from "@/lib/savedSafes";
 import { demoChain, demoCoOwners, deployment, roleOf } from "@/wallet/config";
 import { hasCode } from "@/wallet/hasCode";
 import { TxStatus } from "@/wallet/TxStatus";
@@ -142,6 +143,7 @@ function CreateSafe({ onCreated }: { onCreated: (safe: Address) => void }) {
       setError("The transaction confirmed but no Safe exists at the predicted address. Do not use it; contact support.");
       return;
     }
+    saveSafe(predicted);
     onCreated(predicted);
   }
 
