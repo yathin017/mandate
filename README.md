@@ -412,6 +412,7 @@ the pinned roles above untouched):
 | Policy | `0x4450aef3628ebf5a11a3f0d28718e785904bddff9636774659280a954934a50f` ([created](https://basescan.org/tx/0xf04e571209a8ab21e0b1f119eb122eb371870bb2e44b72778b287dd43274f01b)) |
 | Strategy (market making, accepted by the MM's signature) | `0x9437324f15c945ba1524b1fee126c1087516dc6187f1d223daebff10214d3e7e` ([added](https://basescan.org/tx/0xafc69ebfa18d9d278eeb3e139368ae2f2e51d0e5ead71678de0b0fc85a54e501)) |
 | Test trade: Demo Owner 2 buys 500 dORBIT from the strategy through the SwapVM router | [trade](https://basescan.org/tx/0xc63828661076fc057f8c6deacbb170d219d76658cfa3ee2882f478dd32ee3ec2) |
+| More trades (`trades`): buy 80, sell back 200, buy 150, sell back 150, buy 150, sell back 100 dORBIT | [1](https://basescan.org/tx/0x876ef7b5184ff0f2a4d346cf7ced060b327737dac14d1bb6721b220921f2fd40) · [2](https://basescan.org/tx/0xc98df9e262b641b7a77cf2771f345fef34802ad3e8ab19eec4f483039ffcdc15) · [3](https://basescan.org/tx/0xc6d562cec472a76c9af009995ec9aa71aa317a0e992a9011146a05c4d9d7efd1) · [4](https://basescan.org/tx/0xf251151169dccd3dd73efcc4331b261a381246efcbae74488436eb92815e2fa9) · [5](https://basescan.org/tx/0xfa8949a14f259e31ef5ca776858dcdec579c867d069182fbc923dfb784b17091) · [6](https://basescan.org/tx/0x8fe33814c66c8428613c7137a33098cc90b6dd150ca78b19b405a38f29d755df) |
 | Demo Owner 1 / Demo Owner 2 / Demo Market Maker | `0x174F75176b73124627116653085Ce9585E261388` / `0x9A6D76cB905Df126832AEB1802A27a1b37a6e872` / `0x5F8b93e830a42200CB85420e89BE5FC9154F9192` |
 
 Run it with the demo keys in `.env` (`DEMO_OWNER1_PRIVATE_KEY`, `DEMO_OWNER2_PRIVATE_KEY`, `DEMO_MM_PRIVATE_KEY`) and the
@@ -422,6 +423,8 @@ checks with `relax` ([update](https://basescan.org/tx/0x27562c5cdd7873df7080c4ca
 TWAP 5 min, short TWAP 2 min, pool age 5 min), traded, and put them back with `restore`
 ([update](https://basescan.org/tx/0xac260c7d11eb35b060c3e61b239840149f91543da77de0bd83bb033e2e778a34)). A first attempt
 at 1,000 dORBIT was refused by the release schedule: on day one only about 590 of the allotment had unlocked.
+A second relax → `trades` → restore round filled both sides at the strategy's 0.8% spread (buys near 0.405 dUSD,
+buybacks near 0.398); the policy then counted 880 dORBIT gross sold, 430 net and 179.24 dUSD of buyback budget spent.
 
 **v1 (single mandates)** ran on Base from block 53927227 with mock tokens against the canonical Aqua, SwapVM router,
 Uniswap v4 PoolManager and Safe 1.4.1; its manifest is archived in
