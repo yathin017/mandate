@@ -89,7 +89,7 @@ export function Landing() {
       </section>
 
       <section className="text-sm text-muted-foreground">
-        <h2 className="mb-2 font-medium text-foreground">Honest limits</h2>
+        <h2 className="mb-2 font-medium text-foreground">Disclaimer</h2>
         Mandate governs treasuries that make markets onchain; it cannot stop sales on centralized exchanges. Its market
         checks read one Uniswap v4 pool, so a pool with little real liquidity gives weak protection. The contracts are
         unaudited.

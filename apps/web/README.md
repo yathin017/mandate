@@ -30,7 +30,7 @@ for issuers, Desk for market makers).
 
 | Route | What it shows |
 |---|---|
-| `/` | Landing for issuers and market makers: calls to action, live counts, how it works, honest limits |
+| `/` | Landing for issuers and market makers: calls to action, live counts, how it works, disclaimer |
 | `/explore` | Strategies (cards) and tokens launched through the TokenFactory (`?tab=tokens`) |
 | `/market-makers` | Listed market makers ranked by onchain score |
 | `/market-makers/:address` | Profile, score with each component's weight, value and evidence, and the strategies it runs |
