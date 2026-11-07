@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import type { Address } from "viem";
 
-import { Hex } from "@/components/status";
+import { AddressLink } from "@/components/AddressLink";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProposalList } from "@/issuer/ProposalList";
@@ -15,7 +15,7 @@ import type { SafePolicy } from "./useSafePolicy";
 
 /**
  * Step 6: a strategy under the policy, run by a market maker: proposed (the market maker signs the exact terms, then
- * the owners add it) or added directly. Every term is the issuer's; nothing is pre-filled. Reviewed direct terms are
+ * the owners add it) or added directly. Terms start from suggestions the issuer edits; nothing is signed before review. Reviewed direct terms are
  * kept in the URL so co-owners approve the same Safe transaction.
  */
 export function StrategyStep({
@@ -61,13 +61,19 @@ export function StrategyStep({
       <div className="space-y-2 text-sm">
         <p className="text-filled">This policy runs {live.length === 1 ? "a strategy" : `${live.length} strategies`}.</p>
         {live.map((s) => (
-          <p key={s.id}>
-            <Link to={`/strategies/${s.id}`} className="font-mono underline underline-offset-4">
-              {s.id.slice(0, 10)}…
-            </Link>{" "}
-            · {s.kind === 1 ? "buyback" : "market making"} · market maker <Hex value={s.mm} />{" "}
-            {s.status === 2 && <span className="text-muted-foreground">(paused)</span>}
-          </p>
+          <div key={s.id} className="space-y-1 rounded-lg border p-3">
+            <p>
+              <AddressLink label="Strategy" value={s.id} kind="id" href={`/strategies/${s.id}`} hrefLabel="Open the strategy page" />
+            </p>
+            <p>
+              <AddressLink label="Market maker" value={s.mm} />
+            </p>
+            <p className="text-muted-foreground">
+              {s.kind === 1 ? "Buyback" : "Market making"}
+              {s.status === 2 && " · paused"} ·{" "}
+              <Link to={`/strategies/${s.id}`} className="underline underline-offset-4">open the strategy page</Link>
+            </p>
+          </div>
         ))}
         <p className="text-muted-foreground">
           Market makers run them from the <Link to="/desk" className="underline underline-offset-4">desk</Link>; the owners
@@ -81,7 +87,12 @@ export function StrategyStep({
     );
   }
 
-  const common = { safe, base, quote, policyId: policy.id, policy: rules, ...(holdings ? { holdings } : {}), ...(anchorPriceX36 !== undefined ? { anchorPriceX36 } : {}) };
+  const limits = {
+    normalMinSpreadBps: Number(policy.config.normal.minSpreadBps),
+    grossSellCapBase: BigInt(policy.config.period.grossSellCap),
+    periodSeconds: Number(policy.config.period.periodLength),
+  };
+  const common = { safe, base, quote, policyId: policy.id, policy: rules, limits, ...(holdings ? { holdings } : {}), ...(anchorPriceX36 !== undefined ? { anchorPriceX36 } : {}) };
   const direct = (
     <div className="space-y-4">
       {termsParam && threshold > 1 && (

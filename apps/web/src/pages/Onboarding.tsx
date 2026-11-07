@@ -1,4 +1,5 @@
 import { CheckCircle2, Circle, CircleDot } from "lucide-react";
+import { useMemo } from "react";
 import { useSearchParams } from "react-router";
 import type { Address } from "viem";
 
@@ -13,6 +14,7 @@ import { TokenStep } from "@/onboarding/TokenStep";
 import { useTokenInfo } from "@/onboarding/useTokenInfo";
 import { useSafeCheck } from "@/onboarding/useSafeCheck";
 import { useSafePolicy } from "@/onboarding/useSafePolicy";
+import type { MarketSnapshot } from "@/issuer/explain";
 import { cn } from "@/lib/utils";
 import { demoChain, isLive } from "@/wallet/config";
 
@@ -44,6 +46,20 @@ export function Onboarding() {
   );
   // An oracle on an empty pool is meaningless: the step is done once the pool has liquidity too.
   const anchorDone = Boolean(anchor.data?.anchor && anchor.data.liquidity > 0n);
+  const a = anchor.data;
+  const market = useMemo<MarketSnapshot | undefined>(
+    () =>
+      a && a.poolExists
+        ? {
+            priceX36: a.spotPriceX36,
+            liquidity: a.liquidity,
+            trustedLiquidity: a.trustedLiquidity,
+            poolAgeSeconds: a.initializedAt !== null ? Number(a.source.timestamp) - a.initializedAt : null,
+            historySeconds: a.historySeconds,
+          }
+        : undefined,
+    [a?.spotPriceX36, a?.liquidity, a?.trustedLiquidity, a?.initializedAt, a?.historySeconds, a?.source.timestamp],
+  );
   const display = (info: typeof baseCheck.info) => (info?.ok ? { symbol: info.symbol, decimals: info.decimals } : { symbol: "?", decimals: 18 });
   const policyDone = Boolean(policy && policy.quote.toLowerCase() === quote?.toLowerCase());
   const strategyDone = Boolean(policy?.strategies.some((s) => s.status !== 3));
@@ -58,7 +74,7 @@ export function Onboarding() {
     setParams(next, { replace: true });
   };
 
-  const steps: { title: string; description: string; state: StepState; body?: React.ReactNode }[] = [
+  const steps: { title: string; description: string; state: StepState; body?: React.ReactNode; waitingFor?: string }[] = [
     {
       title: "Treasury Safe",
       description: "The Safe that holds your tokens. The market maker never gets custody.",
@@ -100,6 +116,7 @@ export function Onboarding() {
       title: "Treasury policy",
       description: "Release, limits shared by every strategy, price rules and market-risk thresholds. All yours to set.",
       state: policyDone ? "done" : moduleDone && anchor.data?.anchor ? "current" : "upcoming",
+      waitingFor: !tokensDone ? "the token pair is set (step 2)" : !moduleDone ? "the Mandate module is enabled on the Safe (step 3)" : "the price anchor is launched (step 4)",
       body:
         moduleDone && anchor.data?.anchor && baseRef && quoteRef ? (
           <PolicyStep
@@ -108,7 +125,8 @@ export function Onboarding() {
             base={baseRef}
             quote={quoteRef}
             oracle={anchor.data.anchor}
-            holdings={baseCheck.balance !== undefined ? { base: baseCheck.balance } : {}}
+            holdings={{ ...(baseCheck.balance !== undefined ? { base: baseCheck.balance } : {}), ...(quoteCheck.balance !== undefined ? { quote: quoteCheck.balance } : {}) }}
+            {...(market ? { market } : {})}
             policy={policy}
             policyParam={params.get("policy")}
             onPolicy={(encoded) => select("policy", encoded)}
@@ -123,6 +141,7 @@ export function Onboarding() {
       title: "Strategy",
       description: "A market maker runs it under the policy: proposed and signed, or added directly.",
       state: strategyDone ? "done" : policyDone ? "current" : "upcoming",
+      waitingFor: "the treasury policy is created (step 5)",
       body:
         policyDone && policy && baseRef && quoteRef ? (
           <StrategyStep
@@ -175,6 +194,9 @@ export function Onboarding() {
                 <CardDescription>{step.description}</CardDescription>
               </CardHeader>
               {step.body && step.state !== "upcoming" && <CardContent>{step.body}</CardContent>}
+              {step.state === "upcoming" && step.waitingFor && (
+                <CardContent className="text-sm text-muted-foreground">Opens once {step.waitingFor}.</CardContent>
+              )}
             </Card>
           </li>
         ))}

@@ -29,7 +29,15 @@ export function useSafeCheck(address: string | null): SafeCheck {
           { address: safe, abi: safeAbi, functionName: "isModuleEnabled", args: [deployment.module], chainId: demoChain.id },
         ]
       : [],
-    query: { enabled: Boolean(safe) },
+    // Re-read until the Safe exists and has the module: right after a transaction the RPC may still answer from an
+    // older block, and a stale "not a Safe" or "module off" must not stick until a reload.
+    query: {
+      enabled: Boolean(safe),
+      refetchInterval: (query) => {
+        const [, , version, module] = query.state.data ?? [];
+        return version?.status === "success" && module?.status === "success" && module.result === true ? false : 4_000;
+      },
+    },
   });
   const [owners, threshold, version, moduleEnabled] = reads.data ?? [];
   const isSafe =

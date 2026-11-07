@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ActivityFeed } from "@/components/ActivityFeed";
+import { LiquidityReport } from "@/components/LiquidityReport";
 import { Stat } from "@/components/gauges";
 import { PolicyGauges } from "@/components/PolicyGauges";
 import { Hex, RiskBadge, StatusPill, SyntheticTag } from "@/components/status";
@@ -96,6 +97,16 @@ function StrategyView({ data, base, quote, stream }: { data: StrategyDetail; bas
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Liquidity report</CardTitle>
+          <CardDescription>How this market maker's order served traders: liquidity given and taken, prices against the market, fees, and the rules that held.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LiquidityReport subject={{ kind: "strategy", id: strategy.strategyId }} base={base} quote={quote} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <Card>

@@ -586,7 +586,7 @@ issuer). The only constants are technical bounds (array caps for gas, BPS ≤ 10
   acceptance.
 - **Indexer**: `policies`, `strategies`, `policy_snapshots`, `strategy_snapshots`; migration `0006` rebuilds the
   chain-derived tables and keeps v1 proposals as `proposals_v1`. Change feeds per policy and per strategy.
-- **Web**: every economic field starts empty (policy and strategy forms); edits start from the current onchain values.
+- **Web**: a new policy or strategy starts from suggested values sized to the pool and the Safe (`apps/web/src/issuer/explain.ts`), each field and a summary explaining live what the value will do; nothing is signed before the review screen. Edits start from the current onchain values. (Earlier the forms started empty; changed for demos on 2026-11-07.)
   Readiness of an anchor is judged against the policy's own TWAP window, never a built-in one.
 - **Base**: the v1 manifest is archived in `deployments/archive/8453-v1.json`; its contracts stay deployed and
   readable. v2 is a new deployment (`DeployBase`), broadcast only with the user's confirmation.

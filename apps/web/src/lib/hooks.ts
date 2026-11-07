@@ -35,7 +35,7 @@ export const usePolicySeries = (id: string | undefined) =>
 export const useStrategySeries = (id: string) => useQuery({ queryKey: qk.strategySeries(id), queryFn: () => api.strategySeries(id) });
 export const useMmProfiles = () => useQuery({ queryKey: qk.mmProfiles, queryFn: api.mmProfiles });
 export const useMmScores = () => useQuery({ queryKey: qk.mmScores, queryFn: api.mmScores });
-export const useLaunchedTokens = () => useQuery({ queryKey: qk.launchedTokens, queryFn: api.launchedTokens });
+export const useLaunchedTokens = () => useQuery({ queryKey: qk.launchedTokens, queryFn: () => api.launchedTokens() });
 
 export const useActivity = (subject: Subject) =>
   useInfiniteQuery({

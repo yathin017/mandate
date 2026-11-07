@@ -3,6 +3,7 @@ import type { StrategyTermsJson } from "@mandate/sdk";
 import type {
   ActivityPage,
   AuthNonce,
+  Insights,
   LaunchedToken,
   MmProfile,
   MmScore,
@@ -75,6 +76,7 @@ export const api = {
     request<Envelope<ActivityPage>>(
       `${chainPath}/${PATH[subject.kind]}/${subject.id}/activity?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
     ),
+  insights: (subject: Subject) => request<Envelope<Insights>>(`${chainPath}/${PATH[subject.kind]}/${subject.id}/insights`),
   policySeries: (id: string) => request<Envelope<PolicySnapshot[]>>(`${chainPath}/policies/${id}/series?limit=2000`),
   strategySeries: (id: string) => request<Envelope<StrategySnapshot[]>>(`${chainPath}/strategies/${id}/series?limit=2000`),
   simulate: (
@@ -110,6 +112,9 @@ export const api = {
     request<{ data: Proposal }>(`/v1/proposals/${id}/accept`, { method: "POST", body: JSON.stringify({ signature }) }),
   markExecuted: (id: string, strategyId: string) =>
     request<{ data: Proposal }>(`/v1/proposals/${id}/executed`, { method: "POST", body: JSON.stringify({ strategyId }) }),
-  launchedTokens: () => request<Envelope<LaunchedToken[]>>(`${chainPath}/tokens/launched`),
+  launchedTokens: (filter: { creator?: string; recipient?: string } = {}) => {
+    const query = new URLSearchParams(Object.entries(filter).filter(([, v]) => v) as [string, string][]).toString();
+    return request<Envelope<LaunchedToken[]>>(`${chainPath}/tokens/launched${query ? `?${query}` : ""}`);
+  },
   streamUrl: (subject: Subject) => `${API_BASE}${chainPath}/${PATH[subject.kind]}/${subject.id}/stream`,
 };

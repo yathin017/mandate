@@ -24,6 +24,8 @@ export function useTokenInfo(token: string | null, holder: string | null): Token
     queryFn: () => readTokenInfo(publicClient!, address!),
     enabled: Boolean(address && publicClient),
     staleTime: 60_000,
+    // A token deployed moments ago may not be visible to the RPC yet: retry instead of caching "not a token".
+    refetchInterval: (query) => (query.state.data?.ok ? false : 4_000),
   });
   const ok = info.data?.ok === true;
   const balance = useReadContract({

@@ -310,6 +310,16 @@ export function createApp(deps: AppDeps) {
       },
     );
 
+    app.get(`/v1/chains/:chainId/${def.path}/:${def.kind}Id/insights`, zValidator("param", def.param, invalid), async (c) => {
+      const params = c.req.valid("param") as { chainId: number; policyId?: string; strategyId?: string };
+      const subject: Subject = { kind: def.kind, id: def.idOf(params) };
+      // Refusals include simulated attempts, which do not move the head: the key also carries the write version.
+      const version = await cache.getVersion(params.chainId, subject);
+      return cached(c, params.chainId, `insights:${def.kind}:${subject.id}:v${version}`, async () =>
+        (await exists(params.chainId, subject)) ? q.insights(db, params.chainId, subject) : null,
+      );
+    });
+
     app.get(`/v1/chains/:chainId/${def.path}/:${def.kind}Id/stream`, zValidator("param", def.param, invalid), async (c) => {
       const params = c.req.valid("param") as { chainId: number; policyId?: string; strategyId?: string };
       return stream(c, params.chainId, { kind: def.kind, id: def.idOf(params) });

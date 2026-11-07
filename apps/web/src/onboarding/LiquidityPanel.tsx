@@ -1,10 +1,11 @@
 import { buildAddLiquidityCall, planFullRangeLiquidity, type AnchorStatus, type LiquidityPlan } from "@mandate/sdk";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getAddress, type Address } from "viem";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { nice, priceOf } from "@/issuer/explain";
 import { formatUnits, parseUnits } from "@/lib/format";
 import type { TokenDisplay } from "@/lib/types";
 import { SafeActionPanel } from "@/wallet/SafeActionPanel";
@@ -52,7 +53,18 @@ export function LiquidityPanel({
   onAdded: () => void;
 }) {
   const shared = decodeLp(lpParam);
+  // Suggested once the Safe's balances are known: 40% of its tokens, or less if its quote cannot match that at the
+  // pool price (10% headroom for the slippage cap). The owner can change it before preparing.
   const [amount, setAmount] = useState("");
+  const [touched, setTouched] = useState(false);
+  useEffect(() => {
+    if (touched || shared || holdings.base === undefined || holdings.quote === undefined || status.spotPriceX36 === 0n) return;
+    const price = priceOf(status.spotPriceX36, { address: base, ...baseToken }, { address: base, ...quoteToken });
+    const baseHeld = Number(holdings.base) / 10 ** baseToken.decimals;
+    const quoteHeld = Number(holdings.quote) / 10 ** quoteToken.decimals;
+    const suggested = nice(Math.min(baseHeld * 0.4, (quoteHeld / price) * 0.9));
+    if (suggested > 0) setAmount(String(suggested));
+  }, [touched, shared, holdings.base, holdings.quote, status.spotPriceX36]);
   const baseIs0 = getAddress(status.poolKey.currency0) === getAddress(base);
 
   const typed = parseUnits(amount, baseToken.decimals);
@@ -122,7 +134,10 @@ export function LiquidityPanel({
         <>
           <div className="space-y-1.5">
             <Label htmlFor="lp-amount">{baseToken.symbol} to add</Label>
-            <Input id="lp-amount" className="w-56 tabular font-mono" placeholder="100000" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <Input id="lp-amount" className="w-56 tabular font-mono" placeholder="100000" value={amount} onChange={(e) => {
+                setTouched(true);
+                setAmount(e.target.value);
+              }} />
           </div>
           {amount && !typed && <p className="text-sm text-blocked">Enter an amount of {baseToken.symbol}.</p>}
           {planned && "error" in planned && <p className="text-sm text-blocked">{planned.error}</p>}

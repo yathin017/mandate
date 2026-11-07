@@ -1,6 +1,7 @@
 {
   "name": "@mandate/web",
   "version": "0.0.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "description": "Mandate web app: token launch, onboarding, market-maker marketplace, mandate pages and wallet flows.",

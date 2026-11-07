@@ -79,8 +79,34 @@ export const DEMO_ACCOUNTS: { safeOwner1: Address; safeOwner2: Address; marketMa
 
 const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 
+const envAddresses = (value: string | undefined): Address[] =>
+  (value ?? "").split(",").map((v) => v.trim()).filter((v): v is Address => isAddress(v));
+
+/**
+ * Wallets a presenter uses for a live demo, from apps/web/.env.local (addresses only):
+ * VITE_DEMO_SAFE_OWNERS="0xOwner1,0xOwner2" and VITE_DEMO_MARKET_MAKER="0xMM". Without them, the deployment's
+ * testing wallets. They only prefill forms when the connected wallet is one of them (see `demoCoOwner`).
+ */
+export const DEMO_SAFE_OWNERS: readonly Address[] = (() => {
+  const fromEnv = envAddresses(import.meta.env.VITE_DEMO_SAFE_OWNERS);
+  return fromEnv.length >= 2 ? fromEnv : [DEMO_ACCOUNTS.safeOwner1, DEMO_ACCOUNTS.safeOwner2];
+})();
+export const DEMO_MARKET_MAKER: Address = envAddresses(import.meta.env.VITE_DEMO_MARKET_MAKER)[0] ?? DEMO_ACCOUNTS.marketMaker;
+
+/**
+ * The other demo owners when `connected` is itself a demo owner, else none: a co-owner is never suggested to anyone
+ * else, so a real issuer cannot end up with a stranger on their Safe.
+ */
+export function demoCoOwners(connected: string | undefined): Address[] {
+  if (!connected || !DEMO_SAFE_OWNERS.some((o) => o.toLowerCase() === connected.toLowerCase())) return [];
+  return DEMO_SAFE_OWNERS.filter((o) => o.toLowerCase() !== connected.toLowerCase());
+}
+
 /** Role name for a known testing wallet, e.g. to label the connected account. */
+// Presenter wallets first, so the deployment's own role names win where they are the same wallets.
 const ROLE_LABELS = new Map<string, string>([
+  ...DEMO_SAFE_OWNERS.map((o, i) => [o.toLowerCase(), `Demo Owner ${i + 1}`] as [string, string]),
+  [DEMO_MARKET_MAKER.toLowerCase(), "Demo Market Maker"],
   [DEMO_ACCOUNTS.safeOwner1.toLowerCase(), "Safe Owner 1"],
   [DEMO_ACCOUNTS.safeOwner2.toLowerCase(), "Safe Owner 2"],
   [DEMO_ACCOUNTS.marketMaker.toLowerCase(), "Market Maker"],

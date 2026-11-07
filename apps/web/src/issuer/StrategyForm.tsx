@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatBps, formatPrice, formatUnits, parseUnits } from "@/lib/format";
-import { deployment } from "@/wallet/config";
+import { DEMO_MARKET_MAKER, deployment } from "@/wallet/config";
 import { SafeActionPanel } from "@/wallet/SafeActionPanel";
 import { useSafeInfo } from "@/wallet/useSafe";
 
+import { explainTerms, suggestTerms, type PolicyLimits } from "./explain";
+import { Explained, Summary } from "./Explained";
 import { buildTerms, EMPTY_TERMS, type BuiltTerms, type Holdings, type PolicyRules, type Terms, type TokenRef } from "./terms";
 
 type Unit = "base" | "quote" | "price" | "%";
@@ -30,7 +32,9 @@ const FIELDS: { key: keyof Terms; label: string; hint: string; unit?: Unit; buyb
 
 /**
  * Add a strategy under the Safe's policy: terms → review → owners approve and execute (or, with `renderReviewAction`,
- * send it to the market maker as a proposal). Every field starts empty: these are the issuer's decisions.
+ * send it to the market maker as a proposal). A new strategy starts from suggested values (`suggestTerms`: inventory
+ * the Safe can back, matched at the pool price) until the issuer edits a field; a shared link starts from its own.
+ * Every field and a summary say in plain words what the values will do (`explainTerms`).
  */
 export function StrategyForm({
   safe,
@@ -40,6 +44,7 @@ export function StrategyForm({
   policy,
   holdings,
   anchorPriceX36,
+  limits,
   initial,
   startInReview = false,
   onReview,
@@ -57,6 +62,8 @@ export function StrategyForm({
   /** What the Safe can still back (balances minus other live strategies). */
   holdings?: Holdings;
   anchorPriceX36?: bigint;
+  /** The policy's limits, to explain how they bound this strategy. */
+  limits?: PolicyLimits;
   initial?: Partial<Terms>;
   startInReview?: boolean;
   onReview?: (terms: Terms | null) => void;
@@ -65,9 +72,26 @@ export function StrategyForm({
   marketMaker?: string;
   renderReviewAction?: (built: BuiltTerms) => React.ReactNode;
 }) {
-  const [terms, setTerms] = useState<Terms>({ ...EMPTY_TERMS, ...initial });
+  const suggest = (mm: string) =>
+    suggestTerms({ base, quote, mm, ...(anchorPriceX36 !== undefined ? { anchorPriceX36 } : {}), ...(holdings ? { holdings } : {}) });
+  // Adding directly, the demo market maker is suggested (VITE_DEMO_MARKET_MAKER, else the deployment's); a picker
+  // elsewhere (`marketMaker`) always wins.
+  const [terms, setTerms] = useState<Terms>(() => (initial ? { ...EMPTY_TERMS, ...initial } : suggest(marketMaker ?? DEMO_MARKET_MAKER)));
+  // Suggestions follow the pool price and the Safe's backing as they load, until the issuer types anything.
+  const [touched, setTouched] = useState(Boolean(initial));
+  const edit = (next: Terms) => {
+    setTouched(true);
+    setTerms(next);
+  };
   const [step, setStep] = useState<"terms" | "review">(startInReview ? "review" : "terms");
   const { owners } = useSafeInfo(safe);
+  useEffect(() => {
+    if (!touched) setTerms((t) => suggest(marketMaker ?? (t.mm || DEMO_MARKET_MAKER)));
+  }, [touched, anchorPriceX36, holdings?.base, holdings?.quote]);
+  const explained = useMemo(
+    () => explainTerms(terms, { base, quote, ...(anchorPriceX36 !== undefined ? { anchorPriceX36 } : {}), ...(holdings ? { holdings } : {}), ...(limits ? { limits } : {}) }),
+    [terms, base, quote, anchorPriceX36, holdings, limits],
+  );
 
   useEffect(() => {
     if (marketMaker !== undefined) setTerms((t) => (t.mm === marketMaker ? t : { ...t, mm: marketMaker }));
@@ -121,9 +145,11 @@ export function StrategyForm({
       }}
     >
       {startInReview && "error" in built && <p className="text-sm text-blocked">The shared terms are not valid here; correct them below.</p>}
+      {!touched && <p className="text-sm text-muted-foreground">Suggested values, matched to the pool price and what the Safe can back. Change anything: every field says what it will do.</p>}
+      <Summary title="What this strategy does" lines={explained.summary} />
       <div className="space-y-1.5">
         <Label htmlFor="strategy-kind">Strategy kind</Label>
-        <Select value={terms.kind} onValueChange={(v) => setTerms({ ...terms, kind: v })}>
+        <Select value={terms.kind} onValueChange={(v) => edit({ ...terms, kind: v })}>
           <SelectTrigger id="strategy-kind" className="w-full sm:w-96">
             <SelectValue placeholder="Choose…" />
           </SelectTrigger>
@@ -139,17 +165,25 @@ export function StrategyForm({
             <Label htmlFor={`strategy-${f.key}`}>
               {f.label} {f.unit && <span className="text-muted-foreground">({unit(f.unit)})</span>}
             </Label>
-            <Input id={`strategy-${f.key}`} className="tabular font-mono" value={terms[f.key]} onChange={(e) => setTerms({ ...terms, [f.key]: e.target.value })} />
+            <Input id={`strategy-${f.key}`} className="tabular font-mono" value={terms[f.key]} onChange={(e) => edit({ ...terms, [f.key]: e.target.value })} />
             <p className="text-[11px] text-muted-foreground">{f.hint}</p>
+            <Explained text={explained.fields[f.key]} />
           </div>
         ))}
       </div>
       <StartingPrice terms={terms} base={base} quote={quote} {...(anchorPriceX36 !== undefined ? { anchorPriceX36 } : {})} holdings={holdings} />
       {!policyId && !renderReviewAction && <p className="text-sm text-muted-foreground">Create the treasury policy first: strategies run under it.</p>}
       {"error" in built && <p className="text-sm text-blocked">{built.error}</p>}
-      <Button type="submit" disabled={!ready}>
-        Review strategy
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={!ready}>
+          Review strategy
+        </Button>
+        {!initial && (
+          <Button type="button" variant="outline" onClick={() => setTouched(false)}>
+            Reset to suggested values
+          </Button>
+        )}
+      </div>
     </form>
   );
 }

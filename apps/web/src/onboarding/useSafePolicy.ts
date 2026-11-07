@@ -35,6 +35,8 @@ export function useSafePolicy(safe: Address | null, base: Address | null) {
   return useQuery({
     queryKey: ["safe-policy", demoChain.id, deployment.module, safe, base],
     enabled: Boolean(safe && base && publicClient),
+    // Polled until the policy has a live strategy, so a just-mined step shows even if the first read was stale.
+    refetchInterval: (query) => (query.state.data?.strategies.some((s) => s.status !== 3) ? false : 5_000),
     queryFn: async (): Promise<SafePolicy | null> => {
       const client = publicClient!;
       const id = await client.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "activePolicyOf", args: [safe!, base!] });

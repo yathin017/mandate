@@ -176,6 +176,29 @@ describe("read API over the indexed demo chain", { skip }, () => {
     assert.ok(byMm.every((r) => r.riskMode !== null && r.tokens.quote.symbol === "sUSDC"));
   });
 
+  test("insights agree with the activity feed and the Safe summary", async () => {
+    const all = (await (await get(`${base}/strategies`)).json()).data as { strategyId: string; policyId: string; safe: string }[];
+    for (const s of all) {
+      const insight = (await (await get(`${base}/strategies/${s.strategyId}/insights`)).json()).data;
+      const summary = (await (await get(`${base}/safes/${s.safe}/summary`)).json()).data as any[];
+      const row = summary.find((p) => p.policyId === s.policyId).strategies.find((r: any) => r.strategyId === s.strategyId);
+      assert.equal(insight.totals.trades, row.fills);
+      assert.equal(insight.totals.buys + insight.totals.sells, row.fills);
+      assert.equal(insight.trades.length, Math.min(row.fills, 500));
+      assert.equal(insight.totals.fees_quote, row.feesQuote);
+      assert.equal(insight.totals.mm_fees_quote, row.mmEarnedQuote, "MM share as the module computes it");
+      assert.equal(insight.refusals.filter((r: any) => r.source === "onchain_actor").reduce((n: number, r: any) => n + r.count, 0) <= row.refused, true);
+      if (row.fills > 0) assert.ok(insight.trades.every((t: any) => /^0x[0-9a-f]{40}$/.test(t.taker)), "every trade names its taker");
+    }
+    // A policy's insights add up its strategies'.
+    const policyId = all[0]!.policyId;
+    const ofPolicy = all.filter((s) => s.policyId === policyId);
+    const sums = await Promise.all(ofPolicy.map(async (s) => (await (await get(`${base}/strategies/${s.strategyId}/insights`)).json()).data.totals.trades as number));
+    const policy = (await (await get(`${base}/policies/${policyId}/insights`)).json()).data;
+    assert.equal(policy.totals.trades, sums.reduce((a, b) => a + b, 0));
+    assert.equal((await get(`${base}/strategies/0x${"0".repeat(64)}/insights`)).status, 404);
+  });
+
   test("series return readings in block order", async () => {
     for (const path of [`policies/${fork.policies.act2}`, `strategies/${fork.strategies.act2}`]) {
       const body = await (await get(`${base}/${path}/series?limit=2000`)).json();

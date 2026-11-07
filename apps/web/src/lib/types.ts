@@ -189,6 +189,49 @@ export interface ActivityItem {
   request: Record<string, unknown> | null;
 }
 
+/** `/policies/:id/insights` and `/strategies/:id/insights`: what the strategies' orders did. Raw token units. */
+export interface Insights {
+  totals: {
+    trades: number;
+    /** Takers buying the token (the treasury sold). */
+    buys: number;
+    /** Takers selling the token back (treasury buybacks). */
+    sells: number;
+    unique_takers: number;
+    defensive_fills: number;
+    base_sold: string;
+    quote_received: string;
+    base_bought_back: string;
+    quote_paid: string;
+    fees_base: string;
+    fees_quote: string;
+    mm_fees_base: string;
+    mm_fees_quote: string;
+    /** Volume-weighted distance of fills from the pre-fill market, bps: unsigned, and signed (+ favours the treasury). */
+    avg_abs_quality_bps: number | null;
+    avg_quality_bps: number | null;
+    first_at: string | null;
+    last_at: string | null;
+  };
+  refusals: { errorName: string | null; source: "onchain_actor" | "simulated"; count: number }[];
+  trades: {
+    tx_hash: string;
+    log_index: number;
+    block_number: string;
+    timestamp: string;
+    strategy_id: string;
+    taker: string;
+    is_sell: boolean;
+    amount_in: string;
+    amount_out: string;
+    price_x36: string;
+    risk_mode: number;
+    quality_bps: number | null;
+    fee_token: string | null;
+    fee_amount: string;
+  }[];
+}
+
 export interface ActivityPage {
   items: ActivityItem[];
   next: string | null;
