@@ -68,6 +68,14 @@ describe("policy terms", () => {
     assert.equal(built.warnings.length, 3);
   });
 
+  test("no minimum pool age is allowed and flagged; the TWAP windows still need at least a minute", () => {
+    const built = buildPolicy({ ...POLICY, minPoolAgeHours: "0" }, ctx);
+    assert.ok(!("error" in built));
+    assert.equal(built.config.oracle.minPoolAge, 0);
+    assert.ok(built.warnings.some((w) => /No minimum pool age/.test(w)));
+    assert.match(error({ twapMinutes: "0" })!, /TWAP window: whole minutes, at least 1/);
+  });
+
   test("an existing policy round-trips through the edit form unchanged", () => {
     const built = buildPolicy(POLICY, ctx);
     assert.ok(!("error" in built));

@@ -84,8 +84,9 @@ export function buildPolicy(
       throw new Error(`${name}: enter a percentage ${positive ? "above 0 and " : "from 0 "}up to ${max}`);
     return Number(raw);
   };
-  const whole = (v: string, name: string, unit: string, scale: bigint, max: bigint) => {
-    if (!/^\d{1,9}$/.test(v.trim()) || BigInt(v.trim()) === 0n) throw new Error(`${name}: whole ${unit}, at least 1`);
+  const whole = (v: string, name: string, unit: string, scale: bigint, max: bigint, allowZero = false) => {
+    if (!/^\d{1,9}$/.test(v.trim()) || (!allowZero && BigInt(v.trim()) === 0n))
+      throw new Error(`${name}: whole ${unit}, at least ${allowZero ? 0 : 1}`);
     const seconds = BigInt(v.trim()) * scale;
     if (seconds > max) throw new Error(`${name}: too long`);
     return seconds;
@@ -108,7 +109,8 @@ export function buildPolicy(
     const uint32Max = 2n ** 32n - 1n;
     const twapWindow = whole(terms.twapMinutes, "TWAP window", "minutes", 60n, uint32Max);
     const shortWindow = whole(terms.shortTwapMinutes, "Short TWAP window", "minutes", 60n, uint32Max);
-    const minPoolAge = whole(terms.minPoolAgeHours, "Minimum pool age", "hours", 3600n, uint32Max);
+    // 0 is valid onchain: the pool's age is then not checked (the TWAP history and trusted depth still are).
+    const minPoolAge = whole(terms.minPoolAgeHours, "Minimum pool age", "hours", 3600n, uint32Max, true);
     const minTrustedDepth = amount(terms.minDepth, base, "Minimum depth", true);
     const defensiveDepth = amount(terms.defensiveDepth, base, "Defensive depth", true);
     const defensiveMoveBps = bps(terms.defensiveMovePct, "Defensive price move", { max: 655 });
@@ -146,6 +148,7 @@ export function buildPolicy(
     if (ctx.holdings?.base !== undefined && allotment > ctx.holdings.base)
       warnings.push(`The allotment exceeds the Safe's ${base.symbol} balance; strategies can only ship what the Safe holds.`);
     if (floorPriceX36 === 0n) warnings.push("No price floor: sells are limited only by the oracle checks and the caps.");
+    if (minPoolAge === 0n) warnings.push("No minimum pool age: a brand-new pool can price trades once it has the TWAP window of history.");
     if (minTrustedDepth === 0n) warnings.push("No minimum depth: the treasury will trade against a pool of any size.");
     if (quoteSpendCap === 0n && (normal.buybacksAllowed || defensive.buybacksAllowed))
       warnings.push("Buybacks are allowed but the buyback budget is 0, so every buyback will be refused.");

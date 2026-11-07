@@ -53,7 +53,7 @@ const SECTIONS: { title: string; description: string; fields: Field[] }[] = [
       { key: "twapMinutes", label: "TWAP window", hint: "The reference average price.", unit: "minutes" },
       { key: "shortTwapMinutes", label: "Short TWAP window", hint: "Compared with the TWAP to measure volatility.", unit: "minutes" },
       { key: "depthBandPct", label: "Depth band", hint: "Depth = tokens needed to move the price this much.", unit: "%" },
-      { key: "minPoolAgeHours", label: "Minimum pool age", hint: "A younger pool pauses the treasury.", unit: "hours" },
+      { key: "minPoolAgeHours", label: "Minimum pool age", hint: "A younger pool pauses the treasury; 0 for none.", unit: "hours" },
       { key: "minDepth", label: "Minimum depth", hint: "Less trusted depth pauses the treasury.", unit: "base" },
       { key: "defensiveDepth", label: "Defensive depth", hint: "Less trusted depth switches to defensive limits.", unit: "base" },
     ],
