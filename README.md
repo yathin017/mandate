@@ -411,12 +411,17 @@ the pinned roles above untouched):
 | Pair market oracle (anchor at 0.40 dUSD) | [`0x2376eD3BDC8eA7faC0EBeFb978855878aC6A692D`](https://basescan.org/address/0x2376eD3BDC8eA7faC0EBeFb978855878aC6A692D) |
 | Policy | `0x4450aef3628ebf5a11a3f0d28718e785904bddff9636774659280a954934a50f` ([created](https://basescan.org/tx/0xf04e571209a8ab21e0b1f119eb122eb371870bb2e44b72778b287dd43274f01b)) |
 | Strategy (market making, accepted by the MM's signature) | `0x9437324f15c945ba1524b1fee126c1087516dc6187f1d223daebff10214d3e7e` ([added](https://basescan.org/tx/0xafc69ebfa18d9d278eeb3e139368ae2f2e51d0e5ead71678de0b0fc85a54e501)) |
+| Test trade: Demo Owner 2 buys 500 dORBIT from the strategy through the SwapVM router | [trade](https://basescan.org/tx/0xc63828661076fc057f8c6deacbb170d219d76658cfa3ee2882f478dd32ee3ec2) |
 | Demo Owner 1 / Demo Owner 2 / Demo Market Maker | `0x174F75176b73124627116653085Ce9585E261388` / `0x9A6D76cB905Df126832AEB1802A27a1b37a6e872` / `0x5F8b93e830a42200CB85420e89BE5FC9154F9192` |
 
 Run it with the demo keys in `.env` (`DEMO_OWNER1_PRIVATE_KEY`, `DEMO_OWNER2_PRIVATE_KEY`, `DEMO_MM_PRIVATE_KEY`) and the
 Base API running: `node --env-file=../../.env scripts/base-demo.ts setup|strategy|trade|status` from `apps/web`. Each
 phase saves progress in `.local/base-demo.json`, so a re-run continues where it stopped. The policy pauses trading
-until the pool is an hour old.
+until its TWAP has 30 minutes of history and the pool is an hour old. For the test trade the owners shortened those
+checks with `relax` ([update](https://basescan.org/tx/0x27562c5cdd7873df7080c4cafd142fcec16b5120c5414b9e9dec3838573851a6):
+TWAP 5 min, short TWAP 2 min, pool age 5 min), traded, and put them back with `restore`
+([update](https://basescan.org/tx/0xac260c7d11eb35b060c3e61b239840149f91543da77de0bd83bb033e2e778a34)). A first attempt
+at 1,000 dORBIT was refused by the release schedule: on day one only about 590 of the allotment had unlocked.
 
 **v1 (single mandates)** ran on Base from block 53927227 with mock tokens against the canonical Aqua, SwapVM router,
 Uniswap v4 PoolManager and Safe 1.4.1; its manifest is archived in
