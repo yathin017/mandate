@@ -102,11 +102,30 @@ against a fresh local fork; all temporary nodes are stopped afterward.
 
 ## Live on Base mainnet
 
-**v2 (policies and strategies)** is deployed by `contracts/script/live/DeployBase.s.sol`: module and quoter, oracle hook,
-AnchorLauncher, and a demo pair with mock tokens, a 2-of-2 issuer Safe, its policy and one market-making strategy. It
-writes [`deployments/8453.json`](deployments/8453.json) and keeps the existing TokenFactory
-([`0x32feE1f159E80eE007B0d750d4eb47A513e40311`](https://basescan.org/address/0x32feE1f159E80eE007B0d750d4eb47A513e40311)).
-Until it is broadcast, the app has no Base deployment registered.
+**v2 (policies and strategies)** was deployed at block 54111087 by `contracts/script/live/DeployBase.s.sol` with **mock
+tokens** against the canonical Aqua, SwapVM router, Uniswap v4 PoolManager and Safe 1.4.1. Source of truth:
+[`deployments/8453.json`](deployments/8453.json).
+
+| Contract | Address |
+|---|---|
+| MandateModule | [`0x0BaB320f821Ef1684de6463C1506aEC0Ce24E615`](https://basescan.org/address/0x0BaB320f821Ef1684de6463C1506aEC0Ce24E615) |
+| MandateQuoter | [`0x9A8F9123752E31a8577380c356d3F44959E9f8c8`](https://basescan.org/address/0x9A8F9123752E31a8577380c356d3F44959E9f8c8) |
+| MandateOracleHook (afterInitialize, beforeAddLiquidity, beforeSwap; 10-minute settle) | [`0xE3498691dD0cB1e3870C5da43579d51e0B961880`](https://basescan.org/address/0xE3498691dD0cB1e3870C5da43579d51e0B961880) |
+| AnchorLauncher | [`0xC2B7b39584705668cE47ceF2ab9F930c07F8Aa53`](https://basescan.org/address/0xC2B7b39584705668cE47ceF2ab9F930c07F8Aa53) |
+| Demo pair market oracle (mLAUNCH/mUSD) | [`0x8ef6314610087E0bBCe13466a3cC1CdD678F990e`](https://basescan.org/address/0x8ef6314610087E0bBCe13466a3cC1CdD678F990e) |
+| TokenFactory (kept from v1) | [`0x32feE1f159E80eE007B0d750d4eb47A513e40311`](https://basescan.org/address/0x32feE1f159E80eE007B0d750d4eb47A513e40311) |
+| Issuer Safe (2-of-2: Safe Owner 1 + Safe Owner 2) | [`0xaD4e23999d17FAFa2E351640127197D12328565b`](https://basescan.org/address/0xaD4e23999d17FAFa2E351640127197D12328565b) |
+| mLAUNCH / mUSD | [`0xD88907F8278C3A3a90e5acCcaE87154cf5e3d516`](https://basescan.org/token/0xD88907F8278C3A3a90e5acCcaE87154cf5e3d516) / [`0x7a4088D9EA49Ee2ae48d55d1A0d6d9C47dC035BB`](https://basescan.org/token/0x7a4088D9EA49Ee2ae48d55d1A0d6d9C47dC035BB) |
+
+The Safe holds 1M mLAUNCH and 400k mUSD (demo inventory), and Owner 1 has approved `enableModule`. No policy or
+strategy exists yet: Safe Owner 2 executes `enableModule` in `/launch`, then the owners set the treasury policy and
+propose a strategy to the Market Maker with their own values.
+
+| Role | Address |
+|---|---|
+| Safe Owner 1 (also deployer) | `0x54f75F0E0da2b43b3a6AC0a0e5c4f5Df6B73308e` |
+| Safe Owner 2 | `0x6a4fb4561051dD5B25619ab997152892008C7bF6` |
+| Market Maker | `0xbDafcA30260a4a5550cAD1F11928b26f1B063126` |
 
 **v1 (single mandates)** ran on Base from block 53927227 with mock tokens against the canonical Aqua, SwapVM router,
 Uniswap v4 PoolManager and Safe 1.4.1; its manifest is archived in
