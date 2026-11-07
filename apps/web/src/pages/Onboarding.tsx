@@ -58,7 +58,7 @@ export function Onboarding() {
     setParams(next, { replace: true });
   };
 
-  const steps: { title: string; description: string; state: StepState; body?: React.ReactNode }[] = [
+  const steps: { title: string; description: string; state: StepState; body?: React.ReactNode; waitingFor?: string }[] = [
     {
       title: "Treasury Safe",
       description: "The Safe that holds your tokens. The market maker never gets custody.",
@@ -100,6 +100,7 @@ export function Onboarding() {
       title: "Treasury policy",
       description: "Release, limits shared by every strategy, price rules and market-risk thresholds. All yours to set.",
       state: policyDone ? "done" : moduleDone && anchor.data?.anchor ? "current" : "upcoming",
+      waitingFor: !tokensDone ? "the token pair is set (step 2)" : !moduleDone ? "the Mandate module is enabled on the Safe (step 3)" : "the price anchor is launched (step 4)",
       body:
         moduleDone && anchor.data?.anchor && baseRef && quoteRef ? (
           <PolicyStep
@@ -123,6 +124,7 @@ export function Onboarding() {
       title: "Strategy",
       description: "A market maker runs it under the policy: proposed and signed, or added directly.",
       state: strategyDone ? "done" : policyDone ? "current" : "upcoming",
+      waitingFor: "the treasury policy is created (step 5)",
       body:
         policyDone && policy && baseRef && quoteRef ? (
           <StrategyStep
@@ -175,6 +177,9 @@ export function Onboarding() {
                 <CardDescription>{step.description}</CardDescription>
               </CardHeader>
               {step.body && step.state !== "upcoming" && <CardContent>{step.body}</CardContent>}
+              {step.state === "upcoming" && step.waitingFor && (
+                <CardContent className="text-sm text-muted-foreground">Opens once {step.waitingFor}.</CardContent>
+              )}
             </Card>
           </li>
         ))}
