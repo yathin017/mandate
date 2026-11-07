@@ -1,5 +1,8 @@
+import { buildApproveRouterCall, buildSwapCall, erc20Abi, mandateModuleAbi } from "@mandate/sdk";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { getAddress, type Address, type Hash } from "viem";
+import { useConnection, usePublicClient, useReadContract } from "wagmi";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +12,9 @@ import { BlockedStamp, SyntheticTag } from "@/components/status";
 import { api } from "@/lib/api";
 import { formatUnits, parseUnits } from "@/lib/format";
 import type { Strategy, TokenDisplay } from "@/lib/types";
+import { demoChain, deployment } from "@/wallet/config";
+import { TxStatus } from "@/wallet/TxStatus";
+import { useTx } from "@/wallet/useTx";
 
 /** Any address works as the quote's `from` (nothing is signed); Anvil's account 0 is used on every chain. */
 const DEMO_TAKER = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
@@ -82,13 +88,24 @@ export function TryTrade({ strategy, base, quote }: { strategy: Strategy; base: 
             <span className="tabular font-mono text-[11px] text-muted-foreground">at block {result.blockNumber}</span>
           </div>
           {result.outcome === "allowed" ? (
-            <p className="text-sm">
-              Fills. You would receive{" "}
-              <span className="tabular font-mono font-semibold text-filled">
-                {formatUnits(result.amountOut!, receiveToken.decimals, 4)} {receiveToken.symbol}
-              </span>
-              .
-            </p>
+            <>
+              <p className="text-sm">
+                Fills. You would receive{" "}
+                <span className="tabular font-mono font-semibold text-filled">
+                  {formatUnits(result.amountOut!, receiveToken.decimals, 4)} {receiveToken.symbol}
+                </span>
+                .
+              </p>
+              <RunTrade
+                strategy={strategy}
+                side={side}
+                amountIn={raw!}
+                quotedOut={BigInt(result.amountOut!)}
+                payToken={payToken}
+                receiveToken={receiveToken}
+                onDone={() => simulate.reset()}
+              />
+            </>
           ) : (
             <div className="space-y-2">
               <BlockedStamp clause={result.errorName} />
@@ -104,3 +121,83 @@ export function TryTrade({ strategy, base, quote }: { strategy: Strategy; base: 
     </div>
   );
 }
+
+/**
+ * Sends the simulated trade from the connected wallet through the canonical SwapVM router: approve the router for the
+ * exact amount, then swap with at most 1% less than the simulated output. Each step is simulated first and refused
+ * with its reason if the policy or the wallet would not allow it.
+ */
+function RunTrade({
+  strategy,
+  side,
+  amountIn,
+  quotedOut,
+  payToken,
+  receiveToken,
+  onDone,
+}: {
+  strategy: Strategy;
+  side: Side;
+  amountIn: bigint;
+  quotedOut: bigint;
+  payToken: TokenDisplay;
+  receiveToken: TokenDisplay;
+  onDone: () => void;
+}) {
+  const { address, chainId } = useConnection();
+  const client = usePublicClient({ chainId: demoChain.id });
+  const approve = useTx();
+  const swap = useTx();
+  const tokenIn = getAddress(side === "buy" ? strategy.quote : strategy.base);
+  const tokenOut = getAddress(side === "buy" ? strategy.base : strategy.quote);
+  const balance = useReadContract({
+    address: tokenIn,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    chainId: demoChain.id,
+    query: { enabled: Boolean(address) },
+  });
+  const held = balance.data as bigint | undefined;
+
+  if (!address) return <p className="text-xs text-muted-foreground">Connect a wallet to run this trade for real.</p>;
+  if (chainId !== demoChain.id) return <p className="text-xs text-blocked">Switch your wallet to {demoChain.name} to run this trade.</p>;
+  const short = held !== undefined && held < amountIn;
+
+  async function run() {
+    if (!client) return;
+    const approved = await approve.run({ send: buildApproveRouterCall(deployment, tokenIn, amountIn), context: { base: receiveToken, quote: payToken } });
+    if (!approved.ok) return;
+    const order = await client.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "activeOrder", args: [strategy.strategyId as Hash] });
+    const block = await client.getBlock();
+    const call = buildSwapCall(deployment, {
+      order, tokenIn, tokenOut: tokenOut as Address, amount: amountIn, isExactIn: true,
+      threshold: (quotedOut * 99n) / 100n, deadline: block.timestamp + 600n,
+    });
+    const swapped = await swap.run({ send: call });
+    if (swapped.ok) {
+      void balance.refetch();
+      onDone();
+    }
+  }
+
+  return (
+    <div className="space-y-2 border-t pt-2">
+      {short && (
+        <p className="text-xs text-blocked">
+          This wallet holds {formatUnits(held!, payToken.decimals, 2)} {payToken.symbol}; the trade needs {formatUnits(amountIn, payToken.decimals, 2)}.
+        </p>
+      )}
+      <Button className="w-full" disabled={short || approve.busy || swap.busy} onClick={() => void run()}>
+        {approve.busy ? "Approving…" : swap.busy ? "Trading…" : `Run this trade with my wallet (${side === "buy" ? "buy" : "sell"})`}
+      </Button>
+      <TxStatus state={approve.state} />
+      <TxStatus state={swap.state} />
+      <p className="text-[11px] text-muted-foreground">
+        Two transactions: approve the router for exactly this amount, then swap through the canonical 1inch SwapVM router
+        with at most 1% slippage. The fill appears in the activity feed and the liquidity report.
+      </p>
+    </div>
+  );
+}
+
