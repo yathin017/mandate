@@ -1,6 +1,7 @@
 {
   "name": "@mandate/indexer",
   "version": "0.0.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "description": "Indexes Mandate events into Postgres, caches reads in Redis and serves the public API.",

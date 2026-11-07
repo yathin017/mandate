@@ -1,5 +1,6 @@
 {
   "name": "mandate",
+  "license": "MIT",
   "private": true,
   "description": "The market-maker deal as an onchain program (1inch Aqua + SwapVM + Uniswap v4).",
   "packageManager": "pnpm@10.30.3",

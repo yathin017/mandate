@@ -492,3 +492,7 @@ Scripts: `contracts/script/live/` (`DeployBase`, `LiveFills`, `OnboardPair`, `De
 (Safe Owner 2 `0x6a4fb4561051dD5B25619ab997152892008C7bF6`, Market Maker `0xbDafcA30260a4a5550cAD1F11928b26f1B063126`)
 are constants in `LiveConfig.sol`; no script replaces them.
 Run the Base stack with `pnpm base:worker`, `pnpm base:server` and `pnpm base:web`.
+
+## License
+
+[MIT](LICENSE). Contract sources carry `SPDX-License-Identifier: MIT`.
