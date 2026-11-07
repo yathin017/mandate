@@ -8,8 +8,9 @@
  *             signing the exact terms; the owners add it through the Safe and link the proposal.
  *   trade     Owner 2, as a taker, buys from the strategy through the SwapVM router (once the policy's market checks
  *             pass: the pool must be older than the policy's minimum age).
+ *   trades    Owner 2 trades both sides: buys, and sells the treasury buys back (see TRADES). Re-runnable.
  *   relax     Temporarily shortens the oracle checks (TWAP 5 min, short TWAP 2 min, pool age 5 min) for a quick test.
- *   restore   Puts them back (TWAP 30 min, short TWAP 5 min, pool age 1 h).
+ *   restore   Puts them back (TWAP 30 min, short TWAP 5 min, pool age 1 h). Both are re-runnable.
  *   status    Prints what exists so far.
  *
  *   node --env-file=../../.env scripts/base-demo.ts <phase>        (from apps/web; the Base API must run on 8788)
@@ -267,6 +268,49 @@ async function trade() {
   state.trade = await send("trade", owner2.address, swap.to, swap.data);
 }
 
+/** First step name of this phase not yet completed: `name`, then `name#2`, `name#3`, … so a phase can run again. */
+function round(name: string, done: (step: string) => boolean): string {
+  if (!done(name)) return name;
+  let n = 2;
+  while (done(`${name}#${n}`)) n++;
+  return `${name}#${n}`;
+}
+
+/**
+ * Owner 2 trades both sides of the strategy: buys (dUSD → dORBIT, exact out) and sells that the treasury buys back
+ * (dORBIT → dUSD, exact in, within the policy's buyback budget). Buys stay within what the release schedule has
+ * unlocked, which grows through the day; each sell back lowers the net sold again.
+ */
+const TRADES: { side: "buy" | "sell"; amount: bigint }[] = [
+  { side: "buy", amount: 80n }, { side: "sell", amount: 200n }, { side: "buy", amount: 150n },
+  { side: "sell", amount: 150n }, { side: "buy", amount: 150n }, { side: "sell", amount: 100n },
+];
+
+async function trades() {
+  const { base: baseRef, quote: quoteRef } = tokenRefs();
+  const sdk = await createMandateClient(client, deployment);
+  const batch = round("trades", (name) => !!state.txs[`${name}:${TRADES.length - 1}:swap`]);
+  for (const [i, t] of TRADES.entries()) {
+    const step = `${batch}:${i}`;
+    if (state.txs[`${step}:swap`]) continue;
+    const policy = await sdk.readPolicy(state.policyId!);
+    if (policy.risk.mode === 2) throw new Error(`The treasury is paused (${policy.risk.reason}); try again once the market checks pass`);
+    const [tokenIn, tokenOut] = t.side === "buy" ? [quoteRef.address, baseRef.address] : [baseRef.address, quoteRef.address];
+    const request = { taker: owner2.address, tokenIn, tokenOut, amount: t.amount * 10n ** 18n, isExactIn: t.side === "sell" };
+    const quoted = await sdk.quote(state.strategyId!, request);
+    if (!quoted.ok) throw new Error(`${t.side} ${t.amount} dORBIT: ${quoted.error.message}`);
+    const approve = buildApproveRouterCall(deployment, tokenIn, t.side === "buy" ? (quoted.amountIn * 101n) / 100n : request.amount);
+    await send(`${step}:approve`, owner2.address, approve.to, approve.data);
+    const order = await client.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "activeOrder", args: [state.strategyId!] });
+    const block = await client.getBlock();
+    // Exact out: pay at most 1% over the quote; exact in: receive at least 99% of it.
+    const threshold = t.side === "buy" ? (quoted.amountIn * 101n) / 100n : (quoted.amountOut * 99n) / 100n;
+    const swap = buildSwapCall(deployment, { order, tokenIn, tokenOut, amount: request.amount, isExactIn: request.isExactIn, threshold, deadline: block.timestamp + 600n });
+    await send(`${step}:swap`, owner2.address, swap.to, swap.data);
+    console.log(`    ${t.side} ${t.amount} dORBIT for ${Number(t.side === "buy" ? quoted.amountIn : quoted.amountOut) / 1e6} dUSD`);
+  }
+}
+
 /**
  * Temporarily shortens the policy's oracle checks so a fresh pool can trade minutes after launch, then puts them back.
  * Only twapWindow, shortWindow and minPoolAge change; every other value is read from the live policy and kept as is.
@@ -277,7 +321,7 @@ async function retime(mode: keyof typeof ORACLE_TIMING) {
   if (!state.policyId || !state.safe) throw new Error("Run setup first");
   const policy = await client.readContract({ address: deployment.module, abi: mandateModuleAbi, functionName: "getPolicy", args: [state.policyId] });
   const config = { ...policy.config, oracle: { ...policy.config.oracle, ...ORACLE_TIMING[mode] } };
-  await viaSafe(`${mode}Policy`, state.safe, buildUpdatePolicyCall(deployment, state.policyId, config));
+  await viaSafe(round(`${mode}Policy`, (name) => !!state.txs[`${name}:exec`]), state.safe, buildUpdatePolicyCall(deployment, state.policyId, config));
 }
 const relax = () => retime("relax");
 const restore = () => retime("restore");
@@ -293,7 +337,7 @@ async function status() {
 
 state = JSON.parse(await readFile(STATE, "utf8").catch(() => '{"txs":{}}'));
 const phase = process.argv[2];
-const phases: Record<string, () => Promise<void>> = { setup, strategy, relax, trade, restore, status };
+const phases: Record<string, () => Promise<void>> = { setup, strategy, relax, trade, trades, restore, status };
 if (!phase || !phases[phase]) throw new Error(`Usage: base-demo.ts <${Object.keys(phases).join("|")}>`);
 console.log(`${phase} (Owner 1 ${owner1.address}, Owner 2 ${owner2.address}, MM ${mm.address})`);
 await phases[phase]();
