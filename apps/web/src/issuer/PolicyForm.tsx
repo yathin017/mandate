@@ -10,7 +10,7 @@ import { PolicySheet } from "@/components/TermSheet";
 import { deployment } from "@/wallet/config";
 import { SafeActionPanel } from "@/wallet/SafeActionPanel";
 
-import { buildPolicy, EMPTY_POLICY, type BuiltPolicy, type PolicyTerms } from "./policy";
+import { buildPolicy, demoPolicy, EMPTY_POLICY, type BuiltPolicy, type PolicyTerms } from "./policy";
 import type { TokenRef } from "./terms";
 
 type Unit = "base" | "quote" | "price" | "%" | "days" | "hours" | "minutes" | "date" | "yesno";
@@ -199,9 +199,16 @@ export function PolicyForm({
         </fieldset>
       ))}
       {"error" in built && <p className="text-sm text-blocked">{built.error}</p>}
-      <Button type="submit" disabled={!call}>
-        Review policy
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={!call}>
+          Review policy
+        </Button>
+        {!policyId && (
+          <Button type="button" variant="outline" onClick={() => setTerms(demoPolicy())}>
+            Fill demo values
+          </Button>
+        )}
+      </div>
     </form>
   );
 }
