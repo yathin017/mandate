@@ -1,0 +1,608 @@
+# NOTES
+
+Verified facts, decisions and spec conflicts. Every entry names its source. If this file and
+`.agents/README.md` disagree, this file reflects what the code/chain actually does.
+
+Last verified: Nov 6, 2026. Fork tests pin mainnet block 26,355,000. Updated through Segment 10 (live Base).
+
+---
+
+## 1. Canonical deployments (Ethereum mainnet)
+
+| Contract | Address | How verified |
+|---|---|---|
+| Aqua | `0x1111113CCf1426A8E30e2bfF5E005d929bF6a90a` | `aqua/deployments.md` (v1.0.1+); code present; router's `AQUA()` returns it |
+| AquaSwapVMRouter | `0x111111338c5091e8440b67B168Bae16a668ac0dE` | same file; `eip712Domain()` → name `"1inch SwapVM v1.0"`, version `"1.0.2"`; owner `0x5AFc…338D` |
+
+Same addresses on all 17 chains listed in `aqua/deployments.md` (deterministic deploys), which makes
+adding chains a config-only change (`config/chains/<chainId>.json`).
+
+Other routers seen on mainnet, **not used**:
+
+| Address | `eip712Domain` | Aqua it points to | Note |
+|---|---|---|---|
+| `0x8fdd04dbf6111437b44bbca99c28882434e0958f` | `AquaSwapVMRouter` / `1.0.0` | `0x4999…6d31` | Developer release quoted in the spec |
+| `0x3c4758979ec30ca45857cabc2462a70699ed790e` | `1inch SwapVM v1.0` / `1.0.1` | `0x4a05…A580` | swap-vm v1.0.2 tag's broadcast file |
+
+> **Conflict with spec §8:** the spec lists Aqua `0x4999…` and SwapVM `0x8fdd…`. Those are the old
+> developer release. We use the canonical `0x1111…` pair.
+
+## 2. Pinned source versions
+
+| Dep | Pin | Why |
+|---|---|---|
+| swap-vm | `v1.0.2` (`32c687c`) | Matches deployed router's EIP-712 version `1.0.2` |
+| aqua | `0.1.0` (`b51f3b6`) | What swap-vm v1.0.2 builds against; diff to v1.0.1 is formatting only |
+| solidity-utils | `6.9.7` | swap-vm v1.0.2 dependency |
+| openzeppelin-contracts | `v5.4.0` | swap-vm v1.0.2 dependency |
+| forge-std | `v1.11.0` | swap-vm v1.0.2 dependency |
+| uniswap-hooks (OZ) | `v1.2.1` (`acbd604`) | Latest stable; ships `BaseOracleHook` |
+| v4-core / v4-periphery | nested in uniswap-hooks (`d153b04` = v4.0.0 + 19 CI-only commits) | The revision OZ tests the hook against |
+| solc | `0.8.30`, via-IR, 700 runs | swap-vm v1.0.2 `foundry.toml` |
+
+**Do not use swap-vm `main`.** It moved to a library layout and reordered opcodes on Oct 22, 2026
+(commit `9abc6ca`). Its opcode numbers do not match the deployed router. Any SDK we use must target
+router `1.0.2` (check before using `@1inch/swap-vm-sdk`). `@1inch/swap-vm` is not on npm.
+
+## 3. SwapVM program format (router 1.0.2)
+
+- Instruction = `[uint8 opcode][uint8 argsLength][args]`. Args ≤ 255 bytes → **Extruction gets
+  ≤ 235 bytes** after its 20-byte target. Source: `swap-vm/src/libs/VM.sol` `runLoop`.
+- Opcode = index in the router's opcode table (`src/opcodes/AquaOpcodes.sol`), after dropping the
+  leading placeholder. Verified by `test/unit/AquaProgram.t.sol`.
+
+| # | Instruction | # | Instruction |
+|---|---|---|---|
+| 10 | jump | 20 | salt |
+| 11 | jumpIfTokenIn | 21 | flatFeeAmountInXD |
+| 12 | jumpIfTokenOut | 27 | protocolFeeAmountInXD |
+| 13 | deadline | 28 | aquaProtocolFeeAmountInXD |
+| 14 | onlyTakerTokenBalanceNonZero | 29 | dynamicProtocolFeeAmountInXD |
+| 15 | onlyTakerTokenBalanceGte | 30 | aquaDynamicProtocolFeeAmountInXD |
+| 16 | onlyTakerTokenSupplyShareGte | 31 | peggedSwapGrowPriceRange2D |
+| 17 | **xycSwapXD** | 32 | **extruction** |
+| 18 | xycConcentrateGrowLiquidity2D | 33 | onlyTxOriginTokenBalanceNonZero |
+| 19 | decayXD | | |
+
+No LimitSwap, oracle adjusters or `InvalidateTokenOut` on this router (matches REPORT.md §4).
+
+## 4. Extruction interface (router 1.0.2)
+
+Source: `swap-vm/src/instructions/Extruction.sol`.
+
+```solidity
+function extruction(
+    bool isStaticContext, uint256 nextPC,
+    SwapQuery calldata query,        // orderHash, maker, taker, tokenIn, tokenOut, isExactIn
+    SwapRegisters calldata swap,     // balanceIn, balanceOut, amountIn, amountOut, amountNetPulled
+    bytes calldata args, bytes calldata takerData
+) external [view] returns (uint256 updatedNextPC, uint256 choppedLength, SwapRegisters memory updatedSwap);
+```
+
+- `IStaticExtruction` (view) is called on quote, `IExtruction` on swap. Same selector, so **one
+  function** serves both; write storage only when `isStaticContext == false` (the quote path uses
+  STATICCALL). Verified on the live router by `test/fork/AquaFill.fork.t.sol`.
+- Balances registers are pre-loaded from `Aqua.safeBalances` before the program runs.
+- Return `nextPC` unchanged and `choppedLength = 0` unless consuming taker args.
+
+## 5. Aqua mechanics
+
+Source: `aqua/src/Aqua.sol`, `swap-vm/src/SwapVM.sol`. Verified on fork.
+
+- `ship(app, strategy, tokens, amounts)`; `strategyHash = keccak256(strategy)`. For SwapVM,
+  `strategy = abi.encode(order)` so **strategyHash == router.hash(order) == SwapQuery.orderHash**.
+- Shipping an existing hash reverts (`StrategiesMustBeImmutable`); `dock` must list all tokens.
+- Maker only approves Aqua. On fill Aqua `pull`s `tokenOut` from the maker wallet straight to the taker.
+- Taker pays `tokenIn` by calling `Aqua.push(maker, router, orderHash, tokenIn, amount)` inside
+  `preTransferInCallback` (see `src/mocks/AquaTaker.sol`), or via the `useTransferFromAndAquaPush` trait.
+
+## 6. Taker gating
+
+> **Conflict with spec §5 / REPORT §4:** router 1.0.2 does not gate takers itself. Gating is the
+> opt-in opcode 33 `onlyTxOriginTokenBalanceNonZero` placed in a strategy's program. Whether 1inch
+> requires dApps to include it is policy, not code.
+
+**Decision (Segment 2):** the fork demo omits opcode 33; the pitch mentions gating as a live-launch feature.
+
+## 7. MandateQuoter design (decided in Segment 2)
+
+Code: `contracts/src/quoter/MandateQuoter.sol`. Strategy program: `[Salt(nonce), Extruction(quoter, mandateId)]`.
+
+1. **Identity, not just router gating.** `msg.sender == router` alone lets anyone ship their own strategy
+   pointing at our quoter and burn a mandate's cap through the real router. The quoter also requires
+   `query.maker == mandate.safe` and `query.orderHash == mandate.activeStrategyHash` (set by the module
+   on every reship), plus the exact base/quote pair. Tested in unit, integration and griefing tests.
+2. **State keyed by `mandateId`**, since `orderHash` changes on every reship.
+3. **Args = 32-byte `mandateId` only** (fits the 235-byte limit); terms are read from the registry.
+4. **Pricing and spread inside the quoter** (not opcode 21): constant product over Aqua balances with the
+   spread taken from the gross input. One place for pricing and fee accounting.
+5. **Fees accrue per token, in tokenIn:** quote on sells, base on buybacks. Converting to one unit
+   would need a price assumption. Payout accounting (`mmFeeShareBps`, paid amounts) belongs to the module.
+6. **Prices are `quoteRaw * 1e36 / baseRaw`.** Decimal-agnostic and precise for sub-cent tokens.
+   UI converts with token decimals.
+7. **Anchor check uses the execution price, both directions** (spec says "Aqua price"). That bounds both
+   a drifted pool and large price impact. `anchorStatus()` reports the Aqua *spot* price for the UI.
+   Consequence: a single fill's impact plus spread must stay inside `maxAnchorDeviationBps`, so the
+   module should require `spreadBpsMax < maxAnchorDeviationBps`.
+8. **Floor, epoch cap and release apply to sells only.** Buybacks subtract from both counters, floored at 0.
+9. **Epochs count from `releaseStart`.** Effective cap = `min(params.epochCap, bounds.maxEpochCap)` as
+   defence in depth.
+10. **Quote reverts exactly like swap**, so takers and the UI see the blocking rule before sending a tx.
+11. **Errors carry more context than the spec** for plain-language UI copy, e.g.
+    `EpochCapReached(used, requested, cap)`, `ReleaseExceeded(totalNetSold, requested, released)`,
+    `AnchorDeviation(price, twap, deviationBps, maxBps)`.
+
+### Module integration requirements (implemented in Segment 4)
+
+- **Every (re)ship needs a fresh salt.** Aqua never re-ships a docked hash (`StrategiesMustBeImmutable`).
+- The module must implement `IMandateRegistry.getMandate` and update `activeStrategyHash` atomically with
+  dock + ship.
+- Validate on create/update: `epochLength > 0`, `spreadBpsMin <= spreadBpsMax < maxAnchorDeviationBps`,
+  `spreadBpsMax < 10_000`, `anchor != 0`, `quoter` = the deployed MandateQuoter.
+
+## 8. Uniswap v4 anchor (Segment 3)
+
+Code: `src/hook/MandateOracleHook.sol`, `src/anchor/UniswapV4TwapAnchor.sol`.
+
+- **Canonical PoolManager** `0x000000000004444c5dc75cB358380D2e3dE08A90` (mainnet). `PoolManager.sol` is pinned to
+  solc `0.8.26`, so it cannot compile in our 0.8.30 project; v4 integration tests run on the fork only.
+  The adapter's maths has offline unit tests with a mock observer.
+- **Hook** = OZ `BaseOracleHook` (Panoptic-derived oracle). Flags: `afterInitialize | beforeSwap`; must live at an
+  address with exactly those low bits (tests use `deployCodeTo`; deploy scripts will mine a CREATE2 salt with
+  v4-periphery `HookMiner`). One hook serves many pools.
+- **Plain (untruncated) TWAP.** The hook also keeps a truncated series that caps per-block tick moves. We use the
+  plain geometric-mean TWAP (Uniswap v3 style): with a 30-min window, manipulation must hold a price for many
+  blocks, and the truncated series lags real crashes, which would keep a stale treasury price "in band" for longer.
+  The hook is deployed with `maxAbsTickDelta = MAX_TICK` so the truncated series does nothing.
+- **Observation buffer must cover the window.** A new pool stores 1 observation. One swap then wipes the history,
+  and `observe(window)` reverts until a full window passes, which halts trading (fail-safe, but anyone can trigger
+  it). Writes happen at most once per block, so the buffer needs ≥ window / block time entries: 30 min / 12 s = 150.
+  **Use 300.** Growth takes effect at the next swap. Tested by `test_insufficientHistory_haltsTrading`.
+- **Price units:** adapter converts `TickMath.getSqrtPriceAtTick(meanTick)` to `quoteRaw * 1e36 / baseRaw`, inverting
+  when base is `currency1`. Below 1e-36 the value rounds to 0, so `consult` **reverts** (`PriceOutOfRange`) rather
+  than return 0.
+- **Any failure blocks trading.** Unknown pair, zero window, missing history and out-of-range price all revert, and
+  the quoter propagates the revert.
+
+### Live-price circuit breaker
+
+- The adapter also reads the pool's live tick through `StateLibrary.getSlot0`. If the resulting spot price is
+  more than its immutable `MAX_SPOT_DEVIATION_BPS` from the TWAP, `consult` reverts with `SpotTwapDivergence`.
+  The demo limit is 200 bps (2%). `snapshot(window)` reports spot, TWAP and deviation even when that breaker trips.
+- **Act 2 now has two distinct protections:** a same-block pump to 0.60 leaves the TWAP near 0.40 but trips
+  `SpotTwapDivergence`; after arbitrage restores spot, fills resume. A sustained crash to 0.30 eventually brings
+  spot and TWAP together, so the breaker clears, but the quoter's `AnchorDeviation` still refuses fills at the
+  stale treasury price. Recovery restores fills in both cases.
+- Sources: `contracts/src/anchor/UniswapV4TwapAnchor.sol`, `test/unit/UniswapV4TwapAnchor.t.sol`, and
+  `test/fork/V4Anchor.fork.t.sol` (`test_flashPump_tripsCircuitBreaker_thenRecovers` and
+  `test_sustainedCrash_blocksStaleExit_thenRecovers`). The replay must map each actual error accurately.
+
+## 9. Safe module (Segment 4)
+
+Code: `contracts/src/module/MandateModule.sol`, `src/libraries/MandateStrategy.sol`.
+
+- **One module for every Safe.** It deploys its own quoter in its constructor; the registry link and quoter target
+  cannot be independently misconfigured. Mandate ids include chain id, module address, Safe and a per-Safe counter.
+- **Issuer actions come from the Safe itself.** Owners authorize creation, bounds updates, unpause and revoke
+  through Safe transactions. The MM may reship inside the rails, pause and claim fees; it is never a Safe module.
+- **Quote inventory has an explicit rail:** `maxShippedQuote` caps the MM's requested virtual buyback inventory.
+  `shippedBase` is capped at `allotment - totalNetSold`; reshipping never resets sell counters or accrued fees.
+- **Direct claims, fixed share.** The MM claims its fraction of each token's cumulative fees, less prior claims.
+  The fee share is fixed at creation and earned fees remain claimable after revoke. Claims still require the module
+  to be enabled and the Safe to hold the owed tokens; there is no fee escrow or guaranteed solvency.
+- **Revoke changes status before attempting to dock.** A disabled module cannot dock through Safe, but the Safe's
+  signed transaction can still revoke in the registry. The quoter then rejects the still-shipped strategy.
+- **Bounds updates clamp live spread and epoch cap.** Shipped-inventory rails are rechecked on the next reship;
+  updating those rails alone does not dock or change existing Aqua virtual balances.
+- **Canonical Safe:** singleton `0x29fcB43b46531BcA003ddC8FCB67FFE91900C762`, factory
+  `0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67`. Verified against Safe's
+  [SafeL2 deployment manifest](https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.4.1/safe_l2.json)
+  and [factory manifest](https://github.com/safe-global/safe-deployments/blob/main/src/assets/v1.4.1/safe_proxy_factory.json).
+- Fork/test ABI and EIP-712 signing helper are in `script/lib/SafeTransactions.sol`, verified against
+  [Safe v1.4.1](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/Safe.sol),
+  [ModuleManager](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/base/ModuleManager.sol), and
+  [SafeProxyFactory](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/proxies/SafeProxyFactory.sol).
+  Proxy setup is atomic with creation; owner signatures are sorted by address and sign the Safe's current nonce.
+- Coverage: `test/integration/MandateModule.integration.t.sol` covers the permission matrix offline with a mock Safe.
+  `test/fork/MandateModule.fork.t.sol` exercises a real 2-of-2 Safe against canonical Aqua, SwapVM and v4, including
+  both fee tokens, reship accounting, signer threshold and replay rejection, cross-Safe isolation, revoke after
+  disabling the module, and a blocked fill during a live price pump. Mock token supply and time-warped oracle
+  history are **SYNTHETIC**.
+- Verification on Nov 6: `MAINNET_RPC_URL=https://eth.drpc.org forge test` from `contracts/` passed **104 tests**,
+  with **0 failures and 0 skips**, including all 11 Safe-module fork tests. The offline suite passes 81 tests.
+
+## 10. Deployment and replay (Segment 5)
+
+- `DeployFork.s.sol` broadcasts normal contract creations to chain 31337. The hook uses a salt mined with the
+  pinned v4-periphery `HookMiner` and the standard CREATE2 deployer proxy `0x4e59b44847b379578588920cA78FbF26c0B4956C`.
+  The broadcast verifies its predicted address; no code injection is used. `SeedV4Pool.s.sol` seeds separate
+  anchor and traditional-loan pools on the canonical PoolManager.
+- Four canonical Safe proxies require two signatures each. Three hold independent mandate inventories for
+  Acts 1–3; the fourth transfers a traditional 10M token loan to its MM through a signed Safe transaction.
+  All scripts use Anvil's public development mnemonic and reject runtime chains other than 31337.
+- **Manifest semantics:** `deployments/1.json` is a generated demo manifest for a fork **of** chain 1. It explicitly
+  records `environment: local-mainnet-fork`, `chainId: 31337`, `sourceChainId: 1`, the pinned block and its hash.
+  These are not deployed mainnet addresses or Etherscan transaction hashes.
+- The zero-dependency Node 24 runner `replay/export.ts` owns its Anvil process, refuses an occupied loopback port,
+  invokes the scripts, advances synthetic history and exports confirmed receipts and block-specific snapshots.
+  General ABIs/client wrappers remain Segment 6 work.
+- **Verified time-control detail:** Anvil's fixed block timestamp interval overrides `evm_increaseTime` in this
+  workflow. The runner temporarily changes `anvil_setBlockTimestampInterval`, mines a block and checks the actual
+  timestamp delta. It warms an hour of history initially and a full 1801 seconds after the crash/recovery phases.
+  Source: the executed local RPC workflow and [Anvil's timestamp API](https://foundry-rs.github.io/foundry/anvil/eth/api/struct.EthApi.html).
+- **Synthetic scenarios:** Act 1 uses a 50,000-LAUNCH cap so price impact stays in the 3% anchor band. Five 10,000
+  fills succeed and the sixth is capped. Act 2 uses 150 equal 894,000-token intents totaling 134.1M LAUNCH, a
+  separate 134.1M allocation and 1.341M epoch cap. One fills; the next full intent exceeds the remaining 447,000.
+  This is not verified FUN transaction data, historical timing/routing or a reproduction of 111.5 ETH proceeds.
+  Quote amounts are in synthetic 6-decimal sUSDC. The export uses explicit SYNTHETIC labels throughout.
+- **Blocked-attempt evidence:** `ScenarioActor` catches an actual inner-call revert, verifies its selector and
+  emits the complete bytes. Its outer transaction succeeds. Exported `outerReceiptStatus` and the top-level
+  disclosure make this distinction explicit. Unexpected outcomes stop the scenario rather than create a row.
+- Each replay snapshot is read from `DemoState.snapshot` at its attempt's receipt block, with block hash and
+  function provenance. Raw receipts retain `Attempted`, `Filled`, Safe and ERC20 `Transfer` logs. Release, sell
+  caps, custody, parameter changes and claims remain auditable after the runner stops its node.
+- The end-to-end run produces **178 steps, including 156 blocked inner calls**. The complete Solidity suite
+  passes **111 tests, 0 failures, 0 skips**. New unit tests ensure mismatched outcomes cannot be recorded as a
+  success or expected block. **All 7 Node replay tests pass** and reconcile receipts, transfer amounts, Safe
+  balances and sell counters. Two consecutive fresh-node runs produced byte-identical `acts.json`,
+  `receipts.json` and `deployments/1.json`.
+- `replay/README.md` documents commands, the draft export format and demo limitations. Segment 6 is next; no
+  indexer schema, Redis implementation or web application is included in this segment.
+
+## 11. Chain registry and SDK (Segment 6)
+
+- `packages/chains` generates browser-compatible ESM data from the existing chain/deployment JSON. It validates
+  ids, non-zero addresses, hashes, RPC env names, explorer URLs and fork disclosures. Lookup uses **runtime**
+  chain ids: `getDeployment(31337)` returns the demo; `getDeployment(1)` rejects because no Mandate deployment
+  is registered on mainnet. `getTransactionUrl(31337, hash)` returns no Etherscan link. Source-chain config
+  remains separate from deployment context.
+- `packages/sdk` uses exactly pinned **viem 2.57.16**, **TypeScript 5.9.3** and **Node 24 types 24.19.2**, with a
+  committed pnpm lockfile. Both packages emit ESM and declarations under strict TypeScript settings; tests also
+  typecheck against their published package entry points. Runtime source contains no Node-only APIs.
+- `scripts/generate.ts` copies ABIs from freshly compiled Foundry artifacts, preserving tuple names, events and
+  inherited errors. Exported constants cover the module, quoter, hook/anchor, Aqua, SwapVM/router, Safe, ERC20
+  metadata/errors and demo evidence contracts. `pnpm generate:check` fails on stale generated files.
+- **Quote ABI detail:** the router implementation's `quote` is not declared view, while its pinned `ISwapVM`
+  interface exposes the same selector as view. The SDK uses that generated interface for read-only `eth_call`;
+  the live integration confirms correct amounts and order hashes. No manually edited ABI mutability is used.
+- `GenerateSdkFixtures.s.sol` derives taker-data and Aqua order-hash vectors from the pinned Solidity
+  `TakerTraitsLib.build` and `MandateStrategy`. The SDK passes exact-byte comparisons for quote modes,
+  threshold/deadline modes, zero threshold and uint256/uint40 maxima. Its EOA settlement uses transferFrom to
+  the router, then Aqua.push; the taker approves the **router**, while the Safe's approval goes to **Aqua**.
+- Read helpers verify RPC chain identity, deployed module code and the module's immutable venue/quoter links.
+  Each snapshot reads one confirmed block and rechecks its hash afterward; a reorg rejects the read. The
+  adapter's health reports its spot/TWAP band separately from full quote eligibility. Missing history remains
+  unavailable. There is no cache or implicit fallback price.
+- Prepared calls cover create, bounds, reship, pause/unpause, revoke, direct claims, router approvals and swaps.
+  Issuer calls are payloads for signed Safe transactions. Builders carry role metadata and never sign or submit.
+  Submit-ready swap data requires a positive threshold and expiry. Monetary amounts remain bigint, and price
+  parsing rejects unrepresentable precision instead of rounding silently.
+- **Error coverage:** all **49 distinct custom error names** present in our production ABIs have explicit copy,
+  enforced by TypeScript and tests. The mapper also handles Safe codes, nested SafeCallFailed causes, common
+  ERC20/Aqua/router errors, panics and malformed/unknown provider data. It follows known provider cause/data
+  fields with depth/cycle limits and does not mistake transaction calldata for revert bytes.
+- **Verified revoke ordering:** a successfully docked strategy can fail in Aqua with
+  `SafeBalancesForTokenNotInActiveStrategy` before reaching `MandateRevoked`. The live SDK test asserts that
+  actual error and its docked-strategy explanation. When docking fails, the quoter's revoked check still applies,
+  as covered by the existing Safe fork suite. Source: pinned `IAqua`, `Aqua` and the executed integration tests.
+- The replay now imports this shared error mapper. Its refreshed JSON changes explanation text while retaining
+  actual outcomes and receipt evidence. The live run still verifies **178 steps / 156 blocked inner calls**.
+- Verification: **111 Solidity tests, 19 package tests, 4 live SDK tests and 7 replay tests pass**, with no skips
+  in those runs. Package declarations, consumer tests and generated-file freshness checks pass. The SDK live
+  command owns and shuts down a fresh local Anvil; it performs read-only permission simulations.
+- viem behavior was checked against installed source and its primary documentation for
+  [readContract](https://github.com/wevm/viem/blob/main/site/pages/docs/contract/readContract.md),
+  [decodeErrorResult](https://github.com/wevm/viem/blob/main/site/pages/docs/contract/decodeErrorResult.md), and
+  [simulateContract](https://github.com/wevm/viem/blob/main/site/pages/docs/contract/simulateContract.md).
+- Package READMEs document the APIs and commands. Segment 7 remains gated: indexer framework, ORM, blocked-
+  attempt ingestion and the draft database schema require the user's choices/review before implementation.
+
+## 12. Indexer and API (Segment 7)
+
+Code: `apps/indexer`. Decisions (user): Hono, Drizzle + postgres.js, events + server re-simulation, docker compose.
+
+- **Schema is a draft** (`src/db/schema.ts`, migration `0000_draft_initial`). All tables keyed by `chain_id`;
+  uint256 as `numeric(78,0)`; hex text with format checks. Every evidence row cascades from `blocks`.
+- **Blocked attempts.** Reverted swaps emit nothing. Two labeled sources: `onchain_actor` (demo ScenarioActor
+  `Attempted`, receipt-backed) and `simulated` (server `eth_call` at the indexed head; the client supplies
+  parameters only). Allowed actor attempts are omitted from the feed because their `Filled` row covers them.
+- **Reorg findings (fixed, tested):** (1) the cursor's canonicality must be checked before comparing with the head,
+  because a replacement chain can be shorter; (2) viem caches `getBlockNumber` for 4s by default, so the client is
+  created with `cacheTime: 0`; (3) on the demo node, empty replacement blocks are byte-identical (fixed timestamp
+  interval, see §10), so the reorg test includes a transaction to make the fork real.
+- **Cache.** Response keys embed the head hash, so a new head is the invalidation. Simulations bump a per-mandate
+  version in feed keys. Dedupe of simulations moved from a Redis memo to the table's unique key after a test
+  showed the memo could outlive a database reset and skip the insert.
+- **Live updates.** One shared Redis subscriber fans out to all SSE clients; streams are capped per process.
+- **Node 24 type stripping** forbids parameter properties; `erasableSyntaxOnly` is on so tsc rejects them.
+- `pnpm replay:serve` keeps the verified demo fork alive for the worker. Exports stay byte-identical, so the
+  committed manifest matches the live node.
+- Verification: **27 indexer tests pass** (indexer reconciliation with `acts.json`, forced reorg, API, cache,
+  simulations, SSE). End-to-end: worker indexed 216 events; API, simulation and SSE checked with real processes.
+- Not yet done: a trusted-proxy setting for rate limiting behind a load balancer; a separate read-only DB role for
+  the API process; image digests in `compose.yaml` (currently major-version tags).
+
+## 13. Web app (Segment 8)
+
+Code: `apps/web`. Decisions (user): Vite + React, shadcn/ui with the tweakcn theme, indexer API as the only data source.
+
+- **No wallet or RPC in the browser.** Wallet actions (reship, claim, revoke) are out of scope; "try a trade" uses the
+  server-simulated attempts endpoint. MM Desk and Issuer Console are not built yet; Act 3 of the replay shows the
+  MM's powers and limits.
+- **Indexer additions for the UI:** `tokens` table (migration `0001_token_metadata`) so amounts can be formatted;
+  `GET /v1/replay` served the committed `acts.json` (removed with the Replay page in §17).
+- **Theme:** the tweakcn theme ("claude blu 2") has a near-black `destructive`, so the spec's vermilion stamp and the
+  filled/warning colours are separate semantic tokens for both modes.
+- **shadcn's `cn`** now comes from the `cn` npm package; verified published by shadcn (`shadcn-ui/cn`) before use.
+  shadcn's caret ranges were pinned exactly; the preset's Geist font was removed because the theme uses Inter.
+- **Feed UX:** consecutive refusals with the same reason collapse into one expandable run (Act 2 has 150).
+- **Verification:** typecheck and production build pass; every page rendered against the live indexer in headless
+  Chrome (driven over the DevTools protocol, since `--screenshot` fires before async data and the SSE stream keeps
+  virtual time from settling), in light and dark mode, with no horizontal overflow at 375px.
+
+## 14. Wallet flows: Issuer console and MM desk (Segment 9)
+
+Decisions (user): wagmi + injected wallets; onchain `approveHash` for Safe owners; chain reads allowed only inside
+wallet flows; demo MM created through the Issuer console (existing demo MMs are ScenarioActor contracts).
+
+- **Safe approvals.** `approveHash`/`approvedHashes` were verified in the canonical Safe v1.4.1 L2 singleton bytecode,
+  added to `ISafeAccount` and regenerated into the SDK. Execution uses `r = owner, s = 0, v = 1` signatures sorted by
+  owner; the executor's own entry counts without a prior approval. No signatures are stored off-chain.
+- **Pre-checks.** Every write is simulated first. Issuer actions simulate the module call *from the Safe*, so
+  module refusals (e.g. `InvalidBounds`) appear before any owner approves. The MM desk's "exceed the cap" probe is
+  `simulateOnly` and can never send.
+- **Trust boundary.** Transaction targets come from `@mandate/chains`; API data (mandate ids, params) only fills
+  arguments that the contracts validate.
+- **Findings (fixed):** (1) the create payload used the latest block's time, so owner 1's `approveHash` tx changed
+  owner 2's calldata and hash; release start is now day-rounded (later replaced by an absolute UTC date, §16). (2) Views refreshed before the indexer had the new
+  block; `useTx` now waits for the indexer head. (3) An executed Safe action re-armed itself at the next nonce; the
+  panel now locks.
+- **Verification.** `apps/web/test/safe-flow.test.ts` (3 tests) runs approve → execute → new mandate → MM reship in
+  and out of bounds on the live fork and restores it. The full UI path was driven in headless Chrome with a test-only
+  EIP-1193 shim forwarding to Anvil's unlocked accounts: owner 1 approved, owner 2 executed, the MM's probe was
+  stamped, the slider stayed within rails and the re-ship confirmed. Reverting the fork afterwards was handled by
+  the worker as a reorg (3 blocks rolled back).
+- Bundle: wagmi + viem raise the shared chunk to ~540 KB (175 KB gzip); route pages are split.
+
+## 15. Live deployment on Base mainnet (Segment 10)
+
+Decisions (user): Base mainnet; clearly-test mock tokens (mLAUNCH / mUSD, never named USDC); generated throwaway keys
+for Safe owner 2 and the MM (gitignored .env only); contracts first, then app wiring.
+
+- **Venue check.** On Base, Aqua and the router sit at the same deterministic addresses with identical code size,
+  router EIP-712 version `1.0.2`, `AQUA()` = canonical Aqua. v4 PoolManager `0x4985…2b2b`, StateView `0xA3c0…7A71`,
+  Safe 1.4.1 singleton/factory and the CREATE2 deployer exist. Recorded in `config/chains/8453.json`.
+- **Deploy** (`DeployBase`): dry run 26 txs / 25.6M gas; broadcast all successful in blocks 53927314–53927441,
+  actual cost ≈0.00011 ETH L2 + 0.0000004 ETH L1, plus 0.0004 ETH gas top-ups. Module enablement and mandate
+  creation are real 2-of-2 Safe transactions. The manifest is written only when broadcasting.
+- **Base block time.** Blocks arrive several per second, so block counts are not time: the 30-minute TWAP window
+  needed ~30 minutes of wall-clock time (the anchor reverted `TargetPredatesOldestObservation` until then).
+- **Fills** (`LiveFills`): 3 buys of 1,000 mUSD, 1 buyback of 500 mLAUNCH, MM reship 0.8%→0.3%, MM claim of
+  12 mUSD + 2 mLAUNCH (50% of the 0.8% spread). Balances reconcile exactly. The first dry run was refused with
+  `ParamsOutOfBounds(shippedBase)`: reshipping must not exceed the unsold allotment; the script now ships
+  `allotment − totalNetSold`.
+- **Takers on a public chain.** `AquaTaker` has no owner check, so on Base the deployer trades as an EOA through the
+  router (transferFrom + Aqua push) and no taker contract holds tokens anyone could spend.
+- **Public RPCs.** `public.1rpc.io/base` answered reads but returned 410 "discontinued" for gas price;
+  `mainnet.base.org` and `base.drpc.org` rate-limit the indexer's bursts (429 / "public endpoint rate limit"), and
+  drpc's free plan rejects some log queries. The worker now backs off and has configurable snapshot concurrency, but
+  an always-on indexer needs a keyed RPC (`BASE_INDEXER_RPC_URL`). Pending from the user.
+- **Key hygiene.** The deployer key was shared in chat: treat it as exposed; keep only gas on it. No key appears in
+  committed broadcast records or manifests (scanned).
+
+### Testing wallets and role rotation
+
+- `RotateRoles` (Base blocks 53948106–53948116) revoked mandate `0xe416…a6`, created `0xb699…bde8` with Market Maker
+  `0xbDafcA30260a4a5550cAD1F11928b26f1B063126`, and swapped Safe Owner 2 to `0x6a4fb4561051dD5B25619ab997152892008C7bF6`.
+  Safe Owner 1 stays `0x54f75F0E0da2b43b3a6AC0a0e5c4f5Df6B73308e`. A mandate's market maker cannot be changed in place
+  (it is part of the deal), hence revoke + create. `swapOwner` was verified in the Base Safe singleton first.
+- The generated owner-2 and MM keys are retired (kept in .env only because the old MM still holds its earned fees).
+  Future Safe actions need Safe Owner 2's wallet, i.e. go through the Issuer console's approveHash flow.
+- These two roles are now fixed (2026-11-07, at the user's request): Safe Owner 2 `0x6a4fb4561051dD5B25619ab997152892008C7bF6`
+  and Market Maker `0xbDafcA30260a4a5550cAD1F11928b26f1B063126` are constants in `LiveConfig.sol`, used by
+  `DeployBase` and checked by `OnboardPair`. `RotateRoles` was removed so no script can replace them.
+- **TWAP pool:** PoolId `0x5c3b2465…eea83c` on PoolManager `0x4985…2b2b` (fee 3000, spacing 60, hook `0x30Ff…1080`,
+  liquidity 6e17 full range, cardinality 300). Matches `UniswapV4TwapAnchor.POOL_ID()`.
+- **Indexer RPC:** `mainnet.base.org` refuses every `eth_getLogs` (-32011); the Tenderly public gateway serves logs up
+  to ~1000-block ranges (2000 hangs). `.env` uses it with 15 s polling, concurrency 1, 500-block ranges.
+
+## 16. Self-serve onboarding (Segment 11)
+
+Decisions (user): launcher creates pool + anchor only (no liquidity custody); in-app Safe creation; canonical
+quote list (Base USDC/WETH) + custom with impersonation warnings; demo-only mock-token helper.
+
+- **AnchorLauncher** (`src/anchor/AnchorLauncher.sol`, Base `0x5551b2f6a48f86328981EEFD78138dec340C29fB`, block 53953674):
+  permissionless, immutable, bound to one PoolManager and a hook whose `poolManager()` matches. Per (base, quote):
+  initialize the pool (fee 3000, spacing 60, our hook) only if absent, grow cardinality to 300, CREATE2-deploy the
+  anchor (salt = keccak(base, quote)). Idempotent; reverse orientation shares the pool.
+- **Cost:** a launch is ~7.5M gas, almost all of it the 300 observation slots (~22k gas each); ~0.00008 ETH on Base.
+- **Pool squatting:** anyone may initialize the pool first at any price; the launcher keeps it (`poolCreated=false`).
+  The UI must show the pool's current price and liquidity before an issuer relies on it.
+- **Token check:** `code.length > 0` is not enough. A fork test hit an address with code that is not a token
+  (EIP-7702 delegation). Tokens must answer `totalSupply()` with one word.
+- **History:** the init observation counts, so the anchor prices 30 minutes after launch even with no swaps.
+- **Wizard** (`/launch`, formerly `/onboard`; `apps/web/src/onboarding/`): Safe → tokens → module → anchor → mandate, each step's
+  completion read from the chain (no indexer needed). Choices live in the URL.
+- **Terms module** (`apps/web/src/issuer/terms.ts`, pure, unit-tested): one conversion from typed terms to
+  `createMandate` arguments for the wizard, the Issuer Console and the CLI, so all owners build identical calldata.
+  Release start is an absolute UTC date: the earlier "days ago, day-rounded" input changed the Safe tx hash when
+  owners approved on different days.
+- **Shared terms:** reviewed terms go into the URL (`terms=`, JSON of known string fields only, ≤4 KB). A link can
+  come from anyone, so the review step reads back every signed value (MM, pair, anchor, amounts, dates).
+- **Starting price (finding):** fills are constant-product over the shipped balances, so `shippedQuote/shippedBase`
+  is where trading starts. A first wizard run shipped 1,000,000 base against 10,000 quote (0.01 vs a 0.40 pool):
+  every fill would fail `AnchorDeviation` and every sell `BelowFloor`. The form now refuses a ratio below the floor
+  or outside the anchor tolerance of the pool price and suggests matching amounts.
+- **Depth vs fill size:** with 25,000 base shipped, a 1,000-base buy moves the curve ~4%; with the 0.8% spread it
+  leaves the 3% band and is refused. 100 base fills. Shipped inventory bounds the largest fill the anchor allows.
+- **Balances:** shipping more than the Safe holds is refused (Aqua balances are virtual; fills would fail at
+  transfer). An allotment above the balance and an MM who is also a Safe owner are warnings only.
+- **Creation before readiness:** `createMandate` does not consult the anchor, so the mandate can be created during
+  the 30-minute window; quotes fail until it passes.
+- **Co-owner CLI** (`apps/web/scripts/approve-terms.ts`): rebuilds the call from a wizard link, prints all terms
+  and the Safe tx hash, `--broadcast` sends `approveHash`; `--nonce` pre-approves behind a pending Safe transaction.
+- **Live run (Base):** `OnboardPair.s.sol` (Owner 1: dNOVA/dUSD, 2-of-2 Safe `0xB88E…5456`, anchor `0xC4C9…8e7a`
+  with 6e17 full-range liquidity, approval of `enableModule` at nonce 0; 12 txs from block 53973676, ~0.00006 ETH),
+  then the CLI approved `createMandate` at nonce 1. Owner 2 executed both from the wizard in a browser wallet:
+  mandate `0xeb3a5ead…c2a648`. Rehearsed first on an Anvil fork of Base (Owner 2 impersonated) with the real UI.
+- **Public RPC staleness:** `mainnet.base.org` is load-balanced; two reads seconds apart returned Safe nonces 1 and
+  2. A wallet flow that reads a stale nonce shows the wrong approvals until it refreshes. Open item: point wallet
+  reads at a consistent RPC and say why **Execute** is disabled.
+
+## 17. Platform: issuers and market makers (Segment 12)
+
+Goal (user): one place on Base where anyone launches a token, onboards it, picks a market maker from a marketplace
+with scores, creates and manages mandates; market makers get their own flows and analytics. Replay page goes.
+
+Decisions (user, 2026-11-06):
+- **MM profiles:** off-chain (Postgres) behind wallet sign-in; performance is never self-reported.
+- **Deal flow:** issuer proposes terms, MM accepts by signing the exact terms (EIP-712, stored off-chain), then the
+  Safe owners approve `createMandate`. No contract change.
+- **Token launch:** our own minimal ERC-20 factory (fixed supply into the issuer Safe). Base's B20 standard is a
+  Rust precompile (`0xB20f…0000`): an `eth_call` probe reverted (`0x62975e6a`), Anvil forks cannot execute it, and it
+  targets shares/stablecoins. Third-party launchers (Zora, Clanker, Flaunch) put supply on their own curves, which
+  does not fit a Safe-held treasury.
+- **MM score:** onchain metrics only, each component shown with its source.
+
+Planned segments: auth → MM profiles + proposals → MM score → token factory → UI shell (role-based nav, remove
+Replay) → issuer flow → MM flow → E2E + docs.
+
+- **Auth (done):** SIWE in the API process (`apps/indexer/src/auth/`). Nonces in Redis (one use, 10 min); sessions
+  in Postgres (`accounts`, `auth_sessions`, draft) with only the token's SHA-256 stored; HttpOnly SameSite=Strict
+  cookie, `__Host-` prefixed when Secure; Origin allow-list (`API_AUTH_ORIGINS`) checked against the message's
+  domain/URI and on every state-changing auth request; signatures verified through the chain RPC (EOA, ERC-1271,
+  ERC-6492). Rate limited per client on nonce/verify only. Safari drops Secure cookies on `http://localhost`, so
+  local `.env` sets `API_SESSION_COOKIE_SECURE=false`. 7 tests in `apps/indexer/test/auth.test.ts`.
+- **Profiles + proposals (done):** tables `mm_profiles`, `proposals` (draft); routes in
+  `apps/indexer/src/marketplace/`. Authority comes from the chain: Safe ownership read from the Safe (cached 60s),
+  MM acceptance = EIP-712 `MandateTerms` (SDK `mandateTermsTypedData`, domain chain + module) verified via RPC,
+  `executed` only if the module's mandate matches the accepted bounds/pair/MM. Sending simulates `createMandate`
+  from the Safe. Added beyond the reviewed list: a `note` (issuer → MM, ≤1000 chars). `getMandate` of an unknown id
+  returns an empty record (status None) instead of reverting. 7 tests in `apps/indexer/test/marketplace.test.ts`.
+- **MM score (done):** weights availability 35 / price quality 20 / volume 20 / reliability 15 / responsiveness 10
+  (user). Probes (`mm_probes`, draft) every 10 min per live mandate and side; scores computed on read from indexed
+  rows (`src/score/`), cached per head. On the demo fork the scenario MM scores 71: availability 1.0, price quality
+  0.28 (demo fills sit near the band edge), reliability 0.003 (0.1 days of tenure). Volume is in quote-token units, so
+  it only compares like-quoted mandates. Found while testing: a suite that sets the Redis head and then reverts the
+  fork must delete the head key, or later suites read a head that no longer exists.
+- **Token launch (done):** `TokenFactory` + `LaunchedToken` (OZ ERC20 + permit,
+  18 dp, fixed supply to one recipient, no owner/mint/pause/fees). CREATE2 salt = keccak(creator, salt) so a
+  predicted address cannot be squatted. Names printable ASCII without edge spaces, symbols `[A-Za-z0-9]{1,11}`,
+  supply ≤ 1e15 tokens. Indexed into `launched_tokens` (draft) from the manifest's `tokenFactory` (or
+  `INDEXER_TOKEN_FACTORY` on a fork); restart the worker right after deploying so no launch is missed. Base:
+  `0x32feE1f159E80eE007B0d750d4eb47A513e40311`, block 53991747, runtime bytecode verified against the build.
+- **UI shell (done):** nav Explore / Market makers / Launch / Issuer / Desk; Replay page and `GET /v1/replay` removed
+  (user); header sign-in (SIWE, session only counts for the connected wallet, disconnect signs out); Explore (mandates +
+  launched tokens), marketplace list ranked by score, market-maker page with score evidence; new landing. `/mandates`
+  and `/onboard` redirect. Still to come: the wizard's market-maker picker and proposal flow (step 6), profile editor
+  and proposal inbox on the desk (step 7). "Propose a mandate" links to `/launch?mm=…`.
+- **Issuer flow (done):** wizard step 5 defaults to proposing (marketplace picker ranked by score, or any address;
+  note + expiry), "Create directly" kept for off-platform deals. `ProposalList` drives send/withdraw/execute and links
+  the mandate; before showing the execute panel it tries to link an existing match, so a failed link cannot lead to a
+  duplicate `createMandate`. Issuer page rebuilt on `GET /v1/chains/:id/safes/:safe/summary` (no new tables). A Safe
+  with a live mandate for the pair can propose another. Fork run: proposal from the wizard → MM accepted via API →
+  owner #0 approved, owner #1 executed from `/issuer` → "Executed". The MM-side accept UI is step 7.
+- **MM flow (done):** Desk tabs Inbox / My mandates / Profile / Performance; `GET /v1/chains/:id/mms/:address/summary`.
+  Found while building it: snapshot `fees*` are the *total* spread fees, while the market maker is paid
+  `fees × mmFeeShareBps` (`MandateModule._claimable`); the issuer page had been showing total fees as MM pay. Summaries
+  now return `mmEarned*`. Radix tabs switch on mousedown, so scripted `.click()` does not change tabs (real clicks do).
+- **E2E (done):** `apps/indexer/test/lifecycle.test.ts` (4 tests). Found: `evm_increaseTime` does not move this Anvil's
+  clock (the scoring test's "10 minutes per round" never happened); fork tests now mine with explicit timestamps.
+- **RPC follow-up:** the "stuck Execute" on Base was not proven to be stale reads: the nonce jump I saw matched the
+  owner's own execution landing. 30 samples each from `mainnet.base.org` and the Tenderly gateway never went backwards;
+  both allow browser CORS. Instead of switching RPCs, the Safe panel now says why Execute is disabled.
+  `VITE_RPC_URL` still overrides the app's RPC.
+- **Anchor liquidity (done):** user chose the canonical v4 PositionManager (position NFT owned by the Safe), one batched
+  Safe transaction, full range. Batch = DELEGATECALL to Safe's canonical MultiSendCallOnly (`0x9641…02e2`, the only
+  delegatecall target the app allows; `safeOperation` throws otherwise): approve Permit2 for the caps → Permit2 allowance
+  to the PositionManager → `modifyLiquidities(MINT_POSITION, SETTLE_PAIR)` minting to the Safe → reset token approvals
+  to 0. Tick/liquidity math ported from v4 (matches MIN/MAX_SQRT_PRICE). Plans are keyed by `lp=<baseRaw>.<sqrtPriceX96>`
+  so co-owners sign identical calldata. Batches skip the from-the-Safe pre-check (an outside eth_call cannot reproduce
+  a delegatecall); found that an empty `checks` array skipped simulation entirely, so batches now use the default
+  simulation of the owner's own transaction. Fork: pool depth ≈ 99,999 / 39,999 after one approve + execute.
+- **Header:** the environment tag ("BASE · MOCK TOKENS") was removed at the user's request; mandate pages keep their
+  mock/synthetic disclosure.
+
+## 18. v2: one treasury policy, several strategies, market-aware risk (Segment 13)
+
+User asked (2026-11-07) to fix every loophole in their review and ship the full design. Nothing below has a built-in
+economic value: every threshold, cap and multiplier is set by the issuer (or proposed by the MM and accepted by the
+issuer). The only constants are technical bounds (array caps for gas, BPS ≤ 10,000).
+
+### Loophole → fix
+
+| # | Loophole (checked against v1 code) | v2 fix |
+|---|---|---|
+| 1 | MM moves a thin oracle through another wallet | Risk modes from oracle health: *trusted depth* (in-range liquidity that existed before the last add, see hook) within ±band; fills capped to a share of that depth |
+| 2 | Buybacks restore sell capacity (net counters only) | Policy keeps a **gross** sell counter per period that buybacks never reduce, beside the net counters |
+| 3 | Reship resets counters | Not present in v1 (counters keyed by mandate); v2 keys them by **policy**, which outlives strategies |
+| 4 | Several mandates each get their own caps | All strategies of a Safe's base token attach to **one live policy per (Safe, base)**; caps and counters are policy-wide |
+| 5 | Pool initialised at a fake price | Oracle is *untrusted* (strategies paused) until the pool is older than the issuer's minimum age **and** has the minimum trusted depth; the UI shows how much of that liquidity is the issuer's own |
+| 6 | Breaker halts trading on real moves | Three modes: Normal → Defensive (smaller fills, wider minimum spread, buybacks per issuer) → Paused only past the pause thresholds or when the oracle is unpriced/untrusted |
+| 7 | Aqua virtual balances not reserved | **Backing check** on every ship: the Safe's live strategies' current Aqua balances per token may not exceed its real balance |
+| 8 | Price check on average fill price blocks big trades | Split: the strategy's **pre-trade price** must be near the TWAP; the fill's **impact** beyond the spread is capped separately; size caps per mode |
+| 9 | (added) Unpriced oracle | Always Paused, never "defensive quoting blind" |
+
+### Model
+
+- **Policy** (issuer Safe; one live per (Safe, base); one quote token): release schedule (allotment, start, duration:
+  lifetime *net* sells), period length, gross sell cap, net sell cap, quote spend cap (every quote the treasury pays out,
+  i.e. all buys), sell floor, oracle rules (anchor, TWAP window, short window, band, minimum pool age, minimum trusted
+  depth, defensive/pause thresholds for spot move, volatility and depth), pre-trade deviation limit, impact limit, and
+  limits per mode (max fill size, max fill as a share of trusted depth, minimum spread, buybacks allowed).
+  Validation: defensive thresholds ≤ pause thresholds; defensive limits no looser than normal.
+- **Strategy** (attached to a policy, its own MM and Aqua strategy): kind **MarketMaking** (two-sided) or **Buyback**
+  (only buys base, only at or below its max buy price). Bounds: spread range, max shipped base/quote, MM fee share (fixed).
+  Params: spread, shipped base/quote. Defensive is a **mode**, not a strategy: the quoter applies it per fill
+  (minimum spread raised, smaller fills) with no dock/ship.
+- **Counters** live in the quoter per policy: period index, gross sold, net sold, quote spent; plus lifetime net sold.
+  Fees per strategy.
+- **Per fill**: identity → statuses (policy and strategy) → oracle health → mode → Paused reverts with its reason →
+  pre-trade price vs TWAP → impact → size caps → sells: floor, gross, net, release / buys: mode allows, buyback price,
+  quote spend cap → persist.
+
+### Oracle health (hook v2 + anchor v2)
+
+- Hook flags: afterInitialize + **beforeAddLiquidity** + beforeSwap (new address, so new pools; v1 pools keep v1).
+  Records the pool's initialisation time and, per add, the active liquidity *before* it. Within `settle` seconds of the
+  last add (a deploy-time hook parameter), **trusted liquidity = min(current, liquidity before the adds in that window)**,
+  so a just-in-time add cannot pass a depth check in the same block. Removals lower current liquidity at once.
+- **Depth** = base the active liquidity absorbs/supplies before the price moves ±band (v4 SqrtPriceMath over the trusted
+  liquidity, the smaller direction). Exact while liquidity is constant across the band (true for full-range positions);
+  otherwise an approximation of the in-range book. Not a dollar TVL.
+- **Volatility proxy** = distance between the short-window and long-window TWAPs. **Move** = spot vs long TWAP.
+
+### Off-chain (as built)
+
+- **Execution quality**: for each fill the indexer reads the policy's market oracle at the **parent block** and
+  stores its spot (`fills.reference_spot_x36`) and the fill's signed distance from it in bps (`fills.quality_bps`,
+  positive when it favoured the treasury). The score's price-quality component is 1 − volume-weighted |distance| ÷
+  the policy's quote tolerance. Differs from the plan above: it compares with the pre-fill *spot*, not a v4 Quoter
+  quote of the same size (so pool fee and the fill's own impact are not netted out), and fills by the MM's own
+  wallets are not yet excluded. Both are follow-ups.
+- **Proposals** sign the **strategy** terms only (EIP-712 `StrategyTerms`, domain version `2`). The policy is the
+  issuer's own, applies to every strategy and can be tightened at any time, so the MM sees it next to the proposal but
+  does not sign it. Differs from the plan ("policy terms by hash"); revisit if MMs need the policy pinned at
+  acceptance.
+- **Indexer**: `policies`, `strategies`, `policy_snapshots`, `strategy_snapshots`; migration `0006` rebuilds the
+  chain-derived tables and keeps v1 proposals as `proposals_v1`. Change feeds per policy and per strategy.
+- **Web**: every economic field starts empty (policy and strategy forms); edits start from the current onchain values.
+  Readiness of an anchor is judged against the policy's own TWAP window, never a built-in one.
+- **Base**: the v1 manifest is archived in `deployments/archive/8453-v1.json`; its contracts stay deployed and
+  readable. v2 is a new deployment (`DeployBase`), broadcast only with the user's confirmation.
+
+### Verified (2026-11-07)
+
+- Contracts: 141 tests (unit, integration on pinned Aqua/SwapVM source, mainnet-fork on canonical Safe/Aqua/SwapVM/v4),
+  including a hooked v4 pool driven through a pump, a crash, JIT liquidity and a young pool.
+- Fork scenario: 179 steps, 157 blocked inner calls, all receipt-backed (`replay/data/acts.json`).
+- SDK 35 unit + 4 fork; indexer 59 (ingest, API, SSE, simulations, scoring, proposals, full lifecycle); web 29
+  (pure term modules and fork flows); headless render of every page against the fork with no console errors.
+
+## 19. Infra
+
+- RPC: `https://eth.drpc.org` serves archive state at the pinned block. `ethereum-rpc.publicnode.com`
+  (403, needs token), `rpc.flashbots.net` (pruned), `1rpc.io` (discontinued) do not.
+- Fork block `26355000` (in `config/chains/1.json`). Foundry caches fork state after the first run (the first v4
+  fork run takes about 2 min).
+- Foundry does not read the repo-root `.env`; use `pnpm contracts:test` / `pnpm fork`.

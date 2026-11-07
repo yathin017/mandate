@@ -1,0 +1,47 @@
+{
+  "name": "mandate",
+  "private": true,
+  "description": "The market-maker deal as an onchain program (1inch Aqua + SwapVM + Uniswap v4).",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "contracts:build": "cd contracts && forge build",
+    "contracts:test": "set -a; [ -f .env ] && . ./.env; set +a; cd contracts && forge test",
+    "fork:platform": "set -a; [ -f .env ] && . ./.env; set +a; cd contracts && forge script script/DeployForkPlatform.s.sol:DeployForkPlatform --rpc-url \"${LOCAL_RPC_URL:-http://127.0.0.1:8547}\" --broadcast --unlocked --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --non-interactive",
+    "fork": "set -a; . ./.env; set +a; anvil --fork-url \"$MAINNET_RPC_URL\" --fork-block-number $(jq -r .forkBlock config/chains/1.json)",
+    "replay:run": "pnpm packages:build && node --env-file-if-exists=.env replay/export.ts",
+    "replay:serve": "pnpm packages:build && node --env-file-if-exists=.env replay/export.ts --keep-alive",
+    "replay:test": "pnpm packages:build && node --test replay/replay.test.ts",
+    "replay:verify": "node replay/verify.ts",
+    "generate": "pnpm contracts:build && cd contracts && RUST_LOG=error forge script script/GenerateSdkFixtures.s.sol:GenerateSdkFixtures --quiet && cd .. && node scripts/generate.ts",
+    "generate:check": "pnpm contracts:build && cd contracts && SDK_FIXTURES_CHECK=true RUST_LOG=error forge script script/GenerateSdkFixtures.s.sol:GenerateSdkFixtures --quiet && cd .. && node scripts/generate.ts --check",
+    "packages:build": "pnpm generate && tsc -b packages/chains packages/sdk",
+    "packages:compile": "tsc -b packages/chains packages/sdk",
+    "packages:test": "node --test packages/chains/test/*.test.ts packages/sdk/test/*.test.ts",
+    "sdk:test:fork": "pnpm packages:build && node --env-file-if-exists=.env replay/export.ts --test-sdk",
+    "packages:typecheck": "tsc -p packages/chains/tsconfig.test.json && tsc -p packages/sdk/tsconfig.test.json",
+    "indexer:test": "pnpm --filter @mandate/indexer run test",
+    "indexer:typecheck": "tsc -p apps/indexer/tsconfig.json",
+    "infra:up": "docker compose up -d --wait",
+    "infra:down": "docker compose down",
+    "indexer:migrate": "pnpm --filter @mandate/indexer run db:migrate",
+    "indexer:worker": "pnpm --filter @mandate/indexer run worker",
+    "indexer:server": "pnpm --filter @mandate/indexer run server",
+    "web:dev": "pnpm --filter @mandate/web run dev",
+    "web:build": "pnpm --filter @mandate/web run build",
+    "web:typecheck": "pnpm --filter @mandate/web run typecheck",
+    "web:test": "pnpm --filter @mandate/web run test",
+    "base:worker": "set -a; . ./.env; set +a; export INDEXER_CHAIN_ID=8453 INDEXER_RPC_URL=\"$BASE_INDEXER_RPC_URL\" DATABASE_URL=\"$BASE_DATABASE_URL\" INDEXER_CONFIRMATIONS=2 INDEXER_POLL_INTERVAL_MS=\"${BASE_INDEXER_POLL_INTERVAL_MS:-3000}\" INDEXER_SNAPSHOT_CONCURRENCY=\"${BASE_INDEXER_SNAPSHOT_CONCURRENCY:-2}\" INDEXER_LOG_RANGE=\"${BASE_INDEXER_LOG_RANGE:-500}\" API_PORT=8788 && cd apps/indexer && node src/worker.ts",
+    "base:server": "set -a; . ./.env; set +a; export INDEXER_CHAIN_ID=8453 INDEXER_RPC_URL=\"$BASE_INDEXER_RPC_URL\" DATABASE_URL=\"$BASE_DATABASE_URL\" INDEXER_CONFIRMATIONS=2 INDEXER_POLL_INTERVAL_MS=\"${BASE_INDEXER_POLL_INTERVAL_MS:-3000}\" INDEXER_SNAPSHOT_CONCURRENCY=\"${BASE_INDEXER_SNAPSHOT_CONCURRENCY:-2}\" INDEXER_LOG_RANGE=\"${BASE_INDEXER_LOG_RANGE:-500}\" API_PORT=8788 && cd apps/indexer && node src/server.ts",
+    "base:web": "VITE_CHAIN_ID=8453 MANDATE_API_PROXY=http://127.0.0.1:8788 pnpm --filter @mandate/web run dev",
+    "base:fills": "set -a; . ./.env; set +a; cd contracts && forge script script/live/LiveFills.s.sol --rpc-url \"$BASE_RPC_URL\"",
+    "sdk:test:base": "pnpm packages:build && set -a; [ -f .env ] && . ./.env; set +a; node --test packages/sdk/integration/base.test.ts"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
+  }
+}

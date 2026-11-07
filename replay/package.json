@@ -1,0 +1,12 @@
+{
+  "name": "@mandate/replay",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "export": "node --env-file-if-exists=../.env export.ts",
+    "test": "node --test replay.test.ts"
+  },
+  "dependencies": {
+    "@mandate/sdk": "workspace:*"
+  }
+}

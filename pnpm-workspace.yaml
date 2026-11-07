@@ -1,0 +1,5 @@
+# Workspace members. Chain-agnostic packages live in packages/, runnable services in apps/.
+packages:
+  - "packages/*"
+  - "apps/*"
+  - "replay"

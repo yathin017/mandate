@@ -1,0 +1,21 @@
+{
+  "anchor": "0x8ef6314610087E0bBCe13466a3cC1CdD678F990e",
+  "anchorLauncher": "0xC2B7b39584705668cE47ceF2ab9F930c07F8Aa53",
+  "base": "0xD88907F8278C3A3a90e5acCcaE87154cf5e3d516",
+  "chainId": 8453,
+  "deployBlock": 54111087,
+  "deployer": "0x54f75F0E0da2b43b3a6AC0a0e5c4f5Df6B73308e",
+  "environment": "live",
+  "hook": "0xE3498691dD0cB1e3870C5da43579d51e0B961880",
+  "liquidityRouter": "0xCD1AaC281763453C7dc8723f69383cffE38c9676",
+  "mm": "0xbDafcA30260a4a5550cAD1F11928b26f1B063126",
+  "module": "0x0BaB320f821Ef1684de6463C1506aEC0Ce24E615",
+  "owner2": "0x6a4fb4561051dD5B25619ab997152892008C7bF6",
+  "quote": "0x7a4088D9EA49Ee2ae48d55d1A0d6d9C47dC035BB",
+  "quoter": "0x9A8F9123752E31a8577380c356d3F44959E9f8c8",
+  "safe": "0xaD4e23999d17FAFa2E351640127197D12328565b",
+  "sourceChainId": 8453,
+  "swapRouter": "0x1e314E2C6288A85711Fb8d6B853B78c289c2313F",
+  "syntheticTokens": true,
+  "tokenFactory": "0x32feE1f159E80eE007B0d750d4eb47A513e40311"
+}

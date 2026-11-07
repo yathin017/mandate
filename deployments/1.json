@@ -1,0 +1,39 @@
+{
+  "anchor": "0x7E420F43836Ac21a6BE6c494018a7a62697c54A3",
+  "base": "0x24658bAab7FB72B862f3617Dec25914131D9299d",
+  "chainId": 31337,
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "environment": "local-mainnet-fork",
+  "forkBlock": 26355000,
+  "hook": "0xA33aEFd4A6886B118C1343089fcD765515849880",
+  "liquidityRouter": "0xb10D1449D9506472C1DD8099e52dcb4bACfef927",
+  "mm": "0xE99cf700591F3605ad4494E166D2f447F0F50a71",
+  "module": "0x032b31cfe4B1bF841A08C6d5e04Dbdf450E7B455",
+  "quote": "0x1112B060b6819098D694aDaee035340271011b5C",
+  "quoter": "0xe2fB3e9298C606E61526E0F121E674BBC2d32b7A",
+  "safe1": "0xf3E453DF40F8411035C5Aec8b0A9685ef4db533a",
+  "safe2": "0x76b33c78346AC94776B5d6d93C6f7E66A3377329",
+  "safe3": "0xFDE7cecb44d9841b02E6D30E77F58Eff120fa6c3",
+  "sourceChainId": 1,
+  "stateReader": "0x6eB5B33a28D21F222A29b509B988D5b750533d3b",
+  "swapRouter": "0x1f981e2858c5ca5788c8cC8f7f1331b80d61d81C",
+  "taker": "0x73F96647d4552f52AE07880cC61e5BEc2D14346B",
+  "traditionalAnchor": "0x9156C7041f6743bf4aAF9f2B5737d6DD5a59F6A4",
+  "traditionalMm": "0xEEaE62ce626c6A27b431A7f9670B7F209ab148F7",
+  "traditionalSafe": "0x05B251A300F20ad990ADAb84d10acffa950b4C99",
+  "policies": {
+    "act1": "0xd7e0f52d3b1d7569dc88461e39cc918b89a92e7035243177cef13049da1d1b15",
+    "act2": "0xcb2a81f19cffff168ec3ba99eeb9fbdf97bee2805e4386046c525d1918543e31",
+    "act3": "0x37a47e022063e55360baaf1cd68f6c902039208a1e2e2ac0a7ccb00e8b73312b"
+  },
+  "strategies": {
+    "act1": "0xee5e59e75e8f5b47104f2410984e894c5369514d88fcdef995361ff34bfe8e31",
+    "act2": "0xcd1e96bc3435dd0ba2a5e8c93b4832674675374c5821a7c96a2b305e29275a4a",
+    "act3": "0xf5a673a85788861ed4afa6f8e7f0ed535d8e596dd44c0c5da26ae5e9dc816ef7"
+  },
+  "forkBlockHash": "0x289c2cbba1a950342537bebceb566995949821882a05a247570ad91f36606a71",
+  "syntheticTokens": true,
+  "syntheticOracleHistory": true,
+  "lastBlock": 26355234,
+  "replay": "replay/data/acts.json"
+}

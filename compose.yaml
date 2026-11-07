@@ -1,0 +1,35 @@
+# Local infrastructure for the indexer. Postgres is the source of truth; Redis is a disposable cache.
+# Ports bind to loopback only. Credentials here are development defaults; override them via .env.
+name: mandate
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mandate}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mandate}
+      POSTGRES_DB: ${POSTGRES_DB:-mandate}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # Cache only: no snapshots or AOF, bounded memory with LRU eviction.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

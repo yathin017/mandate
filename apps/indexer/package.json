@@ -1,0 +1,30 @@
+{
+  "name": "@mandate/indexer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Indexes Mandate events into Postgres, caches reads in Redis and serves the public API.",
+  "scripts": {
+    "worker": "node --env-file-if-exists=../../.env src/worker.ts",
+    "server": "node --env-file-if-exists=../../.env src/server.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=../../.env src/db/migrate.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --env-file-if-exists=../../.env --test --test-concurrency=1 test/*.test.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.6",
+    "@hono/zod-validator": "0.9.1",
+    "@mandate/chains": "workspace:*",
+    "@mandate/sdk": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "hono": "4.13.16",
+    "ioredis": "6.0.0",
+    "postgres": "4.1.0",
+    "viem": "2.57.16",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.11"
+  }
+}
