@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Hex } from "@/components/status";
-import { demoChain, deployment, roleOf } from "@/wallet/config";
+import { AddressLink } from "@/components/AddressLink";
+import { demoChain, demoCoOwners, deployment, roleOf } from "@/wallet/config";
 import { hasCode } from "@/wallet/hasCode";
 import { TxStatus } from "@/wallet/TxStatus";
 import { useTx } from "@/wallet/useTx";
@@ -60,12 +60,15 @@ function ExistingSafe({ safe, check, onSelect }: { safe: string | null; check: S
       {safe && check.isSafe && (
         <div className="space-y-1 rounded-lg border p-3 text-sm">
           <p>
-            Safe <Hex value={safe} chars={6} /> · version {check.version} · threshold <b>{check.threshold}</b> of {check.owners.length}
+            <AddressLink label="Safe" value={safe} />
           </p>
-          <ul>
+          <p>
+            Version {check.version} · threshold <b>{check.threshold}</b> of {check.owners.length}
+          </p>
+          <ul className="space-y-1">
             {check.owners.map((o) => (
               <li key={o}>
-                <Hex value={o} /> {roleOf(o) && <span className="text-xs text-muted-foreground">{roleOf(o)}</span>}
+                <AddressLink label={roleOf(o) ?? "Owner"} value={o} />
               </li>
             ))}
           </ul>
@@ -92,9 +95,13 @@ function CreateSafe({ onCreated }: { onCreated: (safe: Address) => void }) {
   const [predicted, setPredicted] = useState<Address | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Default the first owner to the connected wallet.
+  // Default the first owner to the connected wallet; a demo owner also gets the other demo owners and a matching
+  // threshold, so the demo needs one click. Nobody else is ever suggested a co-owner.
   useEffect(() => {
-    if (address && owners[0] === "") setOwners([address, ...owners.slice(1)]);
+    if (!address || owners[0] !== "") return;
+    const co = owners.length === 1 ? demoCoOwners(address) : [];
+    setOwners([address, ...(co.length ? co : owners.slice(1))]);
+    if (co.length) setThreshold(1 + co.length);
   }, [address, owners]);
 
   const cleaned = owners.map((o) => o.trim()).filter(Boolean);
@@ -180,7 +187,7 @@ function CreateSafe({ onCreated }: { onCreated: (safe: Address) => void }) {
       {invalid && <p className="text-sm text-blocked">{invalid}</p>}
       {predicted && (
         <p className="text-sm">
-          Your Safe will be created at <Hex value={predicted} chars={6} /> (Safe 1.4.1, official factory).
+          Your Safe will be created at <AddressLink value={predicted} kind="id" /> (Safe 1.4.1, official factory).
         </p>
       )}
       {!address && <p className="text-xs text-muted-foreground">Connect a wallet to pay for the deployment.</p>}

@@ -7,10 +7,10 @@ import { usePublicClient } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Hex } from "@/components/status";
+import { AddressLink } from "@/components/AddressLink";
 import { formatDuration, formatPrice, formatUnits } from "@/lib/format";
 import type { TokenDisplay } from "@/lib/types";
-import { ANCHOR_LAUNCHER, demoChain } from "@/wallet/config";
+import { ANCHOR_LAUNCHER, demoChain, isLive } from "@/wallet/config";
 import { TxStatus } from "@/wallet/TxStatus";
 import { useTx } from "@/wallet/useTx";
 
@@ -75,7 +75,8 @@ export function AnchorStep({
 }) {
   const status = useAnchorStatus(base, quote, window);
   const tx = useTx();
-  const [price, setPrice] = useState("");
+  // A demo starting price so the pool launches in one click; the issuer types the market price for a real token.
+  const [price, setPrice] = useState("0.40");
 
   if (!ANCHOR_LAUNCHER) {
     return <p className="text-sm text-blocked">No AnchorLauncher is registered for {demoChain.name}. Set VITE_ANCHOR_LAUNCHER for a local fork.</p>;
@@ -124,7 +125,7 @@ export function AnchorStep({
           )}
           <p className="text-xs text-muted-foreground">
             One transaction (~7.5M gas, mostly reserving 300 price-history slots): creates the pool if needed and deploys
-            the anchor at <Hex value={s.predictedAnchor} />. Anyone can launch it; it holds no funds.
+            the anchor at <AddressLink value={s.predictedAnchor} kind="id" />. Anyone can launch it; it holds no funds.
           </p>
           <Button disabled={(needsPrice && !priceX36) || tx.busy} onClick={() => void launch()}>
             {s.poolExists ? "Deploy anchor for the existing pool" : "Create pool and anchor"}
@@ -155,8 +156,19 @@ function PoolFacts({ status, depth: d, baseToken, quoteToken }: { status: Anchor
   return (
     <div className="space-y-1 rounded-lg border p-3 text-sm">
       <p>
-        Pool <Hex value={status.poolId} chars={6} /> · price{" "}
+        <AddressLink
+          label="Pool ID"
+          value={status.poolId}
+          kind="id"
+          {...(isLive ? { href: `https://app.uniswap.org/explore/pools/base/${status.poolId}`, hrefLabel: "Open on Uniswap" } : {})}
+        />
+      </p>
+      <p>
+        Price{" "}
         <b className="tabular font-mono">{formatPrice(status.spotPriceX36, baseToken.decimals, quoteToken.decimals)}</b> {quoteToken.symbol} per {baseToken.symbol}
+      </p>
+      <p>
+        <AddressLink label="Hook" value={status.poolKey.hooks} />
       </p>
       {!status.anchor && (
         <p className="text-xs text-warning">
@@ -193,7 +205,10 @@ function Readiness({ status, anchor }: { status: AnchorStatus; anchor: Address }
   return (
     <div className="space-y-1 rounded-lg border p-3 text-sm">
       <p>
-        Oracle <Hex value={anchor} /> · price-history buffer {status.cardinalityNext} slots
+        <AddressLink label="Oracle" value={anchor} />
+      </p>
+      <p className="text-muted-foreground">
+        Price-history buffer {status.cardinalityNext} slots
       </p>
       <p className="text-muted-foreground">
         Pool age <span className="tabular font-mono">{age === null ? "…" : formatDuration(age)}</span> · price history{" "}

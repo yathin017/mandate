@@ -4,6 +4,7 @@ import type { Address } from "viem";
 
 import { Button } from "@/components/ui/button";
 import type { MarketSnapshot } from "@/issuer/explain";
+import { AddressLink } from "@/components/AddressLink";
 import { PolicyForm } from "@/issuer/PolicyForm";
 import { decodePolicy, encodePolicy } from "@/issuer/policy";
 import type { TokenRef } from "@/issuer/terms";
@@ -51,6 +52,9 @@ export function PolicyStep({
     return (
       <div className="space-y-2 text-sm">
         <p className="text-filled">This Safe has a {policy.status === 2 ? "paused " : ""}treasury policy for {base.symbol}.</p>
+        <p>
+          <AddressLink label="Policy" value={policy.id} kind="id" href={`/policies/${policy.id}`} hrefLabel="Open the policy page" />
+        </p>
         {otherQuote && (
           <p className="text-warning">
             Its policy uses another quote token: one Safe has one policy per token. Revoke it in the issuer console to

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AddressLink } from "@/components/AddressLink";
 import { Hex } from "@/components/status";
 import { formatUnits, parseUnits } from "@/lib/format";
 import { demoChain, deployment, TOKEN_FACTORY } from "@/wallet/config";
@@ -64,7 +65,7 @@ export function TokenStep({
         value={quote}
         onChange={(v) => onChange("quote", v)}
         options={quoteOptions()}
-        mockDefaults={{ name: "Demo Dollar", symbol: "dUSD", decimals: 6, supply: "400000" }}
+        mockDefaults={{ name: "Demo Dollar", symbol: "dUSD", decimals: 6, supply: "1000000" }}
       />
       {same && <p className="text-sm text-blocked">Base and quote must be different tokens.</p>}
     </div>
@@ -147,10 +148,13 @@ function TokenField({
       {info?.ok && (
         <div className="space-y-1 text-sm">
           <p className="flex flex-wrap items-center gap-2">
-            <b>{info.symbol}</b> · {info.name} · {info.decimals} decimals · <Hex value={info.address} />
+            <b>{info.symbol}</b> · {info.name} · {info.decimals} decimals
             {check.label?.canonical && <Badge className="bg-filled text-filled-foreground">canonical {check.label.canonical}</Badge>}
             {info.address.toLowerCase() === deployment.quote.toLowerCase() && <Badge variant="outline">demo</Badge>}
             {launched && <Badge variant="outline">launched on Mandate</Badge>}
+          </p>
+          <p>
+            <AddressLink value={info.address} kind="token" />
           </p>
           {check.label?.warning && <p className="text-sm text-blocked">{check.label.warning}</p>}
           {check.balance !== undefined && (
@@ -179,10 +183,11 @@ function useFactoryToken(token: Address | undefined): boolean {
 
 /**
  * Launch through the TokenFactory: a fixed-supply 18-decimal ERC-20 with no owner or mint, the whole supply sent to
- * the Safe in the same transaction. The address is predicted for the connected wallet before signing.
+ * the Safe in the same transaction. The address is predicted for the connected wallet before signing. Starts from
+ * this event's demo token, so a presenter can launch in one click; every field stays editable.
  */
 function LaunchTokenForm({ recipient, onCreated }: { recipient: Address; onCreated: (token: Address) => void }) {
-  const [form, setForm] = useState({ name: "", symbol: "", supply: "1000000000" });
+  const [form, setForm] = useState({ name: "ETHGlobalMumbai", symbol: "EGM", supply: "10000000" });
   // One salt per form: retrying the same launch after a failure targets the same address.
   const salt = useMemo(() => randomLaunchSalt(), []);
   const { address: creator } = useConnection();

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import type { Address } from "viem";
 
-import { Hex } from "@/components/status";
+import { AddressLink } from "@/components/AddressLink";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProposalList } from "@/issuer/ProposalList";
@@ -61,13 +61,19 @@ export function StrategyStep({
       <div className="space-y-2 text-sm">
         <p className="text-filled">This policy runs {live.length === 1 ? "a strategy" : `${live.length} strategies`}.</p>
         {live.map((s) => (
-          <p key={s.id}>
-            <Link to={`/strategies/${s.id}`} className="font-mono underline underline-offset-4">
-              {s.id.slice(0, 10)}…
-            </Link>{" "}
-            · {s.kind === 1 ? "buyback" : "market making"} · market maker <Hex value={s.mm} />{" "}
-            {s.status === 2 && <span className="text-muted-foreground">(paused)</span>}
-          </p>
+          <div key={s.id} className="space-y-1 rounded-lg border p-3">
+            <p>
+              <AddressLink label="Strategy" value={s.id} kind="id" href={`/strategies/${s.id}`} hrefLabel="Open the strategy page" />
+            </p>
+            <p>
+              <AddressLink label="Market maker" value={s.mm} />
+            </p>
+            <p className="text-muted-foreground">
+              {s.kind === 1 ? "Buyback" : "Market making"}
+              {s.status === 2 && " · paused"} ·{" "}
+              <Link to={`/strategies/${s.id}`} className="underline underline-offset-4">open the strategy page</Link>
+            </p>
+          </div>
         ))}
         <p className="text-muted-foreground">
           Market makers run them from the <Link to="/desk" className="underline underline-offset-4">desk</Link>; the owners
