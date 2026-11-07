@@ -19,7 +19,7 @@ import { Hex, RiskBadge, StatusPill } from "@/components/status";
 import { BoundedSlider } from "@/desk/BoundedSlider";
 import { useBacking } from "@/issuer/useBacking";
 import { api } from "@/lib/api";
-import { formatBps, formatUnits, parseUnits } from "@/lib/format";
+import { formatBps, formatPrice, formatUnits, parseUnits } from "@/lib/format";
 import { useStrategy } from "@/lib/hooks";
 import type { StrategyListItem, StrategySnapshot, TokenDisplay } from "@/lib/types";
 import { demoChain, deployment } from "@/wallet/config";
@@ -119,6 +119,24 @@ function Desk({ item }: { item: StrategyListItem }) {
   const [claimBase, claimQuote] = (claimable.data ?? [0n, 0n]) as readonly [bigint, bigint];
   const modeMin = policy && policySnapshot ? Number((policySnapshot.riskMode === 1 ? policy.config.defensive : policy.config.normal).minSpreadBps) : 0;
 
+  // Rebalance: the order prices along its own balances, so trades move its price away from the market. Re-shipping
+  // with quote inventory matched to the Uniswap pool's price at the same token inventory brings it back, kept inside
+  // the issuer's caps and what the Safe can back (the token side shrinks if the quote side would not fit).
+  const spotX36 = policySnapshot?.spotX36 ? BigInt(policySnapshot.spotX36) : 0n;
+  const rebalanced = useMemo((): StrategyParams | null => {
+    if (spotX36 === 0n || !canBack) return null;
+    const minOf = (...v: (bigint | undefined)[]) => v.filter((x): x is bigint => x !== undefined).reduce((a, x) => (x < a ? x : a));
+    const maxBase = minOf(BigInt(b.maxShippedBase), canBack.base);
+    const maxQuote = minOf(BigInt(b.maxShippedQuote), canBack.quote);
+    let shipBase = minOf(BigInt(p.shippedBase), maxBase);
+    let shipQuote = (shipBase * spotX36) / 10n ** 36n;
+    if (shipQuote > maxQuote) {
+      shipQuote = maxQuote;
+      shipBase = (shipQuote * 10n ** 36n) / spotX36;
+    }
+    return shipBase > 0n && shipQuote > 0n ? { spreadBps: spread, shippedBase: shipBase, shippedQuote: shipQuote } : null;
+  }, [spotX36, canBack, b.maxShippedBase, b.maxShippedQuote, p.shippedBase, spread]);
+
   const changes = useMemo(() => {
     if (!next) return [];
     const rows: [string, string, string][] = [];
@@ -189,9 +207,31 @@ function Desk({ item }: { item: StrategyListItem }) {
                 </tbody>
               </table>
             )}
-            <Button disabled={!next || changes.length === 0 || revoked || reship.busy} onClick={() => next && void reship.run({ send: buildReshipCall(deployment, id, next), context })}>
-              Re-ship strategy
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={!next || changes.length === 0 || revoked || reship.busy} onClick={() => next && void reship.run({ send: buildReshipCall(deployment, id, next), context })}>
+                Re-ship strategy
+              </Button>
+              <Button
+                variant="outline"
+                disabled={!rebalanced || revoked || reship.busy}
+                title="Re-ship at the Uniswap pool's price, within the issuer's caps and what the Safe can back"
+                onClick={() => {
+                  if (!rebalanced) return;
+                  setShippedBase(formatUnits(rebalanced.shippedBase, base.decimals, base.decimals).replaceAll(",", ""));
+                  setShippedQuote(formatUnits(rebalanced.shippedQuote, quote.decimals, quote.decimals).replaceAll(",", ""));
+                  void reship.run({ send: buildReshipCall(deployment, id, rebalanced), context });
+                }}
+              >
+                Rebalance to pool price
+              </Button>
+            </div>
+            {rebalanced && (
+              <p className="text-xs text-muted-foreground">
+                Rebalance ships {formatUnits(rebalanced.shippedBase, base.decimals, 0)} {base.symbol} and {formatUnits(rebalanced.shippedQuote, quote.decimals, 2)}{" "}
+                {quote.symbol}: the pool's {formatPrice(spotX36, base.decimals, quote.decimals, 4)} {quote.symbol} per {base.symbol}, at your current spread. The
+                treasury's limits carry over.
+              </p>
+            )}
             <TxStatus state={reship.state} />
           </CardContent>
         </Card>
