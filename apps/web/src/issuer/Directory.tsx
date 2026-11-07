@@ -7,6 +7,7 @@ import { getAddress, isAddress, type Address } from "viem";
 import { useConnection, useReadContracts } from "wagmi";
 
 import { AddressLink } from "@/components/AddressLink";
+import { useInsights } from "@/components/LiquidityReport";
 import { RiskBadge, StatusPill } from "@/components/status";
 import { PolicySheet } from "@/components/TermSheet";
 import { Badge } from "@/components/ui/badge";
@@ -330,6 +331,10 @@ function TokenRow({
 
         {policy && (
           <>
+            <dt className="text-muted-foreground">Liquidity</dt>
+            <dd>
+              <ReportSummary policyId={policy.policyId} base={baseToken} quote={quoteToken} />
+            </dd>
             <dt className="text-muted-foreground">Strategies</dt>
             <dd className="space-y-2">
               {policy.strategies.length === 0 && <span className="text-muted-foreground">None yet.</span>}
@@ -368,3 +373,22 @@ function TokenRow({
     </div>
   );
 }
+
+/** One line from the policy's liquidity report, linking to the full report on the policy page. */
+function ReportSummary({ policyId, base, quote }: { policyId: string; base: TokenDisplay; quote: TokenDisplay }) {
+  const insights = useInsights({ kind: "policy", id: policyId });
+  const t = insights.data?.data.totals;
+  if (!t) return <span className="text-muted-foreground">{insights.isPending ? "Reading…" : "No report yet"}</span>;
+  const refused = (insights.data?.data.refusals ?? []).reduce((n, r) => n + r.count, 0);
+  return (
+    <span>
+      {t.trades} trades by {t.unique_takers} {t.unique_takers === 1 ? "trader" : "traders"} · {formatUnits(t.base_sold, base.decimals, 0)} {base.symbol} to
+      buyers, {formatUnits(t.base_bought_back, base.decimals, 0)} bought back · MM earned {formatUnits(t.mm_fees_quote, quote.decimals, 2)} {quote.symbol} ·{" "}
+      {refused} refused ·{" "}
+      <Link to={`/policies/${policyId}`} className="underline underline-offset-4">
+        full report
+      </Link>
+    </span>
+  );
+}
+
